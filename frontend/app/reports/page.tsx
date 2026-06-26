@@ -3,6 +3,7 @@
 import { useState } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
+import { useCompany } from "@/lib/company-context";
 import { FileText, Search } from "lucide-react";
 
 interface TrialBalanceAccount {
@@ -33,7 +34,7 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
 };
 
 export default function ReportsPage() {
-  const [companyId, setCompanyId] = useState("");
+  const { companyId } = useCompany();
   const [asOf, setAsOf] = useState(new Date().toISOString().split("T")[0]);
   const [reportType, setReportType] = useState<"trial-balance" | "monthly">("trial-balance");
   const [year, setYear] = useState(new Date().getFullYear().toString());
@@ -45,7 +46,7 @@ export default function ReportsPage() {
 
   const handleFetch = async () => {
     if (!companyId) {
-      setError("会社IDを入力してください");
+      setError("サイドバーで会社IDを入力してください");
       return;
     }
     setLoading(true);
@@ -105,13 +106,9 @@ export default function ReportsPage() {
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="mb-1 block text-sm font-medium">会社ID</label>
-              <input
-                type="text"
-                value={companyId}
-                onChange={(e) => setCompanyId(e.target.value)}
-                placeholder="UUID"
-                className="w-full rounded-md border px-3 py-2 text-sm"
-              />
+              <div className="w-full rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                {companyId || "未設定"}
+              </div>
             </div>
             {reportType === "trial-balance" ? (
               <div>
@@ -152,7 +149,7 @@ export default function ReportsPage() {
 
           <button
             onClick={handleFetch}
-            disabled={loading}
+            disabled={loading || !companyId}
             className="mt-4 flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
             <Search className="h-4 w-4" />

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost } from "@/lib/api";
+import { useCompany } from "@/lib/company-context";
 import { Save, Send, Plus } from "lucide-react";
 
 interface Account {
@@ -24,7 +25,7 @@ interface JournalLine {
 }
 
 export default function JournalEntryPage() {
-  const [companyId, setCompanyId] = useState("");
+  const { companyId } = useCompany();
   const [transactionDate, setTransactionDate] = useState("");
   const [summary, setSummary] = useState("");
   const [lines, setLines] = useState<JournalLine[]>([
@@ -134,13 +135,9 @@ export default function JournalEntryPage() {
         <div className="mb-4 flex gap-4">
           <div className="flex-1">
             <label className="mb-1 block text-sm font-medium">会社ID</label>
-            <input
-              type="text"
-              value={companyId}
-              onChange={(e) => setCompanyId(e.target.value)}
-              placeholder="UUID"
-              className="w-full rounded-md border px-3 py-2"
-            />
+            <div className="w-full rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+              {companyId || "サイドバーで設定"}
+            </div>
           </div>
           <div className="flex-1">
             <label className="mb-1 block text-sm font-medium">科目マスタ</label>

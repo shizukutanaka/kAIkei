@@ -4,6 +4,7 @@ import { useState } from "react";
 import { BookOpen, LayoutDashboard, FileText, Settings, Receipt, Users, Building2, Calculator, Sparkles, Globe, FileCheck, List, Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import CompanySelector from "@/components/company-selector";
 
 const navItems = [
   { label: "ダッシュボード", href: "/dashboard", icon: LayoutDashboard },
@@ -70,6 +71,7 @@ export default function Sidebar() {
           <Building2 className="h-6 w-6 text-primary" />
           <span className="text-lg font-bold">kAIkei</span>
         </div>
+        <CompanySelector />
         {navContent}
       </aside>
 

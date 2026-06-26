@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
+import { useCompany } from "@/lib/company-context";
 import { Receipt, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Journal {
@@ -40,7 +41,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function JournalsListPage() {
-  const [companyId, setCompanyId] = useState("");
+  const { companyId } = useCompany();
   const [data, setData] = useState<JournalList | null>(null);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -48,7 +49,7 @@ export default function JournalsListPage() {
 
   const fetchJournals = async () => {
     if (!companyId) {
-      setError("会社IDを入力してください");
+      setError("サイドバーで会社IDを入力してください");
       return;
     }
     setLoading(true);
@@ -69,8 +70,13 @@ export default function JournalsListPage() {
   };
 
   useEffect(() => {
+    setData(null);
+    setPage(1);
+  }, [companyId]);
+
+  useEffect(() => {
     if (companyId) fetchJournals();
-  }, [page]);
+  }, [companyId, page]);
 
   const totalPages = data ? Math.ceil(data.total / data.page_size) : 0;
 
@@ -81,21 +87,15 @@ export default function JournalsListPage() {
           <h1 className="text-2xl font-bold">仕訳一覧</h1>
         </div>
 
-        <div className="mb-6 flex items-center gap-4 rounded-lg border bg-card p-4">
-          <div className="flex-1">
-            <label className="mb-1 block text-sm font-medium">会社ID</label>
-            <input
-              type="text"
-              value={companyId}
-              onChange={(e) => setCompanyId(e.target.value)}
-              placeholder="UUID"
-              className="w-full rounded-md border px-3 py-2 text-sm"
-            />
+        <div className="mb-6 flex items-center justify-between rounded-lg border bg-card p-4">
+          <div>
+            <p className="text-sm font-medium">会社ID</p>
+            <p className="text-sm text-muted-foreground">{companyId || "未設定"}</p>
           </div>
           <button
             onClick={() => { setPage(1); fetchJournals(); }}
-            disabled={loading}
-            className="mt-5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+            disabled={loading || !companyId}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
             {loading ? "取得中..." : "検索"}
           </button>

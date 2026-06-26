@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost } from "@/lib/api";
+import { useCompany } from "@/lib/company-context";
 import { BookOpen, Plus, Search } from "lucide-react";
 
 interface Account {
@@ -24,6 +25,7 @@ const ACCOUNT_TYPES: Record<string, string> = {
 };
 
 export default function MastersPage() {
+  const { companyId } = useCompany();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -36,17 +38,17 @@ export default function MastersPage() {
     debit_credit: "debit",
   });
 
-  const companyId = typeof window !== "undefined" ? localStorage.getItem("company_id") || "" : "";
-
   useEffect(() => {
     fetchAccounts();
-  }, []);
+  }, [companyId]);
 
   const fetchAccounts = async () => {
     if (!companyId) {
       setLoading(false);
+      setAccounts([]);
       return;
     }
+    setLoading(true);
     try {
       const data = await apiGet<Account[]>("/masters", { company_id: companyId });
       setAccounts(data);

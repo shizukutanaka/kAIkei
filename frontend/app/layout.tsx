@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import AuthGuard from "@/components/auth-guard";
+import { CompanyProvider } from "@/lib/company-context";
 
 export const metadata: Metadata = {
   title: "kAIkei — 統合バックオフィスプラットフォーム",
@@ -15,7 +16,9 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body className="min-h-screen bg-background antialiased">
-        <AuthGuard>{children}</AuthGuard>
+        <AuthGuard>
+          <CompanyProvider>{children}</CompanyProvider>
+        </AuthGuard>
       </body>
     </html>
   );

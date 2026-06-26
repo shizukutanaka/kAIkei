@@ -3,6 +3,7 @@
 import { useState } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
+import { useCompany } from "@/lib/company-context";
 import { Calculator, Plus, TrendingDown, Trash2 } from "lucide-react";
 
 interface FixedAsset {
@@ -31,7 +32,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default function FixedAssetsPage() {
-  const [companyId, setCompanyId] = useState("");
+  const { companyId } = useCompany();
   const [assets, setAssets] = useState<FixedAsset[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -49,7 +50,7 @@ export default function FixedAssetsPage() {
 
   const fetchAssets = async () => {
     if (!companyId) {
-      setError("会社IDを入力してください");
+      setError("サイドバーで会社IDを入力してください");
       return;
     }
     setLoading(true);
@@ -133,21 +134,15 @@ export default function FixedAssetsPage() {
           </button>
         </div>
 
-        <div className="mb-4 flex items-center gap-4 rounded-lg border bg-card p-4">
-          <div className="flex-1">
-            <label className="mb-1 block text-sm font-medium">会社ID</label>
-            <input
-              type="text"
-              value={companyId}
-              onChange={(e) => setCompanyId(e.target.value)}
-              placeholder="UUID"
-              className="w-full rounded-md border px-3 py-2 text-sm"
-            />
+        <div className="mb-4 flex items-center justify-between rounded-lg border bg-card p-4">
+          <div>
+            <p className="text-sm font-medium">会社ID</p>
+            <p className="text-sm text-muted-foreground">{companyId || "未設定"}</p>
           </div>
           <button
             onClick={fetchAssets}
-            disabled={loading}
-            className="mt-5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+            disabled={loading || !companyId}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
             {loading ? "取得中..." : "検索"}
           </button>

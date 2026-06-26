@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiPost, apiPostMultipart } from "@/lib/api";
+import { useCompany } from "@/lib/company-context";
 import { Upload, FileText, Sparkles, AlertCircle } from "lucide-react";
 
 interface InferenceResult {
@@ -40,8 +41,8 @@ interface InferenceResult {
 }
 
 export default function AiInferencePage() {
+  const { companyId } = useCompany();
   const [file, setFile] = useState<File | null>(null);
-  const [companyId, setCompanyId] = useState("");
   const [transactionDate, setTransactionDate] = useState("");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
@@ -110,13 +111,9 @@ export default function AiInferencePage() {
           <div className="mb-4 grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-sm font-medium">会社ID</label>
-              <input
-                type="text"
-                value={companyId}
-                onChange={(e) => setCompanyId(e.target.value)}
-                placeholder="UUID"
-                className="w-full rounded-md border px-3 py-2 text-sm"
-              />
+              <div className="w-full rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                {companyId || "サイドバーで設定"}
+              </div>
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">取引日</label>
