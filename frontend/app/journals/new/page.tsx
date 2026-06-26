@@ -1,8 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Sidebar from "@/components/sidebar";
 import { Save, Send, Plus } from "lucide-react";
+
+interface Account {
+  account_id: string;
+  account_code: string;
+  account_name: string;
+  account_type: string;
+  debit_credit: string;
+}
 
 interface JournalLine {
   debit_credit: "debit" | "credit";
@@ -22,9 +30,28 @@ export default function JournalEntryPage() {
     { debit_credit: "debit", account_code: "", account_name: "", account_id: "", amount: "", tax_amount: "0", description: "" },
     { debit_credit: "credit", account_code: "", account_name: "", account_id: "", amount: "", tax_amount: "0", description: "" },
   ]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState("");
+
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
+
+  useEffect(() => {
+    if (!companyId) {
+      setAccounts([]);
+      return;
+    }
+    setAccountsLoading(true);
+    fetch(`http://localhost:8000/api/v1/masters?company_id=${companyId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setAccounts(data || []))
+      .catch(() => setAccounts([]))
+      .finally(() => setAccountsLoading(false));
+  }, [companyId, token]);
 
   const debitTotal = lines
     .filter((l) => l.debit_credit === "debit")
@@ -36,6 +63,19 @@ export default function JournalEntryPage() {
 
   const addLine = () => {
     setLines([...lines, { debit_credit: "debit", account_code: "", account_name: "", account_id: "", amount: "", tax_amount: "0", description: "" }]);
+  };
+
+  const selectAccount = (index: number, accountId: string) => {
+    const account = accounts.find((a) => a.account_id === accountId);
+    if (!account) return;
+    const updated = [...lines];
+    updated[index] = {
+      ...updated[index],
+      account_id: account.account_id,
+      account_code: account.account_code,
+      account_name: account.account_name,
+    };
+    setLines(updated);
   };
 
   const updateLine = (index: number, field: keyof JournalLine, value: string) => {
@@ -124,6 +164,12 @@ export default function JournalEntryPage() {
             />
           </div>
           <div className="flex-1">
+            <label className="mb-1 block text-sm font-medium">科目マスタ</label>
+            <div className="text-sm text-muted-foreground">
+              {accountsLoading ? "読み込み中..." : accounts.length > 0 ? `${accounts.length}件の科目` : "会社IDを入力して科目を読み込み"}
+            </div>
+          </div>
+          <div className="flex-1">
             <label className="mb-1 block text-sm font-medium">取引日</label>
             <input
               type="date"
@@ -149,6 +195,7 @@ export default function JournalEntryPage() {
             <tr className="border-b bg-muted/50">
               <th className="p-2 text-left text-sm">行</th>
               <th className="p-2 text-left text-sm">借貸</th>
+              <th className="p-2 text-left text-sm">科目</th>
               <th className="p-2 text-left text-sm">科目コード</th>
               <th className="p-2 text-left text-sm">科目名</th>
               <th className="p-2 text-right text-sm">金額</th>
@@ -172,11 +219,26 @@ export default function JournalEntryPage() {
                   </select>
                 </td>
                 <td className="p-2">
+                  <select
+                    value={line.account_id}
+                    onChange={(e) => selectAccount(i, e.target.value)}
+                    className="w-48 rounded border px-2 py-1 text-sm"
+                  >
+                    <option value="">科目を選択</option>
+                    {accounts.map((a) => (
+                      <option key={a.account_id} value={a.account_id}>
+                        {a.account_code} - {a.account_name}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td className="p-2">
                   <input
                     type="text"
                     value={line.account_code}
                     onChange={(e) => updateLine(i, "account_code", e.target.value)}
                     className="w-24 rounded border px-2 py-1 text-sm"
+                    readOnly={!!line.account_id}
                   />
                 </td>
                 <td className="p-2">
@@ -185,6 +247,7 @@ export default function JournalEntryPage() {
                     value={line.account_name}
                     onChange={(e) => updateLine(i, "account_name", e.target.value)}
                     className="w-32 rounded border px-2 py-1 text-sm"
+                    readOnly={!!line.account_id}
                   />
                 </td>
                 <td className="p-2">
