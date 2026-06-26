@@ -45,7 +45,7 @@ class AnomalyDetectionRequest(BaseModel):
 @router.post("/infer-journal")
 async def infer_journal(
     payload: InferenceRequestSchema,
-    current_user: CurrentUser = Depends(require_permission(Permission.AI_INFERENCE)),
+    current_user: CurrentUser = Depends(require_permission(Permission.AI_INFER)),
 ) -> dict:
     """AI仕訳推論: 自然言語の取引説明から仕訳を推論する。"""
     from app.services.ai.base_provider import InferenceRequest
@@ -68,7 +68,7 @@ async def infer_journal(
 @router.post("/infer-journal-enhanced")
 async def infer_journal_enhanced(
     payload: EnhancedInferenceRequestSchema,
-    current_user: CurrentUser = Depends(require_permission(Permission.AI_INFERENCE)),
+    current_user: CurrentUser = Depends(require_permission(Permission.AI_INFER)),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """拡張AI仕訳推論: 過去仕訳を参照して推論精度を向上させる。
@@ -107,7 +107,7 @@ async def infer_from_pdf(
     amount: float = 0,
     description: str = "",
     file: UploadFile = File(...),
-    current_user: CurrentUser = Depends(require_permission(Permission.AI_INFERENCE)),
+    current_user: CurrentUser = Depends(require_permission(Permission.AI_INFER)),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """PDFファイルをアップロードして仕訳推論を行う。
@@ -176,7 +176,7 @@ async def infer_from_pdf(
 @router.post("/predict-tax")
 async def predict_tax(
     payload: TaxPredictionRequest,
-    current_user: CurrentUser = Depends(require_permission(Permission.AI_INFERENCE)),
+    current_user: CurrentUser = Depends(require_permission(Permission.AI_INFER)),
 ) -> dict:
     """AI税務予測: 取引の消費税区分を予測する。"""
     result = await ai_engine.predict_tax(payload.description, payload.amount)
@@ -190,7 +190,7 @@ async def predict_tax(
 @router.post("/detect-anomaly")
 async def detect_anomaly(
     payload: AnomalyDetectionRequest,
-    current_user: CurrentUser = Depends(require_permission(Permission.AI_INFERENCE)),
+    current_user: CurrentUser = Depends(require_permission(Permission.AI_INFER)),
 ) -> dict:
     """AI異常検知: 仕訳データの異常を検出する。"""
     result = await ai_engine.detect_anomaly(payload.journal_data)
@@ -203,7 +203,7 @@ async def detect_anomaly(
 
 @router.get("/status")
 async def get_ai_status(
-    current_user: CurrentUser = Depends(require_permission(Permission.AI_INFERENCE)),
+    current_user: CurrentUser = Depends(require_permission(Permission.AI_INFER)),
 ) -> dict:
     """AI プロバイダー状態・タスクルーティング設定を取得する。"""
     return ai_engine.get_status()
@@ -211,7 +211,7 @@ async def get_ai_status(
 
 @router.get("/models")
 async def list_local_models(
-    current_user: CurrentUser = Depends(require_permission(Permission.AI_INFERENCE)),
+    current_user: CurrentUser = Depends(require_permission(Permission.AI_INFER)),
 ) -> dict:
     """ローカルLLMで利用可能なモデル一覧を取得する。"""
     from app.services.ai.local_llm_provider import LocalLLMProvider

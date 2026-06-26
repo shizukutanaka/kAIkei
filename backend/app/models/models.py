@@ -207,6 +207,48 @@ class ApprovalLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
+class FixedAsset(Base):
+    """固定資産。"""
+    __tablename__ = "fixed_assets"
+
+    asset_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    asset_code: Mapped[str] = mapped_column(String(50), nullable=False)
+    asset_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    asset_category: Mapped[str] = mapped_column(String(50), nullable=False)
+    acquisition_date: Mapped[date] = mapped_column(Date, nullable=False)
+    acquisition_cost: Mapped[Decimal] = mapped_column(Numeric(15, 4), nullable=False)
+    useful_life_months: Mapped[int] = mapped_column(Integer, nullable=False)
+    depreciation_method: Mapped[str] = mapped_column(String(20), default="straight_line", nullable=False)
+    salvage_value: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    accumulated_depreciation: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    account_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("accounts.account_id"))
+    is_disposed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    disposal_date: Mapped[date | None] = mapped_column(Date)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    company = relationship("Company")
+    depreciation_records = relationship("DepreciationRecord", back_populates="asset")
+
+
+class DepreciationRecord(Base):
+    """減価償却レコード。"""
+    __tablename__ = "depreciation_records"
+
+    record_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    asset_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("fixed_assets.asset_id"), nullable=False)
+    fiscal_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    month: Mapped[int] = mapped_column(Integer, nullable=False)
+    depreciation_amount: Mapped[Decimal] = mapped_column(Numeric(15, 4), nullable=False)
+    accumulated_amount: Mapped[Decimal] = mapped_column(Numeric(15, 4), nullable=False)
+    journal_header_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("journal_headers.journal_header_id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    asset = relationship("FixedAsset", back_populates="depreciation_records")
+
+
 class IdempotencyRecord(Base):
     """冪等性保証用レコード。"""
     __tablename__ = "idempotency_records"

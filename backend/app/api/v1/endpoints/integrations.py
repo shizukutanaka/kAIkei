@@ -18,7 +18,7 @@ class CsvImportResponse(BaseModel):
 
 @router.get("/supported-software")
 async def get_supported_software(
-    current_user: CurrentUser = Depends(require_permission(Permission.INTEGRATION_USE)),
+    current_user: CurrentUser = Depends(require_permission(Permission.INTEGRATION_IMPORT)),
 ) -> dict:
     """対応ソフトウェア一覧を取得する。"""
     return {"items": list_supported_software()}
@@ -29,7 +29,7 @@ async def import_csv(
     software_code: str,
     file: UploadFile = File(...),
     dry_run: bool = Query(True, description="true=シミュレーションのみ"),
-    current_user: CurrentUser = Depends(require_permission(Permission.INTEGRATION_USE)),
+    current_user: CurrentUser = Depends(require_permission(Permission.INTEGRATION_IMPORT)),
 ) -> dict:
     """CSVファイルをアップロードして取り込み（Dry-run対応）。"""
     adapter = get_adapter(software_code)

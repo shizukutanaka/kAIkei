@@ -148,3 +148,35 @@ class JournalListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class FixedAssetCreate(BaseModel):
+    company_id: UUID
+    asset_code: str
+    asset_name: str
+    asset_category: str
+    acquisition_date: date
+    acquisition_cost: Decimal = Field(gt=0)
+    useful_life_months: int = Field(gt=0)
+    depreciation_method: str = "straight_line"
+    salvage_value: Decimal = Field(default=Decimal("0"), ge=0)
+    account_id: UUID | None = None
+
+
+class FixedAssetResponse(BaseModel):
+    asset_id: UUID
+    company_id: UUID
+    asset_code: str
+    asset_name: str
+    asset_category: str
+    acquisition_date: date
+    acquisition_cost: Decimal
+    useful_life_months: int
+    depreciation_method: str
+    salvage_value: Decimal
+    accumulated_depreciation: Decimal
+    is_disposed: bool
+    disposal_date: date | None
+    net_book_value: Decimal
+
+    model_config = {"from_attributes": True}
