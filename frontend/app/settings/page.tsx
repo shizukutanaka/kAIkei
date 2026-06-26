@@ -20,17 +20,25 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const PERMISSION_LABELS: Record<string, string> = {
-  journal_create: "仕訳作成",
-  journal_read: "仕訳閲覧",
-  journal_approve: "仕訳承認",
-  journal_post: "仕訳転記",
-  master_create: "マスタ作成",
-  master_read: "マスタ閲覧",
-  report_read: "帳票閲覧",
-  ai_inference: "AI推論",
-  knowledge_search: "ナレッジ検索",
-  integration_use: "外部連携",
-  user_manage: "ユーザー管理",
+  "journal:create": "仕訳作成",
+  "journal:read": "仕訳閲覧",
+  "journal:update": "仕訳更新",
+  "journal:delete": "仕訳削除",
+  "journal:approve": "仕訳承認",
+  "journal:post": "仕訳転記",
+  "journal:void": "仕訳無効化",
+  "master:create": "マスタ作成",
+  "master:read": "マスタ閲覧",
+  "master:update": "マスタ更新",
+  "master:delete": "マスタ削除",
+  "ai:infer": "AI推論",
+  "ai:review": "AIレビュー",
+  "report:read": "帳票閲覧",
+  "report:export": "帳票出力",
+  "integration:import": "外部連携インポート",
+  "integration:config": "外部連携設定",
+  "knowledge:search": "ナレッジ検索",
+  "user:manage": "ユーザー管理",
 };
 
 export default function SettingsPage() {
