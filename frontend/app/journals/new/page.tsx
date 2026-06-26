@@ -2,23 +2,29 @@
 
 import { useState } from "react";
 import Sidebar from "@/components/sidebar";
+import { Save, Send, Plus } from "lucide-react";
 
 interface JournalLine {
   debit_credit: "debit" | "credit";
   account_code: string;
   account_name: string;
+  account_id: string;
   amount: string;
   tax_amount: string;
   description: string;
 }
 
 export default function JournalEntryPage() {
+  const [companyId, setCompanyId] = useState("");
   const [transactionDate, setTransactionDate] = useState("");
   const [summary, setSummary] = useState("");
   const [lines, setLines] = useState<JournalLine[]>([
-    { debit_credit: "debit", account_code: "", account_name: "", amount: "", tax_amount: "0", description: "" },
-    { debit_credit: "credit", account_code: "", account_name: "", amount: "", tax_amount: "0", description: "" },
+    { debit_credit: "debit", account_code: "", account_name: "", account_id: "", amount: "", tax_amount: "0", description: "" },
+    { debit_credit: "credit", account_code: "", account_name: "", account_id: "", amount: "", tax_amount: "0", description: "" },
   ]);
+  const [saving, setSaving] = useState(false);
+  const [result, setResult] = useState<Record<string, unknown> | null>(null);
+  const [error, setError] = useState("");
 
   const debitTotal = lines
     .filter((l) => l.debit_credit === "debit")
@@ -29,7 +35,7 @@ export default function JournalEntryPage() {
   const isBalanced = debitTotal === creditTotal && debitTotal > 0;
 
   const addLine = () => {
-    setLines([...lines, { debit_credit: "debit", account_code: "", account_name: "", amount: "", tax_amount: "0", description: "" }]);
+    setLines([...lines, { debit_credit: "debit", account_code: "", account_name: "", account_id: "", amount: "", tax_amount: "0", description: "" }]);
   };
 
   const updateLine = (index: number, field: keyof JournalLine, value: string) => {
@@ -44,13 +50,79 @@ export default function JournalEntryPage() {
     }
   };
 
+  const handleSave = async () => {
+    if (!isBalanced || !companyId || !transactionDate) return;
+    setSaving(true);
+    setError("");
+    setResult(null);
+
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
+
+    try {
+      const payload = {
+        company_id: companyId,
+        transaction_date: transactionDate,
+        voucher_type: "transfer",
+        summary: summary || undefined,
+        lines: lines.map((l) => ({
+          debit_credit: l.debit_credit,
+          account_id: l.account_id || l.account_code,
+          amount: parseFloat(l.amount) || 0,
+          tax_amount: parseFloat(l.tax_amount) || 0,
+          description: l.description || undefined,
+        })),
+      };
+
+      const response = await fetch("http://localhost:8000/api/v1/journals", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail?.message || data.detail || "保存に失敗しました");
+      }
+      setResult(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "不明なエラー");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="flex h-screen">
       <Sidebar />
       <main className="flex-1 overflow-auto p-8">
         <h1 className="mb-6 text-2xl font-bold">仕訳入力</h1>
 
+        {error && (
+          <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+
+        {result && (
+          <div className="mb-4 rounded-md border border-green-500/50 bg-green-50 p-4 text-sm text-green-700">
+            仕訳を保存しました: {result.journal_number as string} (ID: {result.journal_header_id as string})
+          </div>
+        )}
+
         <div className="mb-4 flex gap-4">
+          <div className="flex-1">
+            <label className="mb-1 block text-sm font-medium">会社ID</label>
+            <input
+              type="text"
+              value={companyId}
+              onChange={(e) => setCompanyId(e.target.value)}
+              placeholder="UUID"
+              className="w-full rounded-md border px-3 py-2"
+            />
+          </div>
           <div className="flex-1">
             <label className="mb-1 block text-sm font-medium">取引日</label>
             <input
@@ -156,9 +228,10 @@ export default function JournalEntryPage() {
 
         <button
           onClick={addLine}
-          className="mb-4 rounded-md border px-4 py-2 text-sm hover:bg-accent"
+          className="mb-4 flex items-center gap-1 rounded-md border px-4 py-2 text-sm hover:bg-accent"
         >
-          + 行追加
+          <Plus className="h-4 w-4" />
+          行追加
         </button>
 
         <div className="flex items-center gap-8 rounded-lg border bg-muted/30 p-4">
@@ -183,15 +256,18 @@ export default function JournalEntryPage() {
 
         <div className="mt-6 flex gap-4">
           <button
-            disabled={!isBalanced}
-            className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+            onClick={handleSave}
+            disabled={!isBalanced || saving || !companyId}
+            className="flex items-center gap-2 rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
-            保存
+            <Save className="h-4 w-4" />
+            {saving ? "保存中..." : "保存"}
           </button>
           <button
-            disabled={!isBalanced}
-            className="rounded-md border px-6 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
+            disabled={!isBalanced || saving || !companyId}
+            className="flex items-center gap-2 rounded-md border px-6 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
           >
+            <Send className="h-4 w-4" />
             確定
           </button>
         </div>

@@ -70,6 +70,9 @@ export default function AiInferencePage() {
     setResult(null);
 
     try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
+      const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
       const formData = new FormData();
       if (file) {
         formData.append("file", file);
@@ -81,7 +84,7 @@ export default function AiInferencePage() {
         });
         const response = await fetch(
           `http://localhost:8000/api/v1/ai/infer-from-pdf?${params}`,
-          { method: "POST", body: formData }
+          { method: "POST", body: formData, headers: authHeaders }
         );
         if (!response.ok) {
           const err = await response.json();
@@ -93,7 +96,7 @@ export default function AiInferencePage() {
           "http://localhost:8000/api/v1/ai/infer-journal-enhanced",
           {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...authHeaders },
             body: JSON.stringify({
               description,
               amount: parseFloat(amount) || 0,

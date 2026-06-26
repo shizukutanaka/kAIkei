@@ -63,10 +63,15 @@ export default function KnowledgePage() {
     setLoading(true);
     setError("");
 
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
+
     try {
       const response = await fetch("http://localhost:8000/api/v1/knowledge/search", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           keywords: searchKeywords,
           domain: "accounting",
