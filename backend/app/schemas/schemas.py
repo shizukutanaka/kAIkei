@@ -1,0 +1,107 @@
+from datetime import date, datetime
+from decimal import Decimal
+from uuid import UUID
+
+from pydantic import BaseModel, Field
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+
+class TokenRefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class UserCreate(BaseModel):
+    email: str
+    password: str = Field(min_length=8)
+    display_name: str
+    tenant_code: str
+
+
+class UserResponse(BaseModel):
+    user_id: UUID
+    email: str
+    display_name: str
+    role: str
+    tenant_id: UUID
+
+    model_config = {"from_attributes": True}
+
+
+class AccountCreate(BaseModel):
+    company_id: UUID
+    account_code: str
+    account_name: str
+    account_type: str
+    debit_credit: str
+    parent_account_id: UUID | None = None
+
+
+class AccountResponse(BaseModel):
+    account_id: UUID
+    company_id: UUID
+    account_code: str
+    account_name: str
+    account_type: str
+    debit_credit: str
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class JournalLineCreate(BaseModel):
+    debit_credit: str = Field(pattern="^(debit|credit)$")
+    account_id: UUID
+    sub_account_id: UUID | None = None
+    department_id: UUID | None = None
+    tax_rule_id: UUID | None = None
+    amount: Decimal = Field(gt=0)
+    tax_amount: Decimal = Field(default=Decimal("0"), ge=0)
+    description: str | None = None
+
+
+class JournalCreate(BaseModel):
+    company_id: UUID
+    transaction_date: date
+    voucher_type: str = Field(default="transfer", pattern="^(transfer|receipt|payment)$")
+    summary: str | None = None
+    lines: list[JournalLineCreate] = Field(min_length=2)
+
+
+class JournalLineResponse(BaseModel):
+    journal_line_id: UUID
+    line_number: int
+    debit_credit: str
+    account_id: UUID
+    sub_account_id: UUID | None
+    amount: Decimal
+    tax_amount: Decimal
+    description: str | None
+
+    model_config = {"from_attributes": True}
+
+
+class JournalResponse(BaseModel):
+    journal_header_id: UUID
+    company_id: UUID
+    journal_number: str
+    transaction_date: date
+    voucher_type: str
+    summary: str | None
+    approval_status: str
+    is_voided: bool
+    created_at: datetime
+    lines: list[JournalLineResponse]
+
+    model_config = {"from_attributes": True}
+
+
+class JournalListResponse(BaseModel):
+    items: list[JournalResponse]
+    total: int
+    page: int
+    page_size: int
