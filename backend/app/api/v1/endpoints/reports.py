@@ -7,6 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.deps import CurrentUser, require_permission
+from app.core.rbac import Permission
 from app.models.models import Account, JournalHeader, JournalLine, MonthlyBalance
 
 router = APIRouter()
@@ -16,6 +18,7 @@ router = APIRouter()
 async def get_trial_balance(
     company_id: UUID,
     as_of: date = Query(..., description="基準日"),
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """試算表（Trial Balance）を取得する。
@@ -94,6 +97,7 @@ async def get_monthly_balances(
     company_id: UUID,
     year: int = Query(...),
     month: int = Query(..., ge=1, le=12),
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """月次残高を取得する。"""

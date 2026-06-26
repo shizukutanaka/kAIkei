@@ -5,6 +5,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.deps import CurrentUser, get_current_user, require_permission
+from app.core.rbac import Permission
 from app.models.models import JournalHeader, JournalLine
 from app.schemas.schemas import JournalCreate, JournalListResponse, JournalResponse
 from app.services.journal_service import JournalService
@@ -16,12 +18,12 @@ router = APIRouter()
 @router.post("", response_model=JournalResponse, status_code=status.HTTP_201_CREATED)
 async def create_journal(
     payload: JournalCreate,
-    created_by: UUID,
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_CREATE)),
     db: AsyncSession = Depends(get_db),
 ) -> JournalHeader:
     """Create a new journal entry after validation."""
     try:
-        ValidationEngine.validate(payload, created_by=created_by)
+        ValidationEngine.validate(payload, created_by=current_user.user_id)
     except ValidationError as e:
         raise HTTPException(status_code=400, detail={"code": e.code, "message": e.message, "field": e.field})
 
@@ -38,7 +40,7 @@ async def create_journal(
         voucher_type=payload.voucher_type,
         summary=payload.summary,
         approval_status="draft",
-        created_by=created_by,
+        created_by=current_user.user_id,
     )
     db.add(header)
     await db.flush()
@@ -69,6 +71,7 @@ async def list_journals(
     company_id: UUID,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> JournalListResponse:
     """List journals for a company with pagination."""
@@ -93,7 +96,11 @@ async def list_journals(
 
 
 @router.get("/{journal_header_id}", response_model=JournalResponse)
-async def get_journal(journal_header_id: UUID, db: AsyncSession = Depends(get_db)) -> JournalHeader:
+async def get_journal(
+    journal_header_id: UUID,
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_READ)),
+    db: AsyncSession = Depends(get_db),
+) -> JournalHeader:
     result = await db.execute(
         select(JournalHeader).where(
             JournalHeader.journal_header_id == journal_header_id,
@@ -109,7 +116,7 @@ async def get_journal(journal_header_id: UUID, db: AsyncSession = Depends(get_db
 @router.put("/{journal_header_id}/void", response_model=JournalResponse)
 async def void_journal(
     journal_header_id: UUID,
-    voided_by: UUID,
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_VOID)),
     db: AsyncSession = Depends(get_db),
 ) -> JournalHeader:
     result = await db.execute(
@@ -133,12 +140,12 @@ async def void_journal(
 @router.put("/{journal_header_id}/approve", response_model=JournalResponse)
 async def approve_journal(
     journal_header_id: UUID,
-    approver_id: UUID,
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_APPROVE)),
     db: AsyncSession = Depends(get_db),
 ) -> JournalHeader:
     """Approve a journal entry (SoD check enforced)."""
     try:
-        return await JournalService.approve_journal(db, journal_header_id, approver_id)
+        return await JournalService.approve_journal(db, journal_header_id, current_user.user_id)
     except ValidationError as e:
         raise HTTPException(status_code=403, detail={"code": e.code, "message": e.message})
     except ValueError as e:
@@ -148,6 +155,7 @@ async def approve_journal(
 @router.put("/{journal_header_id}/post", response_model=JournalResponse)
 async def post_journal(
     journal_header_id: UUID,
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_POST)),
     db: AsyncSession = Depends(get_db),
 ) -> JournalHeader:
     """Post an approved journal entry and update monthly balances."""

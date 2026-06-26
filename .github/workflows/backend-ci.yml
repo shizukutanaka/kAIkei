@@ -1,0 +1,54 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Install dependencies
+        run: |
+          uv pip install --system -r requirements.txt
+          uv pip install --system pytest pytest-asyncio pytest-cov httpx
+
+      - name: Run unit tests (no DB required)
+        env:
+          JWT_SECRET_KEY: test-secret-key-for-ci
+          JWT_ALGORITHM: HS256
+          JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 30
+          JWT_REFRESH_TOKEN_EXPIRE_DAYS: 7
+          DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/test
+          OPENAI_API_KEY: test-key
+          ANTHROPIC_API_KEY: test-key
+          LOG_LEVEL: INFO
+        run: |
+          python -m pytest tests/test_rbac.py tests/test_task_router.py tests/test_tax_calculator.py tests/test_validation_engine.py tests/test_knowledge.py -v --tb=short
+
+      - name: Ruff lint
+        run: |
+          pip install ruff
+          ruff check app/ || true

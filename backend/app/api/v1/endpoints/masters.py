@@ -5,6 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.deps import CurrentUser, require_permission
+from app.core.rbac import Permission
 from app.models.models import Account
 from app.schemas.schemas import AccountCreate, AccountResponse
 
@@ -12,7 +14,11 @@ router = APIRouter()
 
 
 @router.post("", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
-async def create_account(payload: AccountCreate, db: AsyncSession = Depends(get_db)) -> Account:
+async def create_account(
+    payload: AccountCreate,
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),
+    db: AsyncSession = Depends(get_db),
+) -> Account:
     existing = await db.execute(
         select(Account).where(
             Account.company_id == payload.company_id,
@@ -38,7 +44,11 @@ async def create_account(payload: AccountCreate, db: AsyncSession = Depends(get_
 
 
 @router.get("", response_model=list[AccountResponse])
-async def list_accounts(company_id: UUID, db: AsyncSession = Depends(get_db)) -> list[Account]:
+async def list_accounts(
+    company_id: UUID,
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
+    db: AsyncSession = Depends(get_db),
+) -> list[Account]:
     result = await db.execute(
         select(Account).where(
             Account.company_id == company_id,
@@ -50,7 +60,11 @@ async def list_accounts(company_id: UUID, db: AsyncSession = Depends(get_db)) ->
 
 
 @router.get("/{account_id}", response_model=AccountResponse)
-async def get_account(account_id: UUID, db: AsyncSession = Depends(get_db)) -> Account:
+async def get_account(
+    account_id: UUID,
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
+    db: AsyncSession = Depends(get_db),
+) -> Account:
     result = await db.execute(
         select(Account).where(Account.account_id == account_id, Account.is_deleted == False)  # noqa: E712
     )
