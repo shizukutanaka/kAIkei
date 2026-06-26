@@ -41,6 +41,12 @@ class AccountCreate(BaseModel):
     parent_account_id: UUID | None = None
 
 
+class AccountUpdate(BaseModel):
+    account_name: str | None = None
+    account_type: str | None = None
+    is_active: bool | None = None
+
+
 class AccountResponse(BaseModel):
     account_id: UUID
     company_id: UUID
@@ -49,6 +55,43 @@ class AccountResponse(BaseModel):
     account_type: str
     debit_credit: str
     is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class SubAccountCreate(BaseModel):
+    account_id: UUID
+    sub_account_code: str
+    sub_account_name: str
+
+
+class SubAccountResponse(BaseModel):
+    sub_account_id: UUID
+    account_id: UUID
+    sub_account_code: str
+    sub_account_name: str
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class TaxRuleCreate(BaseModel):
+    company_id: UUID
+    tax_code: str
+    tax_name: str
+    tax_rate: Decimal
+    tax_type: str = "consumption"
+    is_inclusive: bool = False
+
+
+class TaxRuleResponse(BaseModel):
+    tax_rule_id: UUID
+    company_id: UUID
+    tax_code: str
+    tax_name: str
+    tax_rate: Decimal
+    tax_type: str
+    is_inclusive: bool
 
     model_config = {"from_attributes": True}
 

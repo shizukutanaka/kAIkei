@@ -1,9 +1,10 @@
-import { BookOpen, LayoutDashboard, FileText, Settings, Receipt, Users, Building2, Calculator, Sparkles, Globe, FileCheck } from "lucide-react";
+import { BookOpen, LayoutDashboard, FileText, Settings, Receipt, Users, Building2, Calculator, Sparkles, Globe, FileCheck, List } from "lucide-react";
 import Link from "next/link";
 
 const navItems = [
   { label: "ダッシュボード", href: "/dashboard", icon: LayoutDashboard },
   { label: "仕訳入力", href: "/journals/new", icon: Receipt },
+  { label: "仕訳一覧", href: "/journals", icon: List },
   { label: "AI仕訳推論", href: "/ai-inference", icon: Sparkles },
   { label: "承認ワークフロー", href: "/approvals", icon: FileCheck },
   { label: "ナレッジ検索", href: "/knowledge", icon: Globe },

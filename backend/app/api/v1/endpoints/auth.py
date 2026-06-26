@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,11 +36,16 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)) -> U
     return user
 
 
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
 @router.post("/login", response_model=TokenResponse)
-async def login(email: str, password: str, db: AsyncSession = Depends(get_db)) -> TokenResponse:
-    result = await db.execute(select(User).where(User.email == email, User.is_deleted == False))  # noqa: E712
+async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
+    result = await db.execute(select(User).where(User.email == payload.email, User.is_deleted == False))  # noqa: E712
     user = result.scalar_one_or_none()
-    if not user or not verify_password(password, user.password_hash):
+    if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="User is inactive")

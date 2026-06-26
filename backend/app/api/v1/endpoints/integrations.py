@@ -1,6 +1,8 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Query
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from pydantic import BaseModel
 
+from app.core.deps import CurrentUser, require_permission
+from app.core.rbac import Permission
 from app.services.integrations.registry import get_adapter, list_supported_software
 
 router = APIRouter()
@@ -15,7 +17,9 @@ class CsvImportResponse(BaseModel):
 
 
 @router.get("/supported-software")
-async def get_supported_software() -> dict:
+async def get_supported_software(
+    current_user: CurrentUser = Depends(require_permission(Permission.INTEGRATION_USE)),
+) -> dict:
     """対応ソフトウェア一覧を取得する。"""
     return {"items": list_supported_software()}
 
@@ -25,6 +29,7 @@ async def import_csv(
     software_code: str,
     file: UploadFile = File(...),
     dry_run: bool = Query(True, description="true=シミュレーションのみ"),
+    current_user: CurrentUser = Depends(require_permission(Permission.INTEGRATION_USE)),
 ) -> dict:
     """CSVファイルをアップロードして取り込み（Dry-run対応）。"""
     adapter = get_adapter(software_code)
