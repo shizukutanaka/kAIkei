@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Sidebar from "@/components/sidebar";
+import PageLayout from "@/components/page-layout";
+import { apiGet, apiPost } from "@/lib/api";
 import { BookOpen, Plus, Search } from "lucide-react";
 
 interface Account {
@@ -35,14 +36,9 @@ export default function MastersPage() {
     debit_credit: "debit",
   });
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
   const companyId = typeof window !== "undefined" ? localStorage.getItem("company_id") || "" : "";
 
   useEffect(() => {
-    if (!token) {
-      window.location.href = "/login";
-      return;
-    }
     fetchAccounts();
   }, []);
 
@@ -52,13 +48,8 @@ export default function MastersPage() {
       return;
     }
     try {
-      const response = await fetch(
-        `http://localhost:8000/api/v1/masters?company_id=${companyId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (response.ok) {
-        setAccounts(await response.json());
-      }
+      const data = await apiGet<Account[]>("/masters", { company_id: companyId });
+      setAccounts(data);
     } catch {
       setError("勘定科目の取得に失敗しました");
     } finally {
@@ -73,28 +64,12 @@ export default function MastersPage() {
     }
 
     try {
-      const response = await fetch("http://localhost:8000/api/v1/masters", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          company_id: companyId,
-          ...newAccount,
-        }),
-      });
-
-      if (response.ok) {
-        setShowAddForm(false);
-        setNewAccount({ account_code: "", account_name: "", account_type: "asset", debit_credit: "debit" });
-        await fetchAccounts();
-      } else {
-        const data = await response.json();
-        setError(data.detail || "科目の追加に失敗しました");
-      }
-    } catch {
-      setError("通信エラーが発生しました");
+      await apiPost("/masters", { company_id: companyId, ...newAccount });
+      setShowAddForm(false);
+      setNewAccount({ account_code: "", account_name: "", account_type: "asset", debit_credit: "debit" });
+      await fetchAccounts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "科目の追加に失敗しました");
     }
   };
 
@@ -105,9 +80,7 @@ export default function MastersPage() {
   );
 
   return (
-    <div className="flex h-screen">
-      <Sidebar />
-      <main className="flex-1 overflow-auto p-8">
+    <PageLayout>
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <BookOpen className="h-6 w-6 text-primary" />
@@ -243,7 +216,6 @@ export default function MastersPage() {
             </table>
           </div>
         )}
-      </main>
-    </div>
+    </PageLayout>
   );
 }

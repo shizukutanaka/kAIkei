@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Sidebar from "@/components/sidebar";
+import PageLayout from "@/components/page-layout";
+import { apiGet, apiPost } from "@/lib/api";
 import { Save, Send, Plus } from "lucide-react";
 
 interface Account {
@@ -36,22 +37,17 @@ export default function JournalEntryPage() {
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState("");
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
-
   useEffect(() => {
     if (!companyId) {
       setAccounts([]);
       return;
     }
     setAccountsLoading(true);
-    fetch(`http://localhost:8000/api/v1/masters?company_id=${companyId}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-      .then((res) => (res.ok ? res.json() : []))
+    apiGet<Account[]>("/masters", { company_id: companyId })
       .then((data) => setAccounts(data || []))
       .catch(() => setAccounts([]))
       .finally(() => setAccountsLoading(false));
-  }, [companyId, token]);
+  }, [companyId]);
 
   const debitTotal = lines
     .filter((l) => l.debit_credit === "debit")
@@ -96,8 +92,6 @@ export default function JournalEntryPage() {
     setError("");
     setResult(null);
 
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
-
     try {
       const payload = {
         company_id: companyId,
@@ -112,20 +106,7 @@ export default function JournalEntryPage() {
           description: l.description || undefined,
         })),
       };
-
-      const response = await fetch("http://localhost:8000/api/v1/journals", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.detail?.message || data.detail || "保存に失敗しました");
-      }
+      const data = await apiPost<Record<string, unknown>>("/journals", payload);
       setResult(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "不明なエラー");
@@ -135,10 +116,8 @@ export default function JournalEntryPage() {
   };
 
   return (
-    <div className="flex h-screen">
-      <Sidebar />
-      <main className="flex-1 overflow-auto p-8">
-        <h1 className="mb-6 text-2xl font-bold">仕訳入力</h1>
+    <PageLayout>
+      <h1 className="mb-6 text-2xl font-bold">仕訳入力</h1>
 
         {error && (
           <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
@@ -334,7 +313,6 @@ export default function JournalEntryPage() {
             確定
           </button>
         </div>
-      </main>
-    </div>
+    </PageLayout>
   );
 }

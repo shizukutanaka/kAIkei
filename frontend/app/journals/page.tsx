@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Sidebar from "@/components/sidebar";
+import PageLayout from "@/components/page-layout";
+import { apiGet } from "@/lib/api";
 import { Receipt, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Journal {
@@ -45,8 +46,6 @@ export default function JournalsListPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
-
   const fetchJournals = async () => {
     if (!companyId) {
       setError("会社IDを入力してください");
@@ -56,18 +55,14 @@ export default function JournalsListPage() {
     setError("");
 
     try {
-      const response = await fetch(
-        `http://localhost:8000/api/v1/journals?company_id=${companyId}&page=${page}&page_size=20`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (response.ok) {
-        setData(await response.json());
-      } else {
-        const err = await response.json();
-        setError(err.detail || "取得に失敗しました");
-      }
-    } catch {
-      setError("通信エラー");
+      const data = await apiGet<JournalList>("/journals", {
+        company_id: companyId,
+        page: String(page),
+        page_size: "20",
+      });
+      setData(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "取得に失敗しました");
     } finally {
       setLoading(false);
     }
@@ -80,9 +75,7 @@ export default function JournalsListPage() {
   const totalPages = data ? Math.ceil(data.total / data.page_size) : 0;
 
   return (
-    <div className="flex h-screen">
-      <Sidebar />
-      <main className="flex-1 overflow-auto p-8">
+    <PageLayout>
         <div className="mb-6 flex items-center gap-3">
           <Receipt className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold">仕訳一覧</h1>
@@ -184,7 +177,6 @@ export default function JournalsListPage() {
             </div>
           </>
         )}
-      </main>
-    </div>
+    </PageLayout>
   );
 }

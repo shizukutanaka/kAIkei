@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Sidebar from "@/components/sidebar";
+import PageLayout from "@/components/page-layout";
+import { apiPost } from "@/lib/api";
 import { Search, ExternalLink, BookOpen, TrendingUp } from "lucide-react";
 
 interface KnowledgeItem {
@@ -63,24 +64,14 @@ export default function KnowledgePage() {
     setLoading(true);
     setError("");
 
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
-
     try {
-      const response = await fetch("http://localhost:8000/api/v1/knowledge/search", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          keywords: searchKeywords,
-          domain: "accounting",
-          language: "ja",
-          max_per_source: 5,
-        }),
+      const data = await apiPost<SearchResult>("/knowledge/search", {
+        keywords: searchKeywords,
+        domain: "accounting",
+        language: "ja",
+        max_per_source: 5,
       });
-      if (!response.ok) throw new Error("検索に失敗しました");
-      setResults(await response.json());
+      setResults(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "不明なエラー");
     } finally {
@@ -89,9 +80,7 @@ export default function KnowledgePage() {
   };
 
   return (
-    <div className="flex h-screen">
-      <Sidebar />
-      <main className="flex-1 overflow-auto p-8">
+    <PageLayout>
         <div className="mb-6 flex items-center gap-3">
           <BookOpen className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold">ナレッジ検索</h1>
@@ -218,7 +207,6 @@ export default function KnowledgePage() {
             )}
           </div>
         )}
-      </main>
-    </div>
+    </PageLayout>
   );
 }

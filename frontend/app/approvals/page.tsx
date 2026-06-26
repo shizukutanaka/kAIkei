@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Sidebar from "@/components/sidebar";
+import PageLayout from "@/components/page-layout";
+import { apiGet, apiPost } from "@/lib/api";
 import { CheckCircle, XCircle, Send, FileCheck, Clock, History } from "lucide-react";
 
 interface ApprovalLog {
@@ -46,13 +47,6 @@ export default function ApprovalsPage() {
   const [error, setError] = useState("");
   const [history, setHistory] = useState<ApprovalLog[] | null>(null);
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-
   const handleAction = async (action: string) => {
     if (!journalId) {
       setError("仕訳IDを入力してください");
@@ -67,17 +61,7 @@ export default function ApprovalsPage() {
       if (comment && (action === "approve" || action === "reject")) {
         body.comment = comment;
       }
-
-      const response = await fetch(`http://localhost:8000/api/v1/approvals/${action}`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.detail?.message || data.detail || "操作に失敗しました");
-      }
+      const data = await apiPost<Record<string, unknown>>(`/approvals/${action}`, body);
       setResult(data);
       await fetchHistory();
     } catch (err) {
@@ -90,22 +74,15 @@ export default function ApprovalsPage() {
   const fetchHistory = async () => {
     if (!journalId) return;
     try {
-      const response = await fetch(
-        `http://localhost:8000/api/v1/approvals/history/${journalId}`,
-        { headers }
-      );
-      if (response.ok) {
-        setHistory(await response.json());
-      }
+      const logs = await apiGet<ApprovalLog[]>(`/approvals/history/${journalId}`);
+      setHistory(logs);
     } catch {
       // ignore
     }
   };
 
   return (
-    <div className="flex h-screen">
-      <Sidebar />
-      <main className="flex-1 overflow-auto p-8">
+    <PageLayout>
         <div className="mb-6 flex items-center gap-3">
           <FileCheck className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold">承認ワークフロー</h1>
@@ -185,10 +162,10 @@ export default function ApprovalsPage() {
         {result && (
           <div className="mb-4 rounded-lg border bg-card p-4">
             <div className="flex items-center gap-2">
-              <span className={`rounded px-2 py-1 text-xs font-medium ${STATUS_COLORS[result.approval_status as string] || "bg-gray-100"}`}>
-                {STATUS_LABELS[result.approval_status as string] || result.approval_status}
+              <span className={`rounded px-2 py-1 text-xs font-medium ${STATUS_COLORS[String(result.approval_status ?? "")] || "bg-gray-100"}`}>
+                {STATUS_LABELS[String(result.approval_status ?? "")] || String(result.approval_status ?? "")}
               </span>
-              <span className="text-sm text-muted-foreground">{result.message as string}</span>
+              <span className="text-sm text-muted-foreground">{String(result.message ?? "")}</span>
             </div>
           </div>
         )}
@@ -231,7 +208,6 @@ export default function ApprovalsPage() {
             承認履歴がありません
           </div>
         )}
-      </main>
-    </div>
+    </PageLayout>
   );
 }

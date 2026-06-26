@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Sidebar from "@/components/sidebar";
+import PageLayout from "@/components/page-layout";
+import { apiGet } from "@/lib/api";
 import { FileText, Search } from "lucide-react";
 
 interface TrialBalanceAccount {
@@ -42,8 +43,6 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
-
   const handleFetch = async () => {
     if (!companyId) {
       setError("会社IDを入力してください");
@@ -55,25 +54,18 @@ export default function ReportsPage() {
     setMonthlyData(null);
 
     try {
-      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-      let url: string;
-
       if (reportType === "trial-balance") {
-        url = `http://localhost:8000/api/v1/reports/trial-balance?company_id=${companyId}&as_of=${asOf}`;
-      } else {
-        url = `http://localhost:8000/api/v1/reports/monthly-balances?company_id=${companyId}&year=${year}&month=${month}`;
-      }
-
-      const response = await fetch(url, { headers });
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.detail || "レポート取得に失敗しました");
-      }
-
-      const result = await response.json();
-      if (reportType === "trial-balance") {
+        const result = await apiGet<TrialBalance>("/reports/trial-balance", {
+          company_id: companyId,
+          as_of: asOf,
+        });
         setData(result);
       } else {
+        const result = await apiGet<Record<string, unknown>>("/reports/monthly-balances", {
+          company_id: companyId,
+          year,
+          month,
+        });
         setMonthlyData(result);
       }
     } catch (err) {
@@ -84,9 +76,7 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="flex h-screen">
-      <Sidebar />
-      <main className="flex-1 overflow-auto p-8">
+    <PageLayout>
         <div className="mb-6 flex items-center gap-3">
           <FileText className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold">帳票</h1>
@@ -253,7 +243,6 @@ export default function ReportsPage() {
             </table>
           </div>
         )}
-      </main>
-    </div>
+    </PageLayout>
   );
 }

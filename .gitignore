@@ -23,6 +23,7 @@ node_modules/
 out/
 .npm
 .pnpm-debug.log
+tsconfig.tsbuildinfo
 
 # Environment
 .env

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Sidebar from "@/components/sidebar";
+import PageLayout from "@/components/page-layout";
+import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { Calculator, Plus, TrendingDown, Trash2 } from "lucide-react";
 
 interface FixedAsset {
@@ -46,8 +47,6 @@ export default function FixedAssetsPage() {
     salvage_value: "0",
   });
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
-
   const fetchAssets = async () => {
     if (!companyId) {
       setError("会社IDを入力してください");
@@ -56,18 +55,10 @@ export default function FixedAssetsPage() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(
-        `http://localhost:8000/api/v1/fixed-assets?company_id=${companyId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (response.ok) {
-        setAssets(await response.json());
-      } else {
-        const err = await response.json();
-        setError(err.detail || "取得に失敗しました");
-      }
-    } catch {
-      setError("通信エラー");
+      const data = await apiGet<FixedAsset[]>("/fixed-assets", { company_id: companyId });
+      setAssets(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "取得に失敗しました");
     } finally {
       setLoading(false);
     }
@@ -77,36 +68,27 @@ export default function FixedAssetsPage() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("http://localhost:8000/api/v1/fixed-assets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          company_id: companyId,
-          ...formData,
-          acquisition_cost: parseFloat(formData.acquisition_cost),
-          useful_life_months: parseInt(formData.useful_life_months),
-          salvage_value: parseFloat(formData.salvage_value),
-        }),
+      await apiPost("/fixed-assets", {
+        company_id: companyId,
+        ...formData,
+        acquisition_cost: parseFloat(formData.acquisition_cost),
+        useful_life_months: parseInt(formData.useful_life_months),
+        salvage_value: parseFloat(formData.salvage_value),
       });
-      if (response.ok) {
-        setShowForm(false);
-        setFormData({
-          asset_code: "",
-          asset_name: "",
-          asset_category: "machinery",
-          acquisition_date: new Date().toISOString().split("T")[0],
-          acquisition_cost: "",
-          useful_life_months: "60",
-          depreciation_method: "straight_line",
-          salvage_value: "0",
-        });
-        await fetchAssets();
-      } else {
-        const err = await response.json();
-        setError(err.detail || "登録に失敗しました");
-      }
-    } catch {
-      setError("通信エラー");
+      setShowForm(false);
+      setFormData({
+        asset_code: "",
+        asset_name: "",
+        asset_category: "machinery",
+        acquisition_date: new Date().toISOString().split("T")[0],
+        acquisition_cost: "",
+        useful_life_months: "60",
+        depreciation_method: "straight_line",
+        salvage_value: "0",
+      });
+      await fetchAssets();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "登録に失敗しました");
     } finally {
       setLoading(false);
     }
@@ -115,43 +97,28 @@ export default function FixedAssetsPage() {
   const handleDepreciate = async (assetId: string) => {
     const now = new Date();
     try {
-      const response = await fetch(
-        `http://localhost:8000/api/v1/fixed-assets/${assetId}/depreciate?fiscal_year=${now.getFullYear()}&month=${now.getMonth() + 1}`,
-        { method: "POST", headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (response.ok) {
-        await fetchAssets();
-      } else {
-        const err = await response.json();
-        setError(err.detail || "償却に失敗しました");
-      }
-    } catch {
-      setError("通信エラー");
+      await apiPost(`/fixed-assets/${assetId}/depreciate`, {
+        fiscal_year: now.getFullYear(),
+        month: now.getMonth() + 1,
+      });
+      await fetchAssets();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "償却に失敗しました");
     }
   };
 
   const handleDispose = async (assetId: string) => {
     if (!confirm("この資産を除却しますか？")) return;
     try {
-      const response = await fetch(
-        `http://localhost:8000/api/v1/fixed-assets/${assetId}?disposal_date=${new Date().toISOString().split("T")[0]}`,
-        { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (response.ok) {
-        await fetchAssets();
-      } else {
-        const err = await response.json();
-        setError(err.detail || "除却に失敗しました");
-      }
-    } catch {
-      setError("通信エラー");
+      await apiDelete(`/fixed-assets/${assetId}?disposal_date=${new Date().toISOString().split("T")[0]}`);
+      await fetchAssets();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "除却に失敗しました");
     }
   };
 
   return (
-    <div className="flex h-screen">
-      <Sidebar />
-      <main className="flex-1 overflow-auto p-8">
+    <PageLayout>
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Calculator className="h-6 w-6 text-primary" />
@@ -301,7 +268,6 @@ export default function FixedAssetsPage() {
         {assets.length === 0 && !loading && companyId && !error && (
           <p className="text-center text-sm text-muted-foreground">資産データがありません</p>
         )}
-      </main>
-    </div>
+    </PageLayout>
   );
 }

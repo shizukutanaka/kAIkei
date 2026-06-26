@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Sidebar from "@/components/sidebar";
+import PageLayout from "@/components/page-layout";
+import { apiGet } from "@/lib/api";
 import { Receipt, Clock, Sparkles, AlertCircle, TrendingUp } from "lucide-react";
 
 interface DashboardData {
@@ -23,24 +24,10 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      window.location.href = "/login";
-      return;
-    }
-
     const fetchUserData = async () => {
       try {
-        const response = await fetch("http://localhost:8000/api/v1/rbac/me", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (response.ok) {
-          const user = await response.json();
-          setData((prev) => ({ ...prev, user }));
-        } else if (response.status === 401) {
-          localStorage.removeItem("token");
-          window.location.href = "/login";
-        }
+        const user = await apiGet<{ email: string; display_name: string; role: string; permissions: string[] }>("/rbac/me");
+        setData((prev) => ({ ...prev, user }));
       } catch {
         // API not running yet — show dashboard with zeros
       } finally {
@@ -60,19 +47,14 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen">
-        <Sidebar />
-        <main className="flex-1 overflow-auto p-8">
-          <p className="text-muted-foreground">読み込み中...</p>
-        </main>
-      </div>
+      <PageLayout>
+        <p className="text-muted-foreground">読み込み中...</p>
+      </PageLayout>
     );
   }
 
   return (
-    <div className="flex h-screen">
-      <Sidebar />
-      <main className="flex-1 overflow-auto p-8">
+    <PageLayout>
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold">ダッシュボード</h1>
           {data.user && (
@@ -165,7 +147,6 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-      </main>
-    </div>
+    </PageLayout>
   );
 }

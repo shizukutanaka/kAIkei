@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef } from "react";
-import Sidebar from "@/components/sidebar";
+import PageLayout from "@/components/page-layout";
+import { apiPost, apiPostMultipart } from "@/lib/api";
 import { Upload, FileText, Sparkles, AlertCircle } from "lucide-react";
 
 interface InferenceResult {
@@ -70,46 +71,24 @@ export default function AiInferencePage() {
     setResult(null);
 
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
-      const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-
-      const formData = new FormData();
       if (file) {
+        const formData = new FormData();
         formData.append("file", file);
-        const params = new URLSearchParams({
+        const data = await apiPostMultipart<InferenceResult>("/ai/infer-from-pdf", {
           company_id: companyId,
           transaction_date: transactionDate,
           amount: amount || "0",
           description,
-        });
-        const response = await fetch(
-          `http://localhost:8000/api/v1/ai/infer-from-pdf?${params}`,
-          { method: "POST", body: formData, headers: authHeaders }
-        );
-        if (!response.ok) {
-          const err = await response.json();
-          throw new Error(err.detail || "推論に失敗しました");
-        }
-        setResult(await response.json());
+        }, formData);
+        setResult(data);
       } else {
-        const response = await fetch(
-          "http://localhost:8000/api/v1/ai/infer-journal-enhanced",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json", ...authHeaders },
-            body: JSON.stringify({
-              description,
-              amount: parseFloat(amount) || 0,
-              transaction_date: transactionDate,
-              company_id: companyId,
-            }),
-          }
-        );
-        if (!response.ok) {
-          const err = await response.json();
-          throw new Error(err.detail || "推論に失敗しました");
-        }
-        setResult(await response.json());
+        const data = await apiPost<InferenceResult>("/ai/infer-journal-enhanced", {
+          description,
+          amount: parseFloat(amount) || 0,
+          transaction_date: transactionDate,
+          company_id: companyId,
+        });
+        setResult(data);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "不明なエラー");
@@ -119,9 +98,7 @@ export default function AiInferencePage() {
   };
 
   return (
-    <div className="flex h-screen">
-      <Sidebar />
-      <main className="flex-1 overflow-auto p-8">
+    <PageLayout>
         <div className="mb-6 flex items-center gap-3">
           <Sparkles className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold">AI仕訳推論</h1>
@@ -362,7 +339,6 @@ export default function AiInferencePage() {
             )}
           </div>
         )}
-      </main>
-    </div>
+    </PageLayout>
   );
 }

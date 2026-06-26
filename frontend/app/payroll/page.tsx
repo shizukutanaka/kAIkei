@@ -1,13 +1,11 @@
 "use client";
 
-import Sidebar from "@/components/sidebar";
+import PageLayout from "@/components/page-layout";
 import { Users, Clock } from "lucide-react";
 
 export default function PayrollPage() {
   return (
-    <div className="flex h-screen">
-      <Sidebar />
-      <main className="flex-1 overflow-auto p-8">
+    <PageLayout>
         <div className="mb-6 flex items-center gap-3">
           <Users className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold">給与</h1>
@@ -29,7 +27,6 @@ export default function PayrollPage() {
             <li>• 年末調整</li>
           </ul>
         </div>
-      </main>
-    </div>
+    </PageLayout>
   );
 }
