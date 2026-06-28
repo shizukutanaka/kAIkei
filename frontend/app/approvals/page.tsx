@@ -4,6 +4,7 @@ import { useState } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost } from "@/lib/api";
 import { useUser } from "@/lib/use-user";
+import { useToast } from "@/components/toast";
 import { CheckCircle, XCircle, Send, FileCheck, Clock, History } from "lucide-react";
 
 interface ApprovalLog {
@@ -42,6 +43,7 @@ const ACTION_ICONS: Record<string, typeof Send> = {
 
 export default function ApprovalsPage() {
   const { user } = useUser();
+  const { toast } = useToast();
   const perms = user?.permissions ?? [];
   const canSubmit = perms.includes("journal:create");
   const canApprove = perms.includes("journal:approve");
@@ -70,9 +72,11 @@ export default function ApprovalsPage() {
       }
       const data = await apiPost<Record<string, unknown>>(`/approvals/${action}`, body);
       setResult(data);
+      toast(`${action} 完了`, "success");
       await fetchHistory();
     } catch (err) {
       setError(err instanceof Error ? err.message : "不明なエラー");
+      toast(err instanceof Error ? err.message : "操作に失敗しました", "error");
     } finally {
       setLoading(false);
     }

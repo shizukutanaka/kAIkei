@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
+import { useToast } from "@/components/toast";
 import { Save, Send, Plus } from "lucide-react";
 
 interface Account {
@@ -26,6 +27,7 @@ interface JournalLine {
 
 export default function JournalEntryPage() {
   const { companyId } = useCompany();
+  const { toast } = useToast();
   const [transactionDate, setTransactionDate] = useState("");
   const [summary, setSummary] = useState("");
   const [lines, setLines] = useState<JournalLine[]>([
@@ -134,8 +136,10 @@ export default function JournalEntryPage() {
       };
       const data = await apiPost<Record<string, unknown>>("/journals", payload);
       setResult(data);
+      toast("仕訳を保存しました", "success");
     } catch (err) {
       setError(err instanceof Error ? err.message : "不明なエラー");
+      toast(err instanceof Error ? err.message : "仕訳の保存に失敗しました", "error");
     } finally {
       setSaving(false);
     }

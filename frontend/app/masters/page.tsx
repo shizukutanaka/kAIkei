@@ -5,6 +5,7 @@ import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
+import { useToast } from "@/components/toast";
 import { BookOpen, Plus, Search } from "lucide-react";
 
 interface Account {
@@ -28,6 +29,7 @@ const ACCOUNT_TYPES: Record<string, string> = {
 export default function MastersPage() {
   const { companyId } = useCompany();
   const { user } = useUser();
+  const { toast } = useToast();
   const canCreate = user?.permissions.includes("master:create") ?? false;
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,9 +74,11 @@ export default function MastersPage() {
       await apiPost("/masters", { company_id: companyId, ...newAccount });
       setShowAddForm(false);
       setNewAccount({ account_code: "", account_name: "", account_type: "asset", debit_credit: "debit" });
+      toast("科目を追加しました", "success");
       await fetchAccounts();
     } catch (err) {
       setError(err instanceof Error ? err.message : "科目の追加に失敗しました");
+      toast(err instanceof Error ? err.message : "科目の追加に失敗しました", "error");
     }
   };
 

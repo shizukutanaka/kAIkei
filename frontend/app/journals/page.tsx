@@ -5,6 +5,7 @@ import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { Receipt, ChevronLeft, ChevronRight, Filter } from "lucide-react";
+import Link from "next/link";
 
 interface Journal {
   journal_header_id: string;
@@ -147,8 +148,12 @@ export default function JournalsListPage() {
                 </thead>
                 <tbody>
                   {filteredItems.map((j) => (
-                    <tr key={j.journal_header_id} className="border-t hover:bg-muted/30">
-                      <td className="px-4 py-3 font-mono">{j.journal_number}</td>
+                    <tr key={j.journal_header_id} className="border-t hover:bg-muted/30 cursor-pointer">
+                      <td className="px-4 py-3 font-mono">
+                        <Link href={`/journals/${j.journal_header_id}`} className="text-primary hover:underline">
+                          {j.journal_number}
+                        </Link>
+                      </td>
                       <td className="px-4 py-3">{j.transaction_date}</td>
                       <td className="px-4 py-3">{j.summary || "-"}</td>
                       <td className="px-4 py-3">
