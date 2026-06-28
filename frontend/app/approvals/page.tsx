@@ -3,6 +3,7 @@
 import { useState } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost } from "@/lib/api";
+import { useUser } from "@/lib/use-user";
 import { CheckCircle, XCircle, Send, FileCheck, Clock, History } from "lucide-react";
 
 interface ApprovalLog {
@@ -40,6 +41,12 @@ const ACTION_ICONS: Record<string, typeof Send> = {
 };
 
 export default function ApprovalsPage() {
+  const { user } = useUser();
+  const perms = user?.permissions ?? [];
+  const canSubmit = perms.includes("journal:create");
+  const canApprove = perms.includes("journal:approve");
+  const canPost = perms.includes("journal:post");
+
   const [journalId, setJournalId] = useState("");
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
@@ -110,38 +117,46 @@ export default function ApprovalsPage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => handleAction("submit")}
-              disabled={loading}
-              className="flex items-center gap-2 rounded-md bg-yellow-600 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-700 disabled:opacity-50"
-            >
-              <Send className="h-4 w-4" />
-              承認に提出
-            </button>
-            <button
-              onClick={() => handleAction("approve")}
-              disabled={loading}
-              className="flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-            >
-              <CheckCircle className="h-4 w-4" />
-              承認
-            </button>
-            <button
-              onClick={() => handleAction("reject")}
-              disabled={loading}
-              className="flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              <XCircle className="h-4 w-4" />
-              差し戻し
-            </button>
-            <button
-              onClick={() => handleAction("post")}
-              disabled={loading}
-              className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              <FileCheck className="h-4 w-4" />
-              転記
-            </button>
+            {canSubmit && (
+              <button
+                onClick={() => handleAction("submit")}
+                disabled={loading}
+                className="flex items-center gap-2 rounded-md bg-yellow-600 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-700 disabled:opacity-50"
+              >
+                <Send className="h-4 w-4" />
+                承認に提出
+              </button>
+            )}
+            {canApprove && (
+              <button
+                onClick={() => handleAction("approve")}
+                disabled={loading}
+                className="flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              >
+                <CheckCircle className="h-4 w-4" />
+                承認
+              </button>
+            )}
+            {canApprove && (
+              <button
+                onClick={() => handleAction("reject")}
+                disabled={loading}
+                className="flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                <XCircle className="h-4 w-4" />
+                差し戻し
+              </button>
+            )}
+            {canPost && (
+              <button
+                onClick={() => handleAction("post")}
+                disabled={loading}
+                className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                <FileCheck className="h-4 w-4" />
+                転記
+              </button>
+            )}
             <button
               onClick={fetchHistory}
               disabled={loading || !journalId}

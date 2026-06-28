@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
+import { useUser } from "@/lib/use-user";
 import { BookOpen, Plus, Search } from "lucide-react";
 
 interface Account {
@@ -26,6 +27,8 @@ const ACCOUNT_TYPES: Record<string, string> = {
 
 export default function MastersPage() {
   const { companyId } = useCompany();
+  const { user } = useUser();
+  const canCreate = user?.permissions.includes("master:create") ?? false;
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -88,13 +91,15 @@ export default function MastersPage() {
             <BookOpen className="h-6 w-6 text-primary" />
             <h1 className="text-2xl font-bold">マスタ管理</h1>
           </div>
-          <button
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-          >
-            <Plus className="h-4 w-4" />
-            科目追加
-          </button>
+          {canCreate && (
+            <button
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+            >
+              <Plus className="h-4 w-4" />
+              科目追加
+            </button>
+          )}
         </div>
 
         {showAddForm && (

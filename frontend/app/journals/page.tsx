@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
-import { Receipt, ChevronLeft, ChevronRight } from "lucide-react";
+import { Receipt, ChevronLeft, ChevronRight, Filter } from "lucide-react";
 
 interface Journal {
   journal_header_id: string;
@@ -44,6 +44,7 @@ export default function JournalsListPage() {
   const { companyId } = useCompany();
   const [data, setData] = useState<JournalList | null>(null);
   const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -56,11 +57,12 @@ export default function JournalsListPage() {
     setError("");
 
     try {
-      const data = await apiGet<JournalList>("/journals", {
+      const params: Record<string, string> = {
         company_id: companyId,
         page: String(page),
         page_size: "20",
-      });
+      };
+      const data = await apiGet<JournalList>("/journals", params);
       setData(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "取得に失敗しました");
@@ -72,11 +74,17 @@ export default function JournalsListPage() {
   useEffect(() => {
     setData(null);
     setPage(1);
-  }, [companyId]);
+  }, [companyId, statusFilter]);
 
   useEffect(() => {
     if (companyId) fetchJournals();
-  }, [companyId, page]);
+  }, [companyId, page, statusFilter]);
+
+  const filteredItems = data
+    ? statusFilter
+      ? data.items.filter((j) => j.approval_status === statusFilter)
+      : data.items
+    : [];
 
   const totalPages = data ? Math.ceil(data.total / data.page_size) : 0;
 
@@ -88,9 +96,26 @@ export default function JournalsListPage() {
         </div>
 
         <div className="mb-6 flex items-center justify-between rounded-lg border bg-card p-4">
-          <div>
-            <p className="text-sm font-medium">会社ID</p>
-            <p className="text-sm text-muted-foreground">{companyId || "未設定"}</p>
+          <div className="flex items-center gap-4">
+            <div>
+              <p className="text-sm font-medium">会社ID</p>
+              <p className="text-sm text-muted-foreground">{companyId || "未設定"}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <select
+                value={statusFilter}
+                onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                className="rounded-md border px-2 py-1.5 text-sm"
+              >
+                <option value="">全ステータス</option>
+                <option value="draft">下書き</option>
+                <option value="submitted">承認待ち</option>
+                <option value="approved">承認済</option>
+                <option value="posted">転記済</option>
+                <option value="rejected">差し戻し</option>
+              </select>
+            </div>
           </div>
           <button
             onClick={() => { setPage(1); fetchJournals(); }}
@@ -121,7 +146,7 @@ export default function JournalsListPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.items.map((j) => (
+                  {filteredItems.map((j) => (
                     <tr key={j.journal_header_id} className="border-t hover:bg-muted/30">
                       <td className="px-4 py-3 font-mono">{j.journal_number}</td>
                       <td className="px-4 py-3">{j.transaction_date}</td>
@@ -140,10 +165,10 @@ export default function JournalsListPage() {
                       </td>
                     </tr>
                   ))}
-                  {data.items.length === 0 && (
+                  {filteredItems.length === 0 && (
                     <tr>
                       <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                        仕訳がありません
+                        該当する仕訳がありません
                       </td>
                     </tr>
                   )}
