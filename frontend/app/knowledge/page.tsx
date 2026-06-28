@@ -3,6 +3,7 @@
 import { useState } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiPost } from "@/lib/api";
+import { useToast } from "@/components/toast";
 import { Search, ExternalLink, BookOpen, TrendingUp } from "lucide-react";
 
 interface KnowledgeItem {
@@ -49,6 +50,7 @@ const TOPICS = [
 ];
 
 export default function KnowledgePage() {
+  const { toast } = useToast();
   const [keywords, setKeywords] = useState("");
   const [results, setResults] = useState<SearchResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -72,8 +74,10 @@ export default function KnowledgePage() {
         max_per_source: 5,
       });
       setResults(data);
+      toast(`${data.total_results}件の結果を取得しました`, "success");
     } catch (err) {
       setError(err instanceof Error ? err.message : "不明なエラー");
+      toast("検索に失敗しました", "error");
     } finally {
       setLoading(false);
     }

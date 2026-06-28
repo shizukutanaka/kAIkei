@@ -6,6 +6,7 @@ import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { Receipt, Clock, Sparkles, AlertCircle, TrendingUp, BookOpen, Calculator, FileCheck } from "lucide-react";
+import { SkeletonCard } from "@/components/skeleton";
 
 interface JournalList {
   items: Array<{ approval_status: string }>;
@@ -96,7 +97,12 @@ export default function DashboardPage() {
   if (loading || userLoading) {
     return (
       <PageLayout>
-        <p className="text-muted-foreground">読み込み中...</p>
+        <div className="mb-6 h-8 w-48 animate-pulse rounded bg-muted" />
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
       </PageLayout>
     );
   }

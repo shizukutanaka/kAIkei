@@ -4,6 +4,7 @@ import { useState } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
+import { useToast } from "@/components/toast";
 import { Calculator, Plus, TrendingDown, Trash2 } from "lucide-react";
 
 interface FixedAsset {
@@ -33,6 +34,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default function FixedAssetsPage() {
   const { companyId } = useCompany();
+  const { toast } = useToast();
   const [assets, setAssets] = useState<FixedAsset[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -87,9 +89,11 @@ export default function FixedAssetsPage() {
         depreciation_method: "straight_line",
         salvage_value: "0",
       });
+      toast("資産を登録しました", "success");
       await fetchAssets();
     } catch (err) {
       setError(err instanceof Error ? err.message : "登録に失敗しました");
+      toast("資産の登録に失敗しました", "error");
     } finally {
       setLoading(false);
     }
@@ -102,9 +106,11 @@ export default function FixedAssetsPage() {
         fiscal_year: now.getFullYear(),
         month: now.getMonth() + 1,
       });
+      toast("償却を実行しました", "success");
       await fetchAssets();
     } catch (err) {
       setError(err instanceof Error ? err.message : "償却に失敗しました");
+      toast("償却に失敗しました", "error");
     }
   };
 
@@ -112,9 +118,11 @@ export default function FixedAssetsPage() {
     if (!confirm("この資産を除却しますか？")) return;
     try {
       await apiDelete(`/fixed-assets/${assetId}?disposal_date=${new Date().toISOString().split("T")[0]}`);
+      toast("資産を除却しました", "success");
       await fetchAssets();
     } catch (err) {
       setError(err instanceof Error ? err.message : "除却に失敗しました");
+      toast("除却に失敗しました", "error");
     }
   };
 

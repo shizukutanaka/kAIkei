@@ -4,6 +4,7 @@ import { useState } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
+import { useToast } from "@/components/toast";
 import { FileText, Search } from "lucide-react";
 
 interface TrialBalanceAccount {
@@ -35,6 +36,7 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
 
 export default function ReportsPage() {
   const { companyId } = useCompany();
+  const { toast } = useToast();
   const [asOf, setAsOf] = useState(new Date().toISOString().split("T")[0]);
   const [reportType, setReportType] = useState<"trial-balance" | "monthly">("trial-balance");
   const [year, setYear] = useState(new Date().getFullYear().toString());
@@ -61,6 +63,7 @@ export default function ReportsPage() {
           as_of: asOf,
         });
         setData(result);
+        toast("試算表を取得しました", "success");
       } else {
         const result = await apiGet<Record<string, unknown>>("/reports/monthly-balances", {
           company_id: companyId,
@@ -68,9 +71,11 @@ export default function ReportsPage() {
           month,
         });
         setMonthlyData(result);
+        toast("月次残高を取得しました", "success");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "不明なエラー");
+      toast("レポートの取得に失敗しました", "error");
     } finally {
       setLoading(false);
     }
