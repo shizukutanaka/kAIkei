@@ -50,6 +50,31 @@ export default function JournalEntryPage() {
       .finally(() => setAccountsLoading(false));
   }, [companyId]);
 
+  useEffect(() => {
+    const savedLines = sessionStorage.getItem("ai_inference_lines");
+    const savedSummary = sessionStorage.getItem("ai_inference_summary");
+    const savedDate = sessionStorage.getItem("ai_inference_date");
+    if (savedLines) {
+      try {
+        const parsed = JSON.parse(savedLines) as JournalLine[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setLines(parsed);
+        }
+      } catch {
+        // ignore
+      }
+      sessionStorage.removeItem("ai_inference_lines");
+    }
+    if (savedSummary) {
+      setSummary(savedSummary);
+      sessionStorage.removeItem("ai_inference_summary");
+    }
+    if (savedDate) {
+      setTransactionDate(savedDate);
+      sessionStorage.removeItem("ai_inference_date");
+    }
+  }, []);
+
   const debitTotal = lines
     .filter((l) => l.debit_credit === "debit")
     .reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);

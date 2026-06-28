@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import PageLayout from "@/components/page-layout";
 import { apiPost, apiPostMultipart } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
-import { Upload, FileText, Sparkles, AlertCircle } from "lucide-react";
+import { Upload, FileText, Sparkles, AlertCircle, ArrowRight } from "lucide-react";
 
 interface InferenceResult {
   status: string;
@@ -42,6 +43,7 @@ interface InferenceResult {
 
 export default function AiInferencePage() {
   const { companyId } = useCompany();
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [transactionDate, setTransactionDate] = useState("");
   const [description, setDescription] = useState("");
@@ -286,6 +288,30 @@ export default function AiInferencePage() {
                   ))}
                 </tbody>
               </table>
+
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={() => {
+                    const lines = result.results.map((r) => ({
+                      debit_credit: r.debit_credit,
+                      account_code: r.account_code,
+                      account_name: r.account_name,
+                      account_id: "",
+                      amount: String(r.amount),
+                      tax_amount: String(Math.round(r.amount * r.tax_rate)),
+                      description: r.reasoning,
+                    }));
+                    sessionStorage.setItem("ai_inference_lines", JSON.stringify(lines));
+                    sessionStorage.setItem("ai_inference_summary", description);
+                    sessionStorage.setItem("ai_inference_date", transactionDate);
+                    router.push("/journals/new");
+                  }}
+                  className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  この内容で仕訳入力へ
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             {result.pdf_extraction && (
