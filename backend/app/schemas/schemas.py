@@ -180,3 +180,59 @@ class FixedAssetResponse(BaseModel):
     net_book_value: Decimal
 
     model_config = {"from_attributes": True}
+
+
+class EmployeeCreate(BaseModel):
+    company_id: UUID
+    employee_code: str
+    employee_name: str
+    department: str | None = None
+    position: str | None = None
+    employment_type: str = "full_time"
+    base_salary: Decimal = Field(default=Decimal("0"), ge=0)
+    hourly_rate: Decimal = Field(default=Decimal("0"), ge=0)
+    hire_date: date
+
+
+class EmployeeResponse(BaseModel):
+    employee_id: UUID
+    company_id: UUID
+    employee_code: str
+    employee_name: str
+    department: str | None
+    position: str | None
+    employment_type: str
+    base_salary: Decimal
+    hourly_rate: Decimal
+    hire_date: date
+    termination_date: date | None
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class PayrollCalculateRequest(BaseModel):
+    company_id: UUID
+    payroll_year: int = Field(ge=2000, le=2100)
+    payroll_month: int = Field(ge=1, le=12)
+    overtime_hours: dict[UUID, Decimal] = Field(default_factory=dict)
+
+
+class PayrollRecordResponse(BaseModel):
+    payroll_id: UUID
+    employee_id: UUID
+    company_id: UUID
+    payroll_year: int
+    payroll_month: int
+    base_salary: Decimal
+    overtime_hours: Decimal
+    overtime_pay: Decimal
+    total_gross: Decimal
+    income_tax: Decimal
+    social_insurance: Decimal
+    total_deductions: Decimal
+    net_pay: Decimal
+    status: str
+    employee_name: str | None = None
+
+    model_config = {"from_attributes": True}

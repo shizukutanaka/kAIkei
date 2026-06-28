@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import ai, approvals, auth, companies, fixed_assets, integrations, journals, knowledge, masters, rbac, reports
+from app.api.v1.endpoints import ai, approvals, auth, companies, fixed_assets, integrations, journals, knowledge, masters, payroll, rbac, reports
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
@@ -14,3 +14,4 @@ api_router.include_router(ai.router, prefix="/ai", tags=["AI"])
 api_router.include_router(integrations.router, prefix="/integrations", tags=["Integrations"])
 api_router.include_router(knowledge.router, prefix="/knowledge", tags=["Knowledge"])
 api_router.include_router(fixed_assets.router, prefix="/fixed-assets", tags=["Fixed Assets"])
+api_router.include_router(payroll.router, prefix="/payroll", tags=["Payroll"])

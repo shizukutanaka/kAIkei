@@ -260,3 +260,52 @@ class IdempotencyRecord(Base):
     response_body: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class Employee(Base):
+    """従業員マスタ。"""
+    __tablename__ = "employees"
+
+    employee_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    employee_code: Mapped[str] = mapped_column(String(50), nullable=False)
+    employee_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    department: Mapped[str | None] = mapped_column(String(100))
+    position: Mapped[str | None] = mapped_column(String(100))
+    employment_type: Mapped[str] = mapped_column(String(20), default="full_time", nullable=False)
+    base_salary: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    hourly_rate: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    hire_date: Mapped[date] = mapped_column(Date, nullable=False)
+    termination_date: Mapped[date | None] = mapped_column(Date)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    company = relationship("Company")
+    payroll_records = relationship("PayrollRecord", back_populates="employee")
+
+
+class PayrollRecord(Base):
+    """給与計算レコード。"""
+    __tablename__ = "payroll_records"
+
+    payroll_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    employee_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("employees.employee_id"), nullable=False)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    payroll_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    payroll_month: Mapped[int] = mapped_column(Integer, nullable=False)
+    base_salary: Mapped[Decimal] = mapped_column(Numeric(15, 4), nullable=False)
+    overtime_hours: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=Decimal("0"), nullable=False)
+    overtime_pay: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    total_gross: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    income_tax: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    social_insurance: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    total_deductions: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    net_pay: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    employee = relationship("Employee", back_populates="payroll_records")
+    company = relationship("Company")

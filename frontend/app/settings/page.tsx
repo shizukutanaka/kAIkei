@@ -3,6 +3,7 @@
 import PageLayout from "@/components/page-layout";
 import { useUser } from "@/lib/use-user";
 import { Settings, User, Shield, LogOut } from "lucide-react";
+import { SkeletonCard } from "@/components/skeleton";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "管理者",
@@ -45,7 +46,12 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <PageLayout>
-        <p className="text-muted-foreground">読み込み中...</p>
+        <div className="mb-6 h-8 w-32 animate-pulse rounded bg-muted" />
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
       </PageLayout>
     );
   }
