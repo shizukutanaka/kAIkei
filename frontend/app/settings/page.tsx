@@ -1,17 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
-import { apiGet } from "@/lib/api";
+import { useUser } from "@/lib/use-user";
 import { Settings, User, Shield, LogOut } from "lucide-react";
-
-interface UserInfo {
-  user_id: string;
-  email: string;
-  display_name: string;
-  role: string;
-  permissions: string[];
-}
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "管理者",
@@ -43,23 +34,7 @@ const PERMISSION_LABELS: Record<string, string> = {
 };
 
 export default function SettingsPage() {
-  const [user, setUser] = useState<UserInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const user = await apiGet<UserInfo>("/rbac/me");
-        setUser(user);
-      } catch {
-        // API not running
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUser();
-  }, []);
+  const { user, loading } = useUser();
 
   const handleLogout = () => {
     localStorage.removeItem("token");
