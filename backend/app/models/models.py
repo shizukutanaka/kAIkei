@@ -309,3 +309,26 @@ class PayrollRecord(Base):
 
     employee = relationship("Employee", back_populates="payroll_records")
     company = relationship("Company")
+
+
+class Partner(Base):
+    """取引先マスタ。"""
+    __tablename__ = "partners"
+
+    partner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    partner_code: Mapped[str] = mapped_column(String(50), nullable=False)
+    partner_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    partner_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    postal_code: Mapped[str | None] = mapped_column(String(10))
+    address: Mapped[str | None] = mapped_column(String(500))
+    phone: Mapped[str | None] = mapped_column(String(20))
+    email: Mapped[str | None] = mapped_column(String(200))
+    contact_person: Mapped[str | None] = mapped_column(String(100))
+    payment_terms: Mapped[str | None] = mapped_column(String(100))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    company = relationship("Company")

@@ -236,3 +236,45 @@ class PayrollRecordResponse(BaseModel):
     employee_name: str | None = None
 
     model_config = {"from_attributes": True}
+
+
+class PartnerCreate(BaseModel):
+    company_id: UUID
+    partner_code: str
+    partner_name: str
+    partner_type: str = "customer"
+    postal_code: str | None = None
+    address: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    contact_person: str | None = None
+    payment_terms: str | None = None
+
+
+class PartnerUpdate(BaseModel):
+    partner_name: str | None = None
+    partner_type: str | None = None
+    postal_code: str | None = None
+    address: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    contact_person: str | None = None
+    payment_terms: str | None = None
+    is_active: bool | None = None
+
+
+class PartnerResponse(BaseModel):
+    partner_id: UUID
+    company_id: UUID
+    partner_code: str
+    partner_name: str
+    partner_type: str
+    postal_code: str | None
+    address: str | None
+    phone: str | None
+    email: str | None
+    contact_person: str | None
+    payment_terms: str | None
+    is_active: bool
+
+    model_config = {"from_attributes": True}
