@@ -1,8 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiPost } from "@/lib/api";
 import { Building2, LogIn } from "lucide-react";
+
+interface LoginResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,7 +18,14 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleLogin = async () => {
+  useEffect(() => {
+    if (typeof window !== "undefined" && localStorage.getItem("token")) {
+      router.push("/dashboard");
+    }
+  }, [router]);
+
+  const handleLogin = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!email || !password) {
       setError("メールアドレスとパスワードを入力してください");
       return;
@@ -21,18 +35,7 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const response = await fetch("http://localhost:8000/api/v1/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.detail || "ログインに失敗しました");
-      }
-
-      const data = await response.json();
+      const data = await apiPost<LoginResponse>("/auth/login", { email, password });
       localStorage.setItem("token", data.access_token);
       localStorage.setItem("refresh_token", data.refresh_token);
       router.push("/dashboard");
@@ -54,16 +57,16 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="space-y-4">
+        <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium">メールアドレス</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
               placeholder="user@example.com"
               className="w-full rounded-md border px-3 py-2 text-sm"
+              required
             />
           </div>
 
@@ -73,9 +76,9 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
               placeholder="••••••••"
               className="w-full rounded-md border px-3 py-2 text-sm"
+              required
             />
           </div>
 
@@ -86,14 +89,14 @@ export default function LoginPage() {
           )}
 
           <button
-            onClick={handleLogin}
+            type="submit"
             disabled={loading}
             className="flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
             <LogIn className="h-4 w-4" />
             {loading ? "ログイン中..." : "ログイン"}
           </button>
-        </div>
+        </form>
       </div>
     </div>
   );
