@@ -6,6 +6,7 @@ import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { Receipt, ChevronLeft, ChevronRight, Filter } from "lucide-react";
 import Link from "next/link";
+import { SkeletonTable } from "@/components/skeleton";
 
 interface Journal {
   journal_header_id: string;
@@ -131,6 +132,10 @@ export default function JournalsListPage() {
           <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
             {error}
           </div>
+        )}
+
+        {loading && !data && (
+          <SkeletonTable rows={5} columns={5} />
         )}
 
         {data && (

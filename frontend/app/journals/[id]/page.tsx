@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import PageLayout from "@/components/page-layout";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPost } from "@/lib/api";
+import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
-import { ArrowLeft, Receipt } from "lucide-react";
+import { ArrowLeft, Receipt, Send, CheckCircle, XCircle, FileCheck } from "lucide-react";
 
 interface JournalLine {
   line_number: number;
@@ -50,27 +51,47 @@ export default function JournalDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useUser();
+  const perms = user?.permissions ?? [];
+  const canSubmit = perms.includes("journal:create");
+  const canApprove = perms.includes("journal:approve");
+  const canPost = perms.includes("journal:post");
   const [journal, setJournal] = useState<JournalDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
 
   const id = params?.id as string;
 
+  const fetchJournal = async () => {
+    try {
+      const data = await apiGet<JournalDetail>(`/journals/${id}`);
+      setJournal(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "取得に失敗しました");
+      toast("仕訳の取得に失敗しました", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!id) return;
-    const fetchJournal = async () => {
-      try {
-        const data = await apiGet<JournalDetail>(`/journals/${id}`);
-        setJournal(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "取得に失敗しました");
-        toast("仕訳の取得に失敗しました", "error");
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchJournal();
-  }, [id, toast]);
+  }, [id]);
+
+  const handleApprovalAction = async (action: string) => {
+    setActionLoading(true);
+    try {
+      await apiPost(`/approvals/${action}`, { journal_header_id: id });
+      toast(`${action} 完了`, "success");
+      await fetchJournal();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "操作に失敗しました", "error");
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -188,6 +209,49 @@ export default function JournalDetailPage() {
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div className="mb-6 flex flex-wrap gap-2">
+        {canSubmit && journal.approval_status === "draft" && (
+          <button
+            onClick={() => handleApprovalAction("submit")}
+            disabled={actionLoading}
+            className="flex items-center gap-2 rounded-md bg-yellow-600 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-700 disabled:opacity-50"
+          >
+            <Send className="h-4 w-4" />
+            承認に提出
+          </button>
+        )}
+        {canApprove && journal.approval_status === "submitted" && (
+          <>
+            <button
+              onClick={() => handleApprovalAction("approve")}
+              disabled={actionLoading}
+              className="flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+            >
+              <CheckCircle className="h-4 w-4" />
+              承認
+            </button>
+            <button
+              onClick={() => handleApprovalAction("reject")}
+              disabled={actionLoading}
+              className="flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              <XCircle className="h-4 w-4" />
+              差し戻し
+            </button>
+          </>
+        )}
+        {canPost && journal.approval_status === "approved" && (
+          <button
+            onClick={() => handleApprovalAction("post")}
+            disabled={actionLoading}
+            className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            <FileCheck className="h-4 w-4" />
+            転記
+          </button>
+        )}
       </div>
     </PageLayout>
   );

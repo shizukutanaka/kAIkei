@@ -6,6 +6,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
+import { SkeletonTable } from "@/components/skeleton";
 import { BookOpen, Plus, Search } from "lucide-react";
 
 interface Account {
@@ -189,7 +190,7 @@ export default function MastersPage() {
         </div>
 
         {loading ? (
-          <p className="text-muted-foreground">読み込み中...</p>
+          <SkeletonTable rows={6} columns={5} />
         ) : (
           <div className="overflow-hidden rounded-lg border">
             <table className="w-full text-sm">
