@@ -278,3 +278,30 @@ class PartnerResponse(BaseModel):
     is_active: bool
 
     model_config = {"from_attributes": True}
+
+
+class BonusCalculateRequest(BaseModel):
+    company_id: UUID
+    bonus_year: int = Field(ge=2000, le=2100)
+    bonus_term: str = Field(description="summer, winter, etc.")
+    bonus_base_months: Decimal = Field(default=Decimal("2.0"), ge=0)
+    performance_factors: dict[UUID, Decimal] = Field(default_factory=dict)
+
+
+class BonusRecordResponse(BaseModel):
+    bonus_id: UUID
+    employee_id: UUID
+    company_id: UUID
+    bonus_year: int
+    bonus_term: str
+    bonus_amount: Decimal
+    bonus_base_months: Decimal
+    performance_factor: Decimal
+    income_tax: Decimal
+    social_insurance: Decimal
+    total_deductions: Decimal
+    net_pay: Decimal
+    status: str
+    employee_name: str | None = None
+
+    model_config = {"from_attributes": True}
