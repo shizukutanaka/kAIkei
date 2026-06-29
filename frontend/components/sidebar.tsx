@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, LayoutDashboard, FileText, Settings, Receipt, Users, Building2, Calculator, Sparkles, Globe, FileCheck, List, Menu, X, Handshake, Gift, CalendarClock, Clock } from "lucide-react";
+import { BookOpen, LayoutDashboard, FileText, Settings, Receipt, Users, Building2, Calculator, Sparkles, Globe, FileCheck, List, Menu, X, Handshake, Gift, CalendarClock, Clock, Wallet } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import CompanySelector from "@/components/company-selector";
@@ -29,6 +29,7 @@ const navItems: NavItem[] = [
   { label: "賞与", href: "/bonus", icon: Gift },
   { label: "年末調整", href: "/year-end", icon: CalendarClock },
   { label: "勤怠管理", href: "/attendance", icon: Clock },
+  { label: "経費精算", href: "/expenses", icon: Wallet },
   { label: "設定", href: "/settings", icon: Settings },
 ];
 

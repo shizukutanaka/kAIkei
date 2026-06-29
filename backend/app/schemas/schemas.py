@@ -369,3 +369,46 @@ class AttendanceResponse(BaseModel):
     employee_name: str | None = None
 
     model_config = {"from_attributes": True}
+
+
+class ExpenseItemCreate(BaseModel):
+    expense_date: date
+    category: str = Field(description="transport, meal, accommodation, supplies, entertainment, other")
+    description: str
+    amount: Decimal = Field(ge=0)
+
+
+class ExpenseReportCreate(BaseModel):
+    company_id: UUID
+    employee_id: UUID
+    report_date: date
+    title: str
+    note: str | None = None
+    items: list[ExpenseItemCreate]
+
+
+class ExpenseItemResponse(BaseModel):
+    item_id: UUID
+    expense_date: date
+    category: str
+    description: str
+    amount: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class ExpenseReportResponse(BaseModel):
+    report_id: UUID
+    employee_id: UUID
+    company_id: UUID
+    report_date: date
+    title: str
+    total_amount: Decimal
+    status: str
+    approved_by: UUID | None = None
+    approved_at: datetime | None = None
+    note: str | None = None
+    employee_name: str | None = None
+    items: list[ExpenseItemResponse] = []
+
+    model_config = {"from_attributes": True}
