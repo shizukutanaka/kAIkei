@@ -269,6 +269,11 @@ export default function ExpensesPage() {
             <option value="paid">支払済</option>
           </select>
           <span className="text-xs text-muted-foreground">{filteredReports.length}/{reports.length}件</span>
+          {filteredReports.length > 0 && (
+            <span className="text-xs font-medium text-muted-foreground">
+              合計: ¥{filteredReports.reduce((s, r) => s + parseInt(r.total_amount), 0).toLocaleString()}
+            </span>
+          )}
         </div>
         {canCreate && (
           <button

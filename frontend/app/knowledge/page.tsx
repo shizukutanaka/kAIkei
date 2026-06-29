@@ -5,6 +5,7 @@ import PageLayout from "@/components/page-layout";
 import { apiPost } from "@/lib/api";
 import { useToast } from "@/components/toast";
 import { Search, ExternalLink, BookOpen, TrendingUp } from "lucide-react";
+import { SkeletonCard } from "@/components/skeleton";
 
 interface KnowledgeItem {
   title: string;
@@ -134,6 +135,14 @@ export default function KnowledgePage() {
         {error && (
           <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
             {error}
+          </div>
+        )}
+
+        {loading && (
+          <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
           </div>
         )}
 

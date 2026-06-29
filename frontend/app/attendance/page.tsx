@@ -439,6 +439,8 @@ export default function AttendancePage() {
           {loading ? (
             <SkeletonTable rows={5} columns={6} />
           ) : summary.length > 0 ? (
+            <>
+            <p className="mb-2 text-xs text-muted-foreground">{summary.length}人</p>
             <div className="overflow-hidden rounded-lg border">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50">
@@ -469,8 +471,19 @@ export default function AttendancePage() {
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr className="border-t-2 bg-muted/30 font-bold">
+                    <td colSpan={2} className="px-4 py-3">合計</td>
+                    <td className="px-4 py-3 text-right">{summary.reduce((s, r) => s + r.days, 0)}日</td>
+                    <td className="px-4 py-3 text-right">{formatMinutes(summary.reduce((s, r) => s + r.total_work_minutes, 0))}</td>
+                    <td className="px-4 py-3 text-right text-orange-600">{(() => { const tot = summary.reduce((s, r) => s + r.total_overtime_minutes, 0); return tot > 0 ? formatMinutes(tot) : "-"; })()}</td>
+                    <td className="px-4 py-3 text-right">{summary.reduce((s, r) => s + r.paid_leave_days, 0)}日</td>
+                    <td className="px-4 py-3 text-right text-red-600">{(() => { const tot = summary.reduce((s, r) => s + r.absent_days, 0); return tot > 0 ? `${tot}日` : "-"; })()}</td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
+            </>
           ) : (
             <div className="flex flex-col items-center justify-center rounded-lg border bg-card p-12">
               <Calendar className="mb-3 h-10 w-10 text-muted-foreground" />
