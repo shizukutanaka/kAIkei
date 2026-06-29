@@ -4,7 +4,7 @@ import { useState } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiPost } from "@/lib/api";
 import { useToast } from "@/components/toast";
-import { Search, ExternalLink, BookOpen, TrendingUp, Loader2 } from "lucide-react";
+import { Search, ExternalLink, BookOpen, TrendingUp, Loader2, X } from "lucide-react";
 import { SkeletonCard } from "@/components/skeleton";
 
 interface KnowledgeItem {
@@ -94,14 +94,24 @@ export default function KnowledgePage() {
         <div className="mb-6 rounded-lg border bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold">検索キーワード</h2>
           <div className="flex gap-2">
-            <input
-              type="text"
-              value={keywords}
-              onChange={(e) => setKeywords(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              placeholder="会計, AI, 仕訳自動化"
-              className="flex-1 rounded-md border px-3 py-2 text-sm"
-            />
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={keywords}
+                onChange={(e) => setKeywords(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                placeholder="会計, AI, 仕訳自動化"
+                className="w-full rounded-md border px-3 py-2 pr-8 text-sm"
+              />
+              {keywords && (
+                <button
+                  onClick={() => setKeywords("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
+                >
+                  <X className="h-4 w-4 text-muted-foreground" />
+                </button>
+              )}
+            </div>
             <button
               onClick={() => handleSearch()}
               disabled={loading}

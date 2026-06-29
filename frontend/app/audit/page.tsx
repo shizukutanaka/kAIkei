@@ -7,7 +7,7 @@ import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { SkeletonTable } from "@/components/skeleton";
 import { Pagination } from "@/components/pagination";
-import { ScrollText, Download, Search, RefreshCw, X } from "lucide-react";
+import { ScrollText, Download, Search, RefreshCw, X, Loader2 } from "lucide-react";
 
 interface AuditLog {
   log_id: string;
@@ -59,6 +59,7 @@ export default function AuditLogPage() {
   const pageSize = 50;
   const [actionFilter, setActionFilter] = useState("");
   const [resourceFilter, setResourceFilter] = useState("");
+  const [exportLoading, setExportLoading] = useState(false);
 
   const fetchLogs = async () => {
     if (!companyId) return;
@@ -88,6 +89,7 @@ export default function AuditLogPage() {
 
   const handleExport = async () => {
     if (!companyId) return;
+    setExportLoading(true);
     try {
       const token = localStorage.getItem("token");
       const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
@@ -104,6 +106,8 @@ export default function AuditLogPage() {
       URL.revokeObjectURL(url);
     } catch (err) {
       setError(err instanceof Error ? err.message : "エクスポートに失敗しました");
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -130,11 +134,11 @@ export default function AuditLogPage() {
         </div>
         <button
           onClick={handleExport}
-          disabled={!companyId}
+          disabled={!companyId || exportLoading}
           className="flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
         >
-          <Download className="h-4 w-4" />
-          監査データエクスポート
+          {exportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {exportLoading ? "出力中..." : "監査データエクスポート"}
         </button>
       </div>
 
