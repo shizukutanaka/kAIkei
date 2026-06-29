@@ -7,7 +7,7 @@ import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { SkeletonTable } from "@/components/skeleton";
 import { Pagination } from "@/components/pagination";
-import { ScrollText, Download, Search } from "lucide-react";
+import { ScrollText, Download, Search, RefreshCw } from "lucide-react";
 
 interface AuditLog {
   log_id: string;
@@ -174,6 +174,14 @@ export default function AuditLogPage() {
           />
         </div>
         {total > 0 && <span className="text-xs text-muted-foreground">{total}件</span>}
+        <button
+          onClick={fetchLogs}
+          disabled={loading || !companyId}
+          className="flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+        >
+          <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+          更新
+        </button>
       </div>
 
       {loading ? (

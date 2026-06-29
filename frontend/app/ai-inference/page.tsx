@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import PageLayout from "@/components/page-layout";
 import { apiPost, apiPostMultipart } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
-import { Upload, FileText, Sparkles, AlertCircle, ArrowRight } from "lucide-react";
+import { Upload, FileText, Sparkles, AlertCircle, ArrowRight, Loader2 } from "lucide-react";
+import { SkeletonCard } from "@/components/skeleton";
 
 interface InferenceResult {
   status: string;
@@ -107,6 +108,12 @@ export default function AiInferencePage() {
           <h1 className="text-2xl font-bold">AI仕訳推論</h1>
         </div>
 
+        {!companyId && (
+          <div className="mb-6 rounded-md border border-yellow-500/50 bg-yellow-50 p-4 text-sm text-yellow-700">
+            サイドバーで会社を選択してください。
+          </div>
+        )}
+
         <div className="mb-6 rounded-lg border bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold">入力</h2>
 
@@ -166,8 +173,9 @@ export default function AiInferencePage() {
           <button
             onClick={handleInfer}
             disabled={loading || !companyId || !transactionDate}
-            className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+            className="flex items-center gap-2 rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             {loading ? "推論中..." : "AI推論実行"}
           </button>
         </div>
@@ -176,6 +184,14 @@ export default function AiInferencePage() {
           <div className="mb-4 flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
             <AlertCircle className="h-4 w-4" />
             {error}
+          </div>
+        )}
+
+        {loading && (
+          <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
           </div>
         )}
 
@@ -206,7 +222,7 @@ export default function AiInferencePage() {
                 </div>
               </div>
 
-              <div className="mb-4 grid grid-cols-3 gap-4">
+                <div className="mb-4 grid grid-cols-4 gap-4">
                 <div className="rounded-md bg-muted/30 p-3">
                   <p className="text-xs text-muted-foreground">平均信頼度</p>
                   <p className="text-lg font-bold">
@@ -220,6 +236,12 @@ export default function AiInferencePage() {
                 <div className="rounded-md bg-muted/30 p-3">
                   <p className="text-xs text-muted-foreground">貸方合計</p>
                   <p className="text-lg font-bold">¥{result.credit_total.toLocaleString()}</p>
+                </div>
+                <div className="rounded-md bg-muted/30 p-3">
+                  <p className="text-xs text-muted-foreground">貸借バランス</p>
+                  <p className={`text-lg font-bold ${result.is_balanced ? "text-green-600" : "text-red-600"}`}>
+                    {result.is_balanced ? "一致" : "不一致"}
+                  </p>
                 </div>
               </div>
 

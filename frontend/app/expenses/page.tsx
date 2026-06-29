@@ -486,6 +486,13 @@ export default function ExpensesPage() {
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr className="border-t-2 bg-muted/30 font-bold">
+                <td colSpan={3} className="px-4 py-3">合計</td>
+                <td className="px-4 py-3 text-right">¥{filteredReports.reduce((s, r) => s + parseInt(r.total_amount), 0).toLocaleString()}</td>
+                <td colSpan={2} />
+              </tr>
+            </tfoot>
           </table>
         </div>
       ) : (
