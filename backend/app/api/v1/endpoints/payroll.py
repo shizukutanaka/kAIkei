@@ -3,6 +3,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import PlainTextResponse
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -230,3 +231,46 @@ async def list_payroll_records(
     )
     rows = result.all()
     return [_to_payroll_response(rec, name) for rec, name in rows]
+
+
+@router.get("/payslip/{payroll_id}", response_class=PlainTextResponse)
+async def export_payslip(
+    payroll_id: UUID,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+    db: AsyncSession = Depends(get_db),
+) -> str:
+    """給与明細をCSV形式で出力する。"""
+    result = await db.execute(
+        select(PayrollRecord, Employee.employee_name, Employee.employee_code, Employee.department)
+        .join(Employee, PayrollRecord.employee_id == Employee.employee_id)
+        .where(PayrollRecord.payroll_id == payroll_id)
+    )
+    row = result.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="給与レコードが見つかりません")
+
+    rec, emp_name, emp_code, dept = row
+
+    lines = [
+        "項目,内容",
+        f"従業員コード,{emp_code}",
+        f"従業員名,{emp_name}",
+        f"部署,{dept or ''}",
+        f"対象年月,{rec.payroll_year}年{rec.payroll_month}月",
+        "",
+        "支給項目,金額",
+        f"基本給,{rec.base_salary}",
+        f"残業時間,{rec.overtime_hours}h",
+        f"残業代,{rec.overtime_pay}",
+        f"総支給額,{rec.total_gross}",
+        "",
+        "控除項目,金額",
+        f"源泉所得税,{rec.income_tax}",
+        f"社会保険料,{rec.social_insurance}",
+        f"控除合計,{rec.total_deductions}",
+        "",
+        f"差引支給額,{rec.net_pay}",
+        f"ステータス,{rec.status}",
+    ]
+
+    return "\n".join(lines)

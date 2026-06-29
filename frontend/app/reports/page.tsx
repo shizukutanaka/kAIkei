@@ -5,7 +5,8 @@ import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/components/toast";
-import { FileText, Search } from "lucide-react";
+import { FileText, Search, Users } from "lucide-react";
+import { SkeletonTable } from "@/components/skeleton";
 
 interface TrialBalanceAccount {
   account_code: string;
@@ -26,6 +27,23 @@ interface TrialBalance {
   is_balanced: boolean;
 }
 
+interface PayrollSummaryItem {
+  payroll_id: string;
+  employee_id: string;
+  payroll_year: number;
+  payroll_month: number;
+  base_salary: string;
+  overtime_hours: string;
+  overtime_pay: string;
+  total_gross: string;
+  income_tax: string;
+  social_insurance: string;
+  total_deductions: string;
+  net_pay: string;
+  status: string;
+  employee_name: string | null;
+}
+
 const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   asset: "資産",
   liability: "負債",
@@ -38,11 +56,12 @@ export default function ReportsPage() {
   const { companyId } = useCompany();
   const { toast } = useToast();
   const [asOf, setAsOf] = useState(new Date().toISOString().split("T")[0]);
-  const [reportType, setReportType] = useState<"trial-balance" | "monthly">("trial-balance");
+  const [reportType, setReportType] = useState<"trial-balance" | "monthly" | "payroll">("trial-balance");
   const [year, setYear] = useState(new Date().getFullYear().toString());
   const [month, setMonth] = useState((new Date().getMonth() + 1).toString());
   const [data, setData] = useState<TrialBalance | null>(null);
   const [monthlyData, setMonthlyData] = useState<Record<string, unknown> | null>(null);
+  const [payrollData, setPayrollData] = useState<PayrollSummaryItem[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -55,6 +74,7 @@ export default function ReportsPage() {
     setError("");
     setData(null);
     setMonthlyData(null);
+    setPayrollData(null);
 
     try {
       if (reportType === "trial-balance") {
@@ -64,7 +84,7 @@ export default function ReportsPage() {
         });
         setData(result);
         toast("試算表を取得しました", "success");
-      } else {
+      } else if (reportType === "monthly") {
         const result = await apiGet<Record<string, unknown>>("/reports/monthly-balances", {
           company_id: companyId,
           year,
@@ -72,6 +92,14 @@ export default function ReportsPage() {
         });
         setMonthlyData(result);
         toast("月次残高を取得しました", "success");
+      } else {
+        const result = await apiGet<PayrollSummaryItem[]>("/payroll/records", {
+          company_id: companyId,
+          payroll_year: year,
+          payroll_month: month,
+        });
+        setPayrollData(result);
+        toast("給与サマリーを取得しました", "success");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "不明なエラー");
@@ -105,6 +133,15 @@ export default function ReportsPage() {
               }`}
             >
               月次残高
+            </button>
+            <button
+              onClick={() => setReportType("payroll")}
+              className={`flex items-center gap-1 rounded-md px-4 py-2 text-sm font-medium ${
+                reportType === "payroll" ? "bg-primary text-primary-foreground" : "border"
+              }`}
+            >
+              <Users className="h-4 w-4" />
+              給与サマリー
             </button>
           </div>
 
@@ -149,6 +186,11 @@ export default function ReportsPage() {
                   </select>
                 </div>
               </>
+            )}
+            {reportType === "payroll" && (
+              <div className="flex items-end">
+                <p className="text-xs text-muted-foreground">給与計算実行後にデータが表示されます</p>
+              </div>
             )}
           </div>
 
@@ -203,6 +245,63 @@ export default function ReportsPage() {
                 </tr>
               </tbody>
             </table>
+          </div>
+        )}
+
+        {loading && reportType === "payroll" && (
+          <SkeletonTable rows={5} columns={6} />
+        )}
+
+        {payrollData && payrollData.length > 0 && (
+          <div className="overflow-hidden rounded-lg border">
+            <div className="border-b bg-muted/50 px-4 py-3">
+              <h2 className="text-lg font-semibold">給与サマリー — {year}年{month}月</h2>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-muted/30">
+                <tr>
+                  <th className="px-4 py-2 text-left font-medium">従業員</th>
+                  <th className="px-4 py-2 text-right font-medium">基本給</th>
+                  <th className="px-4 py-2 text-right font-medium">残業代</th>
+                  <th className="px-4 py-2 text-right font-medium">総支給額</th>
+                  <th className="px-4 py-2 text-right font-medium">控除額</th>
+                  <th className="px-4 py-2 text-right font-medium">差引支給額</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payrollData.map((r) => (
+                  <tr key={r.payroll_id} className="border-t">
+                    <td className="px-4 py-2">{r.employee_name || r.employee_id.slice(0, 8)}</td>
+                    <td className="px-4 py-2 text-right">¥{parseInt(r.base_salary).toLocaleString()}</td>
+                    <td className="px-4 py-2 text-right">¥{parseInt(r.overtime_pay).toLocaleString()}</td>
+                    <td className="px-4 py-2 text-right font-medium">¥{parseInt(r.total_gross).toLocaleString()}</td>
+                    <td className="px-4 py-2 text-right text-red-600">¥{parseInt(r.total_deductions).toLocaleString()}</td>
+                    <td className="px-4 py-2 text-right font-bold">¥{parseInt(r.net_pay).toLocaleString()}</td>
+                  </tr>
+                ))}
+                {(() => {
+                  const totalGross = payrollData.reduce((s, r) => s + parseInt(r.total_gross), 0);
+                  const totalDed = payrollData.reduce((s, r) => s + parseInt(r.total_deductions), 0);
+                  const totalNet = payrollData.reduce((s, r) => s + parseInt(r.net_pay), 0);
+                  return (
+                    <tr className="border-t-2 bg-muted/30 font-bold">
+                      <td className="px-4 py-3">合計</td>
+                      <td colSpan={2} />
+                      <td className="px-4 py-3 text-right">¥{totalGross.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right text-red-600">¥{totalDed.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right">¥{totalNet.toLocaleString()}</td>
+                    </tr>
+                  );
+                })()}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {payrollData && payrollData.length === 0 && (
+          <div className="flex flex-col items-center justify-center rounded-lg border bg-card p-12">
+            <Users className="mb-3 h-10 w-10 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">該当月の給与データがありません。給与計算を実行してください。</p>
           </div>
         )}
 

@@ -7,7 +7,7 @@ import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { SkeletonTable } from "@/components/skeleton";
-import { Users, Plus, Calculator, Trash2, FileText } from "lucide-react";
+import { Users, Plus, Calculator, Trash2, FileText, Download } from "lucide-react";
 
 interface Employee {
   employee_id: string;
@@ -191,6 +191,30 @@ export default function PayrollPage() {
   const totalGross = payrollRecords.reduce((sum, r) => sum + parseFloat(r.total_gross), 0);
   const totalDeductions = payrollRecords.reduce((sum, r) => sum + parseFloat(r.total_deductions), 0);
   const totalNet = payrollRecords.reduce((sum, r) => sum + parseFloat(r.net_pay), 0);
+
+  const handleDownloadPayslip = async (payrollId: string, empName: string) => {
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
+      const response = await fetch(`${apiBase}/payroll/payslip/${payrollId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) throw new Error("取得に失敗しました");
+      const text = await response.text();
+      const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `payslip_${empName}_${payrollYear}${payrollMonth}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast("給与明細をダウンロードしました", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "ダウンロードに失敗しました", "error");
+    }
+  };
 
   return (
     <PageLayout>
@@ -406,6 +430,7 @@ export default function PayrollPage() {
                       <th className="px-4 py-3 text-right font-medium">社会保険料</th>
                       <th className="px-4 py-3 text-right font-medium">差引合計</th>
                       <th className="px-4 py-3 text-center font-medium">ステータス</th>
+                      <th className="px-4 py-3 text-center font-medium">明細</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -423,6 +448,16 @@ export default function PayrollPage() {
                             {r.status === "calculated" ? "計算済" : r.status}
                           </span>
                         </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => handleDownloadPayslip(r.payroll_id, r.employee_name || r.employee_id.slice(0, 8))}
+                            className="flex items-center gap-1 rounded border px-2 py-1 text-xs hover:bg-accent mx-auto"
+                            title="給与明細ダウンロード"
+                          >
+                            <Download className="h-3 w-3" />
+                            明細
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -433,6 +468,7 @@ export default function PayrollPage() {
                       <td className="px-4 py-3 text-right">¥{totalGross.toLocaleString()}</td>
                       <td colSpan={2} />
                       <td className="px-4 py-3 text-right">¥{totalNet.toLocaleString()}</td>
+                      <td />
                       <td />
                     </tr>
                   </tfoot>
