@@ -276,8 +276,13 @@ export default function JournalsListPage() {
                   ))}
                   {filteredItems.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                        該当する仕訳がありません
+                      <td colSpan={5} className="px-4 py-12">
+                        <div className="flex flex-col items-center justify-center">
+                          <Receipt className="mb-3 h-10 w-10 text-muted-foreground" />
+                          <p className="text-sm text-muted-foreground">
+                            {companyId ? "該当する仕訳がありません。" : "会社を選択してください。"}
+                          </p>
+                        </div>
                       </td>
                     </tr>
                   )}

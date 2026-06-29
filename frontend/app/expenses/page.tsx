@@ -8,7 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
-import { Receipt, Plus, X, Search, Download, CheckCircle, XCircle, Banknote } from "lucide-react";
+import { Receipt, Plus, X, Search, Download, CheckCircle, XCircle, Banknote, Loader2 } from "lucide-react";
 import { Pagination } from "@/components/pagination";
 
 interface ExpenseItem {
@@ -182,6 +182,8 @@ export default function ExpensesPage() {
     }
   };
 
+  const [transitionLoading, setTransitionLoading] = useState(false);
+
   const handleTransition = async (reportId: string, action: "approved" | "rejected" | "paid") => {
     const labels: Record<string, string> = { approved: "承認", rejected: "差戻し", paid: "支払完了" };
     const ok = await confirm({
@@ -191,6 +193,7 @@ export default function ExpensesPage() {
       variant: action === "rejected" ? "danger" : "default",
     });
     if (!ok) return;
+    setTransitionLoading(true);
     try {
       const data = await apiPost<ExpenseReport>(
         `/expenses/reports/${reportId}/transition?action=${action}&company_id=${companyId}`,
@@ -201,6 +204,8 @@ export default function ExpensesPage() {
       toast(`ステータスを${STATUS_LABELS[action]}に変更しました`, "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "ステータス変更に失敗しました", "error");
+    } finally {
+      setTransitionLoading(false);
     }
   };
 
@@ -417,20 +422,20 @@ export default function ExpensesPage() {
           </div>
           {canApprove && selectedReport.status === "submitted" && (
             <div className="mt-4 flex gap-2">
-              <button onClick={() => handleTransition(selectedReport.report_id, "approved")} className="flex items-center gap-1 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white">
-                <CheckCircle className="h-4 w-4" />
+              <button onClick={() => handleTransition(selectedReport.report_id, "approved")} disabled={transitionLoading} className="flex items-center gap-1 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+                {transitionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
                 承認
               </button>
-              <button onClick={() => handleTransition(selectedReport.report_id, "rejected")} className="flex items-center gap-1 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white">
-                <XCircle className="h-4 w-4" />
+              <button onClick={() => handleTransition(selectedReport.report_id, "rejected")} disabled={transitionLoading} className="flex items-center gap-1 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+                {transitionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
                 差戻し
               </button>
             </div>
           )}
           {canApprove && selectedReport.status === "approved" && (
             <div className="mt-4 flex gap-2">
-              <button onClick={() => handleTransition(selectedReport.report_id, "paid")} className="flex items-center gap-1 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white">
-                <Banknote className="h-4 w-4" />
+              <button onClick={() => handleTransition(selectedReport.report_id, "paid")} disabled={transitionLoading} className="flex items-center gap-1 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+                {transitionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
                 支払完了
               </button>
             </div>

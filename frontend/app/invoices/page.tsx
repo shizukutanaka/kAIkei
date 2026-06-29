@@ -8,7 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
-import { FileText, Plus, X, Search, Download, Send, CheckCircle, XCircle } from "lucide-react";
+import { FileText, Plus, X, Search, Download, Send, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { Pagination } from "@/components/pagination";
 
 interface InvoiceLine {
@@ -199,6 +199,8 @@ export default function InvoicesPage() {
     }
   };
 
+  const [transitionLoading, setTransitionLoading] = useState(false);
+
   const handleTransition = async (invoiceId: string, action: "issued" | "paid" | "cancelled") => {
     const labels: Record<string, string> = { issued: "発行", paid: "入金確認", cancelled: "キャンセル" };
     const ok = await confirm({
@@ -208,6 +210,7 @@ export default function InvoicesPage() {
       variant: action === "cancelled" ? "danger" : "default",
     });
     if (!ok) return;
+    setTransitionLoading(true);
     try {
       const data = await apiPost<Invoice>(
         `/invoices/invoices/${invoiceId}/transition?action=${action}&company_id=${companyId}`,
@@ -218,6 +221,8 @@ export default function InvoicesPage() {
       toast(`ステータスを${STATUS_LABELS[action]}に変更しました`, "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "ステータス変更に失敗しました", "error");
+    } finally {
+      setTransitionLoading(false);
     }
   };
 
@@ -454,20 +459,20 @@ export default function InvoicesPage() {
           </div>
           {canPost && selectedInvoice.status === "draft" && (
             <div className="mt-4 flex gap-2">
-              <button onClick={() => handleTransition(selectedInvoice.invoice_id, "issued")} className="flex items-center gap-1 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white">
-                <Send className="h-4 w-4" />
+              <button onClick={() => handleTransition(selectedInvoice.invoice_id, "issued")} disabled={transitionLoading} className="flex items-center gap-1 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+                {transitionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 発行
               </button>
             </div>
           )}
           {canPost && selectedInvoice.status === "issued" && (
             <div className="mt-4 flex gap-2">
-              <button onClick={() => handleTransition(selectedInvoice.invoice_id, "paid")} className="flex items-center gap-1 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white">
-                <CheckCircle className="h-4 w-4" />
+              <button onClick={() => handleTransition(selectedInvoice.invoice_id, "paid")} disabled={transitionLoading} className="flex items-center gap-1 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+                {transitionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
                 入金確認
               </button>
-              <button onClick={() => handleTransition(selectedInvoice.invoice_id, "cancelled")} className="flex items-center gap-1 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white">
-                <XCircle className="h-4 w-4" />
+              <button onClick={() => handleTransition(selectedInvoice.invoice_id, "cancelled")} disabled={transitionLoading} className="flex items-center gap-1 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+                {transitionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
                 キャンセル
               </button>
             </div>

@@ -5,7 +5,7 @@ import PageLayout from "@/components/page-layout";
 import { useUser } from "@/lib/use-user";
 import { apiGet, apiPut } from "@/lib/api";
 import { useToast } from "@/components/toast";
-import { Settings, User, Shield, LogOut, Bell } from "lucide-react";
+import { Settings, User, Shield, LogOut, Bell, Loader2 } from "lucide-react";
 import { SkeletonCard } from "@/components/skeleton";
 import { useConfirm } from "@/components/confirm-dialog";
 
@@ -219,7 +219,10 @@ export default function SettingsPage() {
               通知設定
             </h2>
             {prefsLoading ? (
-              <p className="text-sm text-muted-foreground">読み込み中...</p>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                読み込み中...
+              </div>
             ) : (
               <div className="overflow-hidden rounded-lg border">
                 <table className="w-full text-sm">

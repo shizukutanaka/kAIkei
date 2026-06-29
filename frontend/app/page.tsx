@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { Loader2 } from "lucide-react";
 
 export default function RootPage() {
   useEffect(() => {
@@ -10,7 +11,7 @@ export default function RootPage() {
 
   return (
     <div className="flex h-screen items-center justify-center">
-      <p className="text-muted-foreground">リダイレクト中...</p>
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
     </div>
   );
 }
