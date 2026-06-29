@@ -5,7 +5,7 @@ import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost } from "@/lib/api";
 import { useToast } from "@/components/toast";
 import { Pagination } from "@/components/pagination";
-import { Bell, Check, CheckCheck, BellOff } from "lucide-react";
+import { Bell, Check, CheckCheck, BellOff, RefreshCw } from "lucide-react";
 
 interface Notification {
   notification_id: string;
@@ -135,6 +135,14 @@ export default function NotificationsPage() {
           >
             <CheckCheck className="h-4 w-4" />
             全て既読
+          </button>
+          <button
+            onClick={() => fetchNotifications()}
+            disabled={loading}
+            className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            更新
           </button>
         </div>
       </div>

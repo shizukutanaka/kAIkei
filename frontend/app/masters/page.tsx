@@ -8,7 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
-import { BookOpen, Plus, Search, Download, Filter } from "lucide-react";
+import { BookOpen, Plus, Search, Download, Filter, RefreshCw, Loader2 } from "lucide-react";
 
 interface Account {
   account_id: string;
@@ -142,7 +142,7 @@ export default function MastersPage() {
                 disabled={initLoading || !companyId}
                 className="flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50"
               >
-                <Download className="h-4 w-4" />
+                {initLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 {initLoading ? "初期化中..." : "標準科目セット"}
               </button>
               <button
@@ -255,6 +255,14 @@ export default function MastersPage() {
             </select>
           </div>
           <span className="text-xs text-muted-foreground">{filtered.length} / {accounts.length} 件</span>
+          <button
+            onClick={() => fetchAccounts()}
+            disabled={loading || !companyId}
+            className="flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            {loading ? "取得中..." : "更新"}
+          </button>
         </div>
 
         {loading ? (
@@ -298,8 +306,13 @@ export default function MastersPage() {
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={canCreate ? 6 : 5} className="px-4 py-8 text-center text-muted-foreground">
-                      勘定科目がありません
+                    <td colSpan={canCreate ? 6 : 5} className="px-4 py-12">
+                      <div className="flex flex-col items-center justify-center">
+                        <BookOpen className="mb-3 h-10 w-10 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">
+                          {companyId ? "勘定科目がありません。標準科目セットを初期化するか、科目を追加してください。" : "会社を選択してください。"}
+                        </p>
+                      </div>
                     </td>
                   </tr>
                 )}

@@ -8,7 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
-import { Handshake, Plus, Search, Trash2, Pencil, X, Users } from "lucide-react";
+import { Handshake, Plus, Search, Trash2, Pencil, X, Users, RefreshCw } from "lucide-react";
 import { Pagination } from "@/components/pagination";
 
 interface Partner {
@@ -326,6 +326,14 @@ export default function PartnersPage() {
           ))}
         </select>
         <span className="text-xs text-muted-foreground">{filtered.length}/{total}件</span>
+        <button
+          onClick={() => fetchPartners()}
+          disabled={loading || !companyId}
+          className="flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50"
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          {loading ? "取得中..." : "更新"}
+        </button>
       </div>
 
       {loading && partners.length === 0 ? (

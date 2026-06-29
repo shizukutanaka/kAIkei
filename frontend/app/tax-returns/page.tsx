@@ -8,7 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
-import { Calculator, Search, Download, FileCheck, X } from "lucide-react";
+import { Calculator, Search, Download, FileCheck, X, RefreshCw, Loader2 } from "lucide-react";
 
 interface TaxReturn {
   return_id: string;
@@ -63,6 +63,7 @@ export default function TaxReturnsPage() {
   const [filingType, setFilingType] = useState("general");
   const [taxAdjustment, setTaxAdjustment] = useState("0");
   const [calculating, setCalculating] = useState(false);
+  const [transitionLoading, setTransitionLoading] = useState(false);
 
   const fetchRecords = async () => {
     if (!companyId) return;
@@ -116,6 +117,7 @@ export default function TaxReturnsPage() {
       variant: "default",
     });
     if (!ok) return;
+    setTransitionLoading(true);
     try {
       const data = await apiPost<TaxReturn>(
         `/tax-returns/records/${returnId}/transition?action=${action}&company_id=${companyId}`,
@@ -126,6 +128,8 @@ export default function TaxReturnsPage() {
       toast("申告完了にしました", "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "ステータス変更に失敗しました", "error");
+    } finally {
+      setTransitionLoading(false);
     }
   };
 
@@ -284,9 +288,10 @@ export default function TaxReturnsPage() {
             <div className="mt-4 flex gap-2">
               <button
                 onClick={() => handleTransition(selectedRecord.return_id, "filed")}
-                className="flex items-center gap-1 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white"
+                disabled={transitionLoading}
+                className="flex items-center gap-1 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
               >
-                <FileCheck className="h-4 w-4" />
+                {transitionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck className="h-4 w-4" />}
                 申告完了
               </button>
             </div>
@@ -306,6 +311,14 @@ export default function TaxReturnsPage() {
           />
         </div>
         <span className="text-xs text-muted-foreground">{filteredRecords.length}/{records.length}件</span>
+        <button
+          onClick={() => fetchRecords()}
+          disabled={loading || !companyId}
+          className="flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50"
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          {loading ? "取得中..." : "更新"}
+        </button>
       </div>
 
       {loading ? (
