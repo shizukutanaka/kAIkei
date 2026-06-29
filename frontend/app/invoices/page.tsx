@@ -286,6 +286,11 @@ export default function InvoicesPage() {
             <option value="cancelled">キャンセル</option>
           </select>
           <span className="text-xs text-muted-foreground">{filteredInvoices.length}/{total}件</span>
+          {filteredInvoices.length > 0 && (
+            <span className="text-xs font-medium text-muted-foreground">
+              合計: ¥{filteredInvoices.reduce((s, inv) => s + parseInt(inv.total_amount), 0).toLocaleString()}
+            </span>
+          )}
         </div>
         {canCreate && (
           <button

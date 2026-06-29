@@ -7,7 +7,8 @@ import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
-import { CheckCircle, XCircle, Send, FileCheck, Clock, History, Search } from "lucide-react";
+import { CheckCircle, XCircle, Send, FileCheck, Clock, History, Search, RefreshCw } from "lucide-react";
+import { SkeletonTable } from "@/components/skeleton";
 
 interface Journal {
   journal_header_id: string;
@@ -192,13 +193,21 @@ export default function ApprovalsPage() {
             <option value="">全ステータス</option>
           </select>
           <span className="text-xs text-muted-foreground">{journals.length}件</span>
+          <button
+            onClick={fetchJournals}
+            disabled={loading || !companyId}
+            className="flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+            更新
+          </button>
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="rounded-lg border bg-card p-4">
             <h2 className="mb-3 text-sm font-semibold">仕訳一覧</h2>
             {loading && journals.length === 0 ? (
-              <p className="text-sm text-muted-foreground">読み込み中...</p>
+              <SkeletonTable rows={4} columns={3} />
             ) : journals.length > 0 ? (
               <div className="max-h-96 space-y-1 overflow-y-auto">
                 {journals.map((j) => (

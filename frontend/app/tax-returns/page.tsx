@@ -348,6 +348,15 @@ export default function TaxReturnsPage() {
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr className="border-t-2 bg-muted/30 font-bold">
+                <td colSpan={2} className="px-4 py-3">合計</td>
+                <td className="px-4 py-3 text-right">{fmt(filteredRecords.reduce((s, r) => s + parseInt(r.total_sales), 0).toString())}</td>
+                <td className="px-4 py-3 text-right">{fmt(filteredRecords.reduce((s, r) => s + parseInt(r.total_purchases), 0).toString())}</td>
+                <td className="px-4 py-3 text-right text-primary">{fmt(filteredRecords.reduce((s, r) => s + parseInt(r.tax_payable), 0).toString())}</td>
+                <td colSpan={2} />
+              </tr>
+            </tfoot>
           </table>
         </div>
       ) : (
