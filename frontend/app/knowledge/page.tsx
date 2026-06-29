@@ -4,7 +4,7 @@ import { useState } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiPost } from "@/lib/api";
 import { useToast } from "@/components/toast";
-import { Search, ExternalLink, BookOpen, TrendingUp } from "lucide-react";
+import { Search, ExternalLink, BookOpen, TrendingUp, Loader2 } from "lucide-react";
 import { SkeletonCard } from "@/components/skeleton";
 
 interface KnowledgeItem {
@@ -107,7 +107,7 @@ export default function KnowledgePage() {
               disabled={loading}
               className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
             >
-              <Search className="h-4 w-4" />
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               {loading ? "検索中..." : "検索"}
             </button>
           </div>
