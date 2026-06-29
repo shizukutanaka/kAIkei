@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
-import { BookOpen, RefreshCw, Download } from "lucide-react";
+import { BookOpen, RefreshCw, Download, Loader2 } from "lucide-react";
 import { useToast } from "@/components/toast";
 import { SkeletonTable } from "@/components/skeleton";
 
@@ -52,6 +52,7 @@ export default function GeneralLedgerPage() {
   const [endDate, setEndDate] = useState(new Date().toISOString().split("T")[0]);
   const [accountCode, setAccountCode] = useState("");
   const [expandedAccount, setExpandedAccount] = useState<string | null>(null);
+  const [exportLoading, setExportLoading] = useState(false);
 
   const handleFetch = async () => {
     if (!companyId) {
@@ -84,6 +85,7 @@ export default function GeneralLedgerPage() {
 
   const handleExportCSV = async () => {
     if (!companyId) return;
+    setExportLoading(true);
     try {
       const params: Record<string, string> = {
         company_id: companyId,
@@ -102,6 +104,8 @@ export default function GeneralLedgerPage() {
       toast("総勘定元帳CSVを出力しました", "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "CSV出力に失敗しました", "error");
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -160,11 +164,11 @@ export default function GeneralLedgerPage() {
           </button>
           <button
             onClick={handleExportCSV}
-            disabled={!companyId || !data}
+            disabled={!companyId || !data || exportLoading}
             className="flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
-            <Download className="h-4 w-4" />
-            CSV出力
+            {exportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {exportLoading ? "出力中..." : "CSV出力"}
           </button>
         </div>
       </div>

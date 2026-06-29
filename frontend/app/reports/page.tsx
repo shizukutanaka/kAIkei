@@ -119,6 +119,7 @@ export default function ReportsPage() {
   const [error, setError] = useState("");
   const [periodCloses, setPeriodCloses] = useState<Array<{ close_id: string; year: number; month: number; status: string; closed_at: string | null }>>([]);
   const [closeLoading, setCloseLoading] = useState<string | null>(null);
+  const [exportLoading, setExportLoading] = useState(false);
 
   const handleFetch = async () => {
     if (!companyId) {
@@ -215,6 +216,7 @@ export default function ReportsPage() {
 
   const handleExportCSV = async () => {
     if (!companyId) return;
+    setExportLoading(true);
     const exportPath = reportType === "trial-balance" ? "/reports/trial-balance/export"
       : reportType === "income-statement" ? "/reports/income-statement/export"
       : reportType === "balance-sheet" ? "/reports/balance-sheet/export"
@@ -234,6 +236,8 @@ export default function ReportsPage() {
       toast("CSVを出力しました", "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "CSV出力に失敗しました", "error");
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -446,11 +450,11 @@ export default function ReportsPage() {
           {(reportType === "trial-balance" || reportType === "income-statement" || reportType === "balance-sheet" || reportType === "cash-flow") && (
             <button
               onClick={() => handleExportCSV()}
-              disabled={!companyId}
+              disabled={!companyId || exportLoading}
               className="mt-4 ml-2 flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
-              <Download className="h-4 w-4" />
-              CSV出力
+              {exportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {exportLoading ? "出力中..." : "CSV出力"}
             </button>
           )}
         </div>

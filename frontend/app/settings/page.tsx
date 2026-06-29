@@ -68,6 +68,7 @@ export default function SettingsPage() {
   const [prefs, setPrefs] = useState<NotificationPreference[]>([]);
   const [prefsLoading, setPrefsLoading] = useState(false);
   const [updatingCat, setUpdatingCat] = useState<string | null>(null);
+  const [logoutLoading, setLogoutLoading] = useState(false);
 
   useEffect(() => {
     const fetchPrefs = async () => {
@@ -117,6 +118,7 @@ export default function SettingsPage() {
       variant: "danger",
     });
     if (!ok) return;
+    setLogoutLoading(true);
     localStorage.removeItem("token");
     localStorage.removeItem("refresh_token");
     window.location.href = "/login";
@@ -275,10 +277,11 @@ export default function SettingsPage() {
             <h2 className="mb-4 text-lg font-semibold">アカウント操作</h2>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 rounded-md border border-destructive/50 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10"
+              disabled={logoutLoading}
+              className="flex items-center gap-2 rounded-md border border-destructive/50 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
             >
-              <LogOut className="h-4 w-4" />
-              ログアウト
+              {logoutLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+              {logoutLoading ? "ログアウト中..." : "ログアウト"}
             </button>
           </div>
         </div>
