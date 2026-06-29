@@ -8,6 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { ArrowLeft, Receipt, Send, CheckCircle, XCircle, FileCheck } from "lucide-react";
+import { SkeletonTable } from "@/components/skeleton";
 
 interface JournalLine {
   line_number: number;
@@ -111,7 +112,23 @@ export default function JournalDetailPage() {
   if (loading) {
     return (
       <PageLayout>
-        <p className="text-muted-foreground">読み込み中...</p>
+        <button
+          onClick={() => router.push("/journals")}
+          className="mb-4 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          仕訳一覧へ戻る
+        </button>
+        <div className="mb-6 h-8 w-48 animate-pulse rounded bg-muted" />
+        <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-lg border bg-card p-4">
+              <div className="mb-2 h-3 w-16 animate-pulse rounded bg-muted" />
+              <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+            </div>
+          ))}
+        </div>
+        <SkeletonTable rows={3} columns={6} />
       </PageLayout>
     );
   }

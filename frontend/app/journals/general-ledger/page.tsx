@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
-import { BookOpen, Search, Download } from "lucide-react";
+import { BookOpen, RefreshCw, Download } from "lucide-react";
 import { useToast } from "@/components/toast";
 import { SkeletonTable } from "@/components/skeleton";
 
@@ -113,13 +113,7 @@ export default function GeneralLedgerPage() {
       </div>
 
       <div className="mb-6 rounded-lg border bg-card p-4">
-        <div className="grid grid-cols-4 gap-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium">会社ID</label>
-            <div className="w-full rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-              {companyId || "未設定"}
-            </div>
-          </div>
+        <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="mb-1 block text-sm font-medium">開始日</label>
             <input
@@ -155,8 +149,8 @@ export default function GeneralLedgerPage() {
             disabled={loading || !companyId}
             className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
-            <Search className="h-4 w-4" />
-            {loading ? "取得中..." : "元帳取得"}
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            {loading ? "取得中..." : "更新"}
           </button>
           <button
             onClick={handleExportCSV}
@@ -182,7 +176,9 @@ export default function GeneralLedgerPage() {
           {data.accounts.length === 0 ? (
             <p className="text-sm text-muted-foreground">該当期間の取引データがありません</p>
           ) : (
-            data.accounts.map((acct) => {
+            <>
+            <p className="mb-2 text-xs text-muted-foreground">{data.accounts.length}科目</p>
+            {data.accounts.map((acct) => {
               const isExpanded = expandedAccount === acct.account_code;
               return (
                 <div key={acct.account_code} className="overflow-hidden rounded-lg border">
@@ -243,7 +239,8 @@ export default function GeneralLedgerPage() {
                   )}
                 </div>
               );
-            })
+            })}
+            </>
           )}
         </div>
       )}

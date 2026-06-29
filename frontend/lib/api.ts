@@ -142,27 +142,34 @@ export async function apiPost<T>(path: string, body: unknown, extraHeaders: Reco
 }
 
 export async function apiPostMultipart<T>(path: string, queryParams: Record<string, string>, body: FormData): Promise<T> {
-  const query = new URLSearchParams(queryParams).toString();
-  let response = await fetch(`${API_BASE}${path}?${query}`, {
-    method: "POST",
-    headers: buildHeaders(),
-    body,
-  });
-  if (response.status === 401) {
-    const refreshed = await handle401(path);
-    if (refreshed) {
-      response = await fetch(`${API_BASE}${path}?${query}`, {
-        method: "POST",
-        headers: buildHeaders(),
-        body,
-      });
+  try {
+    const query = new URLSearchParams(queryParams).toString();
+    let response = await fetch(`${API_BASE}${path}?${query}`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body,
+    });
+    if (response.status === 401) {
+      const refreshed = await handle401(path);
+      if (refreshed) {
+        response = await fetch(`${API_BASE}${path}?${query}`, {
+          method: "POST",
+          headers: buildHeaders(),
+          body,
+        });
+      }
     }
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(extractError(data));
+    }
+    return data as T;
+  } catch (err) {
+    if (err instanceof TypeError) {
+      throw new Error("サーバーに接続できません。APIサーバーが起動しているか確認してください。");
+    }
+    throw err;
   }
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(extractError(data));
-  }
-  return data as T;
 }
 
 export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
