@@ -3,7 +3,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -25,44 +25,69 @@ async def get_trial_balance(
 
     全科目の借方合計・貸方合計・残高を返す。
     """
-    accounts_result = await db.execute(
-        select(Account).where(
+    # Single aggregate query: GROUP BY account, SUM debits/credits
+    agg_result = await db.execute(
+        select(
+            Account.account_id,
+            Account.account_code,
+            Account.account_name,
+            Account.account_type,
+            Account.debit_credit,
+            func.coalesce(
+                func.sum(
+                    case(
+                        (JournalLine.debit_credit == "debit", JournalLine.amount),
+                        else_=Decimal("0"),
+                    )
+                ), 0
+            ).label("debit_sum"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (JournalLine.debit_credit == "credit", JournalLine.amount),
+                        else_=Decimal("0"),
+                    )
+                ), 0
+            ).label("credit_sum"),
+        )
+        .outerjoin(
+            JournalLine,
+            (JournalLine.account_id == Account.account_id) & (JournalLine.is_deleted == False),  # noqa: E712
+        )
+        .outerjoin(
+            JournalHeader,
+            (JournalHeader.journal_header_id == JournalLine.journal_header_id)
+            & (JournalHeader.company_id == company_id)
+            & (JournalHeader.transaction_date <= as_of)
+            & (JournalHeader.is_deleted == False)  # noqa: E712
+            & (JournalHeader.is_voided == False),  # noqa: E712
+        )
+        .where(
             Account.company_id == company_id,
             Account.is_deleted == False,  # noqa: E712
             Account.is_active == True,  # noqa: E712
-        ).order_by(Account.account_code)
+        )
+        .group_by(
+            Account.account_id,
+            Account.account_code,
+            Account.account_name,
+            Account.account_type,
+            Account.debit_credit,
+        )
+        .order_by(Account.account_code)
     )
-    accounts = accounts_result.scalars().all()
+    rows = agg_result.all()
 
     balances: list[dict] = []
     total_debit = Decimal("0")
     total_credit = Decimal("0")
 
-    for account in accounts:
-        debit_sum = Decimal("0")
-        credit_sum = Decimal("0")
-
-        lines_result = await db.execute(
-            select(JournalLine).join(JournalHeader).where(
-                JournalHeader.company_id == company_id,
-                JournalLine.account_id == account.account_id,
-                JournalHeader.transaction_date <= as_of,
-                JournalHeader.is_deleted == False,  # noqa: E712
-                JournalHeader.is_voided == False,  # noqa: E712
-                JournalLine.is_deleted == False,  # noqa: E712
-            )
-        )
-        lines = lines_result.scalars().all()
-
-        for line in lines:
-            if line.debit_credit == "debit":
-                debit_sum += line.amount
-            else:
-                credit_sum += line.amount
-
+    for row in rows:
+        debit_sum = Decimal(row.debit_sum) if row.debit_sum else Decimal("0")
+        credit_sum = Decimal(row.credit_sum) if row.credit_sum else Decimal("0")
         balance = debit_sum - credit_sum
 
-        if account.debit_credit == "debit":
+        if row.debit_credit == "debit":
             display_debit = balance if balance > 0 else Decimal("0")
             display_credit = -balance if balance < 0 else Decimal("0")
         else:
@@ -73,9 +98,9 @@ async def get_trial_balance(
         total_credit += display_credit
 
         balances.append({
-            "account_code": account.account_code,
-            "account_name": account.account_name,
-            "account_type": account.account_type,
+            "account_code": row.account_code,
+            "account_name": row.account_name,
+            "account_type": row.account_type,
             "debit_total": str(debit_sum),
             "credit_total": str(credit_sum),
             "balance": str(balance),

@@ -27,11 +27,20 @@ async def create_journal(
     except ValidationError as e:
         raise HTTPException(status_code=400, detail={"code": e.code, "message": e.message, "field": e.field})
 
-    count_result = await db.execute(
-        select(func.count()).select_from(JournalHeader).where(JournalHeader.company_id == payload.company_id)
+    # Use MAX instead of COUNT to avoid full table scan
+    max_result = await db.execute(
+        select(func.max(JournalHeader.journal_number))
+        .where(JournalHeader.company_id == payload.company_id)
     )
-    count = count_result.scalar() or 0
-    journal_number = f"JRN-{count + 1:08d}"
+    max_num = max_result.scalar()
+    if max_num:
+        try:
+            seq = int(max_num.split("-")[1]) + 1
+        except (IndexError, ValueError):
+            seq = 1
+    else:
+        seq = 1
+    journal_number = f"JRN-{seq:08d}"
 
     header = JournalHeader(
         company_id=payload.company_id,

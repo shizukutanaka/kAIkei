@@ -39,11 +39,19 @@ async def _find_account(
 
 
 async def _next_journal_number(db: AsyncSession, company_id: UUID) -> str:
-    count_result = await db.execute(
-        select(func.count()).select_from(JournalHeader).where(JournalHeader.company_id == company_id)
+    max_result = await db.execute(
+        select(func.max(JournalHeader.journal_number))
+        .where(JournalHeader.company_id == company_id)
     )
-    count = count_result.scalar() or 0
-    return f"JRN-{count + 1:08d}"
+    max_num = max_result.scalar()
+    if max_num:
+        try:
+            seq = int(max_num.split("-")[1]) + 1
+        except (IndexError, ValueError):
+            seq = 1
+    else:
+        seq = 1
+    return f"JRN-{seq:08d}"
 
 
 async def generate_invoice_issue_journal(
