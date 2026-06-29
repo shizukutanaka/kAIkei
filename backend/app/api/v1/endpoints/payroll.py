@@ -20,6 +20,8 @@ from app.schemas.schemas import (
     PayrollListResponse,
 )
 from app.services.auto_journal import generate_payroll_journal
+from app.services.notification_service import create_notification
+from app.schemas.schemas import NotificationCreate
 
 router = APIRouter()
 
@@ -426,6 +428,20 @@ async def batch_transition_payroll(
             )
         except ValueError:
             pass  # Account not found — skip auto-journal
+
+    # Notify on batch transition
+    action_labels = {"approved": "承認", "rejected": "差戻し", "paid": "支払完了"}
+    try:
+        await create_notification(db, current_user.tenant_id, NotificationCreate(
+            company_id=company_id,
+            category="payroll",
+            priority="high" if action == "paid" else "normal",
+            title=f"給与 {payroll_year}年{payroll_month}月 一括{action_labels[action]}",
+            body=f"{len(updated)}件の給与レコードを{action_labels[action]}しました。",
+            action_url="/payroll",
+        ))
+    except Exception:
+        pass
 
     await db.commit()
     return updated

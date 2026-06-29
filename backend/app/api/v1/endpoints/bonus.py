@@ -12,6 +12,8 @@ from app.core.rbac import Permission
 from app.models.models import Employee, BonusRecord
 from app.schemas.schemas import BonusCalculateRequest, BonusRecordResponse, BonusListResponse
 from app.services.auto_journal import generate_bonus_journal
+from app.services.notification_service import create_notification
+from app.schemas.schemas import NotificationCreate
 
 BONUS_TERM_LABELS = {
     "summer": "夏季賞与",
@@ -236,6 +238,20 @@ async def batch_transition_bonus(
             )
         except ValueError:
             pass  # Account not found — skip auto-journal
+
+    # Notify on batch transition
+    labels = {"approved": "承認", "rejected": "差戻し", "paid": "支払完了"}
+    try:
+        await create_notification(db, current_user.tenant_id, NotificationCreate(
+            company_id=company_id,
+            category="payroll",
+            priority="high" if action == "paid" else "normal",
+            title=f"賞与 {bonus_year}年{bonus_term} 一括{labels[action]}",
+            body=f"{len(updated)}件の賞与レコードを{labels[action]}しました。",
+            action_url="/bonus",
+        ))
+    except Exception:
+        pass
 
     await db.commit()
     return updated

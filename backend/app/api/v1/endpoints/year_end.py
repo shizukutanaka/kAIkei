@@ -11,6 +11,8 @@ from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.models.models import Employee, PayrollRecord, BonusRecord, YearEndAdjustment
 from app.schemas.schemas import YearEndAdjustmentRequest, YearEndAdjustmentResponse, YearEndListResponse
+from app.services.notification_service import create_notification
+from app.schemas.schemas import NotificationCreate
 
 router = APIRouter()
 
@@ -241,6 +243,19 @@ async def batch_transition_year_end(
     for rec, emp_name in rows:
         rec.status = action
         updated.append(_to_response(rec, emp_name))
+
+    # Notify on batch transition
+    try:
+        await create_notification(db, current_user.tenant_id, NotificationCreate(
+            company_id=company_id,
+            category="tax",
+            priority="high",
+            title=f"年末調整 {adjustment_year}年 一括確定",
+            body=f"{len(updated)}件の年末調整を確定しました。",
+            action_url="/year-end",
+        ))
+    except Exception:
+        pass
 
     await db.commit()
     return updated
