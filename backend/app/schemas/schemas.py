@@ -520,3 +520,24 @@ class PartnerListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class AuditLogResponse(BaseModel):
+    log_id: UUID
+    user_id: UUID | None = None
+    action: str
+    resource_type: str
+    resource_id: str | None = None
+    method: str
+    path: str
+    status_code: int
+    ip_address: str | None = None
+    user_agent: str | None = None
+    created_at: datetime
+
+
+class AuditLogListResponse(BaseModel):
+    items: list[AuditLogResponse]
+    total: int
+    page: int
+    page_size: int

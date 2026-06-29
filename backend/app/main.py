@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import settings
+from app.middleware.audit_log import AuditLogMiddleware
 from app.middleware.idempotency import IdempotencyMiddleware
 
 structlog.configure(
@@ -39,6 +40,7 @@ app.add_middleware(
 )
 
 app.add_middleware(IdempotencyMiddleware)
+app.add_middleware(AuditLogMiddleware)
 
 
 @app.get("/health")
