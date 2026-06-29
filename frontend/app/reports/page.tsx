@@ -5,7 +5,7 @@ import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/components/toast";
-import { FileText, Search, Users, Gift, Clock, Wallet } from "lucide-react";
+import { FileText, Search, Users, Gift, Clock, Wallet, TrendingUp, Scale } from "lucide-react";
 import { SkeletonTable } from "@/components/skeleton";
 
 interface TrialBalanceAccount {
@@ -44,6 +44,26 @@ interface PayrollSummaryItem {
   employee_name: string | null;
 }
 
+interface IncomeStatement {
+  as_of: string;
+  revenues: Array<{ account_code: string; account_name: string; amount: string }>;
+  total_revenue: string;
+  expenses: Array<{ account_code: string; account_name: string; amount: string }>;
+  total_expense: string;
+  net_income: string;
+}
+
+interface BalanceSheet {
+  as_of: string;
+  assets: Array<{ account_code: string; account_name: string; amount: string }>;
+  total_assets: string;
+  liabilities: Array<{ account_code: string; account_name: string; amount: string }>;
+  total_liabilities: string;
+  equity: Array<{ account_code: string; account_name: string; amount: string }>;
+  total_equity: string;
+  is_balanced: boolean;
+}
+
 interface BonusSummaryItem {
   bonus_id: string;
   employee_id: string;
@@ -72,7 +92,7 @@ export default function ReportsPage() {
   const { companyId } = useCompany();
   const { toast } = useToast();
   const [asOf, setAsOf] = useState(new Date().toISOString().split("T")[0]);
-  const [reportType, setReportType] = useState<"trial-balance" | "monthly" | "payroll" | "bonus" | "attendance" | "expenses">("trial-balance");
+  const [reportType, setReportType] = useState<"trial-balance" | "monthly" | "payroll" | "bonus" | "attendance" | "expenses" | "income-statement" | "balance-sheet">("trial-balance");
   const [year, setYear] = useState(new Date().getFullYear().toString());
   const [month, setMonth] = useState((new Date().getMonth() + 1).toString());
   const [data, setData] = useState<TrialBalance | null>(null);
@@ -81,6 +101,8 @@ export default function ReportsPage() {
   const [bonusData, setBonusData] = useState<BonusSummaryItem[] | null>(null);
   const [attendanceData, setAttendanceData] = useState<Array<{ employee_id: string; employee_name: string; employee_code: string; days: number; total_work_minutes: number; total_overtime_minutes: number; paid_leave_days: number; absent_days: number }> | null>(null);
   const [expenseData, setExpenseData] = useState<Array<{ report_id: string; title: string; employee_name: string | null; total_amount: string; status: string; report_date: string }> | null>(null);
+  const [incomeData, setIncomeData] = useState<IncomeStatement | null>(null);
+  const [balanceData, setBalanceData] = useState<BalanceSheet | null>(null);
   const [bonusTerm, setBonusTerm] = useState("summer");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -98,6 +120,8 @@ export default function ReportsPage() {
     setBonusData(null);
     setAttendanceData(null);
     setExpenseData(null);
+    setIncomeData(null);
+    setBalanceData(null);
 
     try {
       if (reportType === "trial-balance") {
@@ -137,6 +161,20 @@ export default function ReportsPage() {
         });
         setExpenseData(result);
         toast("経費集計を取得しました", "success");
+      } else if (reportType === "income-statement") {
+        const result = await apiGet<IncomeStatement>("/reports/income-statement", {
+          company_id: companyId,
+          as_of: asOf,
+        });
+        setIncomeData(result);
+        toast("損益計算書を取得しました", "success");
+      } else if (reportType === "balance-sheet") {
+        const result = await apiGet<BalanceSheet>("/reports/balance-sheet", {
+          company_id: companyId,
+          as_of: asOf,
+        });
+        setBalanceData(result);
+        toast("貸借対照表を取得しました", "success");
       } else {
         const result = await apiGet<BonusSummaryItem[]>("/bonus/records", {
           company_id: companyId,
@@ -215,6 +253,24 @@ export default function ReportsPage() {
               <Wallet className="h-4 w-4" />
               経費集計
             </button>
+            <button
+              onClick={() => setReportType("income-statement")}
+              className={`flex items-center gap-1 rounded-md px-4 py-2 text-sm font-medium ${
+                reportType === "income-statement" ? "bg-primary text-primary-foreground" : "border"
+              }`}
+            >
+              <TrendingUp className="h-4 w-4" />
+              損益計算書
+            </button>
+            <button
+              onClick={() => setReportType("balance-sheet")}
+              className={`flex items-center gap-1 rounded-md px-4 py-2 text-sm font-medium ${
+                reportType === "balance-sheet" ? "bg-primary text-primary-foreground" : "border"
+              }`}
+            >
+              <Scale className="h-4 w-4" />
+              貸借対照表
+            </button>
           </div>
 
           <div className="grid grid-cols-3 gap-4">
@@ -224,7 +280,7 @@ export default function ReportsPage() {
                 {companyId || "未設定"}
               </div>
             </div>
-            {reportType === "trial-balance" ? (
+            {reportType === "trial-balance" || reportType === "income-statement" || reportType === "balance-sheet" ? (
               <div>
                 <label className="mb-1 block text-sm font-medium">基準日</label>
                 <input
@@ -607,6 +663,117 @@ export default function ReportsPage() {
           <div className="flex flex-col items-center justify-center rounded-lg border bg-card p-12">
             <Wallet className="mb-3 h-10 w-10 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">経費精算データがありません。</p>
+          </div>
+        )}
+
+        {incomeData && (
+          <div className="overflow-hidden rounded-lg border">
+            <div className="flex items-center justify-between border-b bg-muted/50 px-4 py-3">
+              <h2 className="text-lg font-semibold">損益計算書（P/L） — {incomeData.as_of}</h2>
+              <span className={`rounded px-2 py-0.5 text-xs font-medium ${parseFloat(incomeData.net_income) >= 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                {parseFloat(incomeData.net_income) >= 0 ? "黒字" : "赤字"}
+              </span>
+            </div>
+            <table className="w-full text-sm">
+              <tbody>
+                <tr className="border-b bg-muted/30">
+                  <td className="px-4 py-2 font-bold" colSpan={3}>収益</td>
+                </tr>
+                {incomeData.revenues.map((r) => (
+                  <tr key={r.account_code} className="border-t">
+                    <td className="px-4 py-2 font-mono text-muted-foreground">{r.account_code}</td>
+                    <td className="px-4 py-2">{r.account_name}</td>
+                    <td className="px-4 py-2 text-right">¥{parseInt(r.amount).toLocaleString()}</td>
+                  </tr>
+                ))}
+                <tr className="border-t bg-muted/20 font-bold">
+                  <td className="px-4 py-2" colSpan={2}>収益合計</td>
+                  <td className="px-4 py-2 text-right text-blue-600">¥{parseInt(incomeData.total_revenue).toLocaleString()}</td>
+                </tr>
+                <tr className="border-b bg-muted/30">
+                  <td className="px-4 py-2 font-bold" colSpan={3}>費用</td>
+                </tr>
+                {incomeData.expenses.map((r) => (
+                  <tr key={r.account_code} className="border-t">
+                    <td className="px-4 py-2 font-mono text-muted-foreground">{r.account_code}</td>
+                    <td className="px-4 py-2">{r.account_name}</td>
+                    <td className="px-4 py-2 text-right">¥{parseInt(r.amount).toLocaleString()}</td>
+                  </tr>
+                ))}
+                <tr className="border-t bg-muted/20 font-bold">
+                  <td className="px-4 py-2" colSpan={2}>費用合計</td>
+                  <td className="px-4 py-2 text-right text-red-600">¥{parseInt(incomeData.total_expense).toLocaleString()}</td>
+                </tr>
+                <tr className="border-t-2 bg-primary/10 font-bold text-base">
+                  <td className="px-4 py-3" colSpan={2}>当期純利益</td>
+                  <td className={`px-4 py-3 text-right ${parseFloat(incomeData.net_income) >= 0 ? "text-green-700" : "text-red-700"}`}>
+                    ¥{parseInt(incomeData.net_income).toLocaleString()}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {balanceData && (
+          <div className="overflow-hidden rounded-lg border">
+            <div className="flex items-center justify-between border-b bg-muted/50 px-4 py-3">
+              <h2 className="text-lg font-semibold">貸借対照表（B/S） — {balanceData.as_of}</h2>
+              <span className={`rounded px-2 py-0.5 text-xs font-medium ${balanceData.is_balanced ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                {balanceData.is_balanced ? "貸借一致" : "貸借不一致"}
+              </span>
+            </div>
+            <table className="w-full text-sm">
+              <tbody>
+                <tr className="border-b bg-muted/30">
+                  <td className="px-4 py-2 font-bold" colSpan={3}>資産</td>
+                </tr>
+                {balanceData.assets.map((r) => (
+                  <tr key={r.account_code} className="border-t">
+                    <td className="px-4 py-2 font-mono text-muted-foreground">{r.account_code}</td>
+                    <td className="px-4 py-2">{r.account_name}</td>
+                    <td className="px-4 py-2 text-right">¥{parseInt(r.amount).toLocaleString()}</td>
+                  </tr>
+                ))}
+                <tr className="border-t bg-muted/20 font-bold">
+                  <td className="px-4 py-2" colSpan={2}>資産合計</td>
+                  <td className="px-4 py-2 text-right text-blue-600">¥{parseInt(balanceData.total_assets).toLocaleString()}</td>
+                </tr>
+                <tr className="border-b bg-muted/30">
+                  <td className="px-4 py-2 font-bold" colSpan={3}>負債</td>
+                </tr>
+                {balanceData.liabilities.map((r) => (
+                  <tr key={r.account_code} className="border-t">
+                    <td className="px-4 py-2 font-mono text-muted-foreground">{r.account_code}</td>
+                    <td className="px-4 py-2">{r.account_name}</td>
+                    <td className="px-4 py-2 text-right">¥{parseInt(r.amount).toLocaleString()}</td>
+                  </tr>
+                ))}
+                <tr className="border-t bg-muted/20 font-bold">
+                  <td className="px-4 py-2" colSpan={2}>負債合計</td>
+                  <td className="px-4 py-2 text-right text-orange-600">¥{parseInt(balanceData.total_liabilities).toLocaleString()}</td>
+                </tr>
+                <tr className="border-b bg-muted/30">
+                  <td className="px-4 py-2 font-bold" colSpan={3}>純資産</td>
+                </tr>
+                {balanceData.equity.map((r) => (
+                  <tr key={r.account_code} className="border-t">
+                    <td className="px-4 py-2 font-mono text-muted-foreground">{r.account_code}</td>
+                    <td className="px-4 py-2">{r.account_name}</td>
+                    <td className="px-4 py-2 text-right">¥{parseInt(r.amount).toLocaleString()}</td>
+                  </tr>
+                ))}
+                <tr className="border-t bg-muted/20 font-bold">
+                  <td className="px-4 py-2" colSpan={2}>純資産合計</td>
+                  <td className="px-4 py-2 text-right text-purple-600">¥{parseInt(balanceData.total_equity).toLocaleString()}</td>
+                </tr>
+                <tr className="border-t-2 bg-primary/10 font-bold text-base">
+                  <td className="px-4 py-3">負債 + 純資産</td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">合計</td>
+                  <td className="px-4 py-3 text-right">¥{(parseInt(balanceData.total_liabilities) + parseInt(balanceData.total_equity)).toLocaleString()}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         )}
     </PageLayout>
