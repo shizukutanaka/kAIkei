@@ -280,6 +280,32 @@ class PartnerResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class YearEndAdjustmentRequest(BaseModel):
+    company_id: UUID
+    adjustment_year: int = Field(ge=2000, le=2100)
+    dependents_override: dict[UUID, int] = Field(default_factory=dict)
+
+
+class YearEndAdjustmentResponse(BaseModel):
+    adjustment_id: UUID
+    employee_id: UUID
+    company_id: UUID
+    adjustment_year: int
+    annual_salary: Decimal
+    annual_bonus: Decimal
+    total_gross: Decimal
+    withholding_tax_total: Decimal
+    estimated_annual_tax: Decimal
+    social_insurance_total: Decimal
+    dependents: int
+    dependent_deduction: Decimal
+    adjustment_amount: Decimal
+    status: str
+    employee_name: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
 class BonusCalculateRequest(BaseModel):
     company_id: UUID
     bonus_year: int = Field(ge=2000, le=2100)
