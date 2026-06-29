@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
-import { Calculator, Plus, TrendingDown, Trash2 } from "lucide-react";
+import { Calculator, Plus, TrendingDown, Trash2, Search } from "lucide-react";
 
 interface FixedAsset {
   asset_id: string;
@@ -69,6 +69,10 @@ export default function FixedAssetsPage() {
     }
   };
 
+  useEffect(() => {
+    if (companyId) fetchAssets();
+  }, [companyId]);
+
   const handleCreate = async () => {
     setLoading(true);
     setError("");
@@ -101,7 +105,14 @@ export default function FixedAssetsPage() {
     }
   };
 
-  const handleDepreciate = async (assetId: string) => {
+  const handleDepreciate = async (assetId: string, assetName: string) => {
+    const ok = await confirm({
+      title: "償却実行",
+      message: `資産「${assetName}」の償却を実行しますか？`,
+      confirmText: "償却実行",
+      variant: "default",
+    });
+    if (!ok) return;
     const now = new Date();
     try {
       await apiPost(`/fixed-assets/${assetId}/depreciate`, {
@@ -152,9 +163,10 @@ export default function FixedAssetsPage() {
           <button
             onClick={fetchAssets}
             disabled={loading || !companyId}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+            className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
-            {loading ? "取得中..." : "検索"}
+            <Search className="h-4 w-4" />
+            {loading ? "取得中..." : "更新"}
           </button>
         </div>
 
@@ -239,9 +251,9 @@ export default function FixedAssetsPage() {
                     <td className="px-4 py-3 font-mono">{a.asset_code}</td>
                     <td className="px-4 py-3">{a.asset_name}</td>
                     <td className="px-4 py-3">{CATEGORY_LABELS[a.asset_category] || a.asset_category}</td>
-                    <td className="px-4 py-3 text-right">{a.acquisition_cost}</td>
-                    <td className="px-4 py-3 text-right">{a.accumulated_depreciation}</td>
-                    <td className="px-4 py-3 text-right font-medium">{a.net_book_value}</td>
+                    <td className="px-4 py-3 text-right">¥{parseInt(a.acquisition_cost).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right">¥{parseInt(a.accumulated_depreciation).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right font-medium">¥{parseInt(a.net_book_value).toLocaleString()}</td>
                     <td className="px-4 py-3 text-center">
                       {a.is_disposed ? (
                         <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700">除却済</span>
@@ -252,7 +264,7 @@ export default function FixedAssetsPage() {
                     <td className="px-4 py-3 text-center">
                       {!a.is_disposed && (
                         <div className="flex items-center justify-center gap-2">
-                          <button onClick={() => handleDepreciate(a.asset_id)} className="flex items-center gap-1 rounded border px-2 py-1 text-xs hover:bg-accent" title="償却実行">
+                          <button onClick={() => handleDepreciate(a.asset_id, a.asset_name)} className="flex items-center gap-1 rounded border px-2 py-1 text-xs hover:bg-accent" title="償却実行">
                             <TrendingDown className="h-3 w-3" />
                             償却
                           </button>
