@@ -256,6 +256,7 @@ export default function AiInferencePage() {
                 </div>
               )}
 
+              <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b bg-muted/50">
@@ -302,6 +303,7 @@ export default function AiInferencePage() {
                   ))}
                 </tbody>
               </table>
+              </div>
 
               <div className="mt-4 flex justify-end">
                 <button

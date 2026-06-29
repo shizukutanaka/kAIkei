@@ -242,7 +242,8 @@ export default function JournalEntryPage() {
           </div>
         </div>
 
-        <table className="mb-4 w-full border-collapse">
+        <div className="mb-4 overflow-x-auto">
+        <table className="w-full border-collapse">
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="p-2 text-left text-sm">行</th>
@@ -340,6 +341,7 @@ export default function JournalEntryPage() {
             ))}
           </tbody>
         </table>
+        </div>
 
         <button
           onClick={addLine}
