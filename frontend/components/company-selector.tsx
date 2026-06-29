@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useCompany } from "@/lib/company-context";
 import { apiGet } from "@/lib/api";
-import { Building2, ChevronDown } from "lucide-react";
+import { Building2, ChevronDown, Loader2 } from "lucide-react";
 
 interface CompanyOption {
   company_id: string;
@@ -46,7 +46,10 @@ export default function CompanySelector() {
         会社
       </label>
       {loading ? (
-        <p className="text-xs text-muted-foreground">読み込み中...</p>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          読み込み中...
+        </div>
       ) : companies.length > 0 ? (
         <div className="relative">
           <select

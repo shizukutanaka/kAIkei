@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
 function isTokenExpired(token: string): boolean {
   try {
@@ -36,7 +37,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   if (!checked) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <p className="text-muted-foreground">読み込み中...</p>
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bell, Check, CheckCheck, X } from "lucide-react";
+import { Bell, Check, CheckCheck, X, BellOff, Loader2 } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
 
 interface Notification {
@@ -169,7 +169,10 @@ export default function NotificationBell() {
 
           <div className="max-h-96 overflow-y-auto">
             {loading ? (
-              <div className="p-8 text-center text-sm text-muted-foreground">読み込み中...</div>
+              <div className="flex items-center justify-center gap-2 p-8 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                読み込み中...
+              </div>
             ) : notifications.length > 0 ? (
               notifications.map((n) => (
                 <div
@@ -216,8 +219,9 @@ export default function NotificationBell() {
                 </div>
               ))
             ) : (
-              <div className="p-8 text-center text-sm text-muted-foreground">
-                通知はありません
+              <div className="flex flex-col items-center justify-center p-8">
+                <BellOff className="mb-2 h-8 w-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">通知はありません</p>
               </div>
             )}
           </div>
