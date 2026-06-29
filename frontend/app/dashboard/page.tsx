@@ -5,7 +5,7 @@ import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
-import { Receipt, Clock, Sparkles, AlertCircle, TrendingUp, BookOpen, Calculator, FileCheck, Users, Handshake } from "lucide-react";
+import { Receipt, Clock, Sparkles, AlertCircle, TrendingUp, BookOpen, Calculator, FileCheck, Users, Handshake, Gift } from "lucide-react";
 import { SkeletonCard } from "@/components/skeleton";
 
 interface JournalList {
@@ -26,6 +26,20 @@ interface DashboardData {
   partnerCount: number;
 }
 
+interface PayrollSummary {
+  count: number;
+  totalGross: number;
+  totalNet: number;
+  status: string | null;
+}
+
+interface BonusSummary {
+  count: number;
+  totalGross: number;
+  totalNet: number;
+  status: string | null;
+}
+
 export default function DashboardPage() {
   const { companyId } = useCompany();
   const { user, loading: userLoading } = useUser();
@@ -40,6 +54,8 @@ export default function DashboardPage() {
     partnerCount: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [payrollSummary, setPayrollSummary] = useState<PayrollSummary | null>(null);
+  const [bonusSummary, setBonusSummary] = useState<BonusSummary | null>(null);
 
   useEffect(() => {
     if (!companyId) {
@@ -50,12 +66,22 @@ export default function DashboardPage() {
 
     const fetchDashboard = async () => {
       try {
-        const [journals, accounts, assets, employees, partners] = await Promise.allSettled([
+        const [journals, accounts, assets, employees, partners, payrollRecs, bonusRecs] = await Promise.allSettled([
           apiGet<JournalList>("/journals", { company_id: companyId, page: "1", page_size: "200" }),
           apiGet<unknown[]>("/masters", { company_id: companyId }),
           apiGet<unknown[]>("/fixed-assets", { company_id: companyId }),
           apiGet<unknown[]>("/payroll/employees", { company_id: companyId }),
           apiGet<unknown[]>("/partners", { company_id: companyId }),
+          apiGet<Array<{ total_gross: string; net_pay: string; status: string }>>("/payroll/records", {
+            company_id: companyId,
+            payroll_year: new Date().getFullYear().toString(),
+            payroll_month: (new Date().getMonth() + 1).toString(),
+          }),
+          apiGet<Array<{ bonus_amount: string; net_pay: string; status: string }>>("/bonus/records", {
+            company_id: companyId,
+            bonus_year: new Date().getFullYear().toString(),
+            bonus_term: "summer",
+          }),
         ]);
 
         const next: DashboardData = {
@@ -86,6 +112,26 @@ export default function DashboardPage() {
         }
         if (partners.status === "fulfilled" && Array.isArray(partners.value)) {
           next.partnerCount = partners.value.length;
+        }
+        if (payrollRecs.status === "fulfilled" && Array.isArray(payrollRecs.value) && payrollRecs.value.length > 0) {
+          setPayrollSummary({
+            count: payrollRecs.value.length,
+            totalGross: payrollRecs.value.reduce((s, r) => s + parseFloat(r.total_gross), 0),
+            totalNet: payrollRecs.value.reduce((s, r) => s + parseFloat(r.net_pay), 0),
+            status: payrollRecs.value[0].status,
+          });
+        } else {
+          setPayrollSummary(null);
+        }
+        if (bonusRecs.status === "fulfilled" && Array.isArray(bonusRecs.value) && bonusRecs.value.length > 0) {
+          setBonusSummary({
+            count: bonusRecs.value.length,
+            totalGross: bonusRecs.value.reduce((s, r) => s + parseFloat(r.bonus_amount), 0),
+            totalNet: bonusRecs.value.reduce((s, r) => s + parseFloat(r.net_pay), 0),
+            status: bonusRecs.value[0].status,
+          });
+        } else {
+          setBonusSummary(null);
         }
 
         setData(next);
@@ -228,6 +274,70 @@ export default function DashboardPage() {
                 </span>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="rounded-lg border bg-card p-6">
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+              <Users className="h-5 w-5 text-cyan-600" />
+              当月の給与サマリー
+            </h2>
+            {payrollSummary ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-sm font-medium">対象人数</span>
+                  <span className="text-lg font-bold">{payrollSummary.count}名</span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-sm font-medium">総支給額</span>
+                  <span className="text-lg font-bold">¥{payrollSummary.totalGross.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-sm font-medium">差引支給額</span>
+                  <span className="text-lg font-bold text-green-600">¥{payrollSummary.totalNet.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">ステータス</span>
+                  <span className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
+                    {payrollSummary.status === "calculated" ? "計算済" : payrollSummary.status === "approved" ? "承認済" : payrollSummary.status === "paid" ? "支払済" : payrollSummary.status === "rejected" ? "差戻し" : payrollSummary.status}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">当月の給与データがありません。給与計算を実行してください。</p>
+            )}
+          </div>
+
+          <div className="rounded-lg border bg-card p-6">
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+              <Gift className="h-5 w-5 text-purple-600" />
+              賞与サマリー（夏季）
+            </h2>
+            {bonusSummary ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-sm font-medium">対象人数</span>
+                  <span className="text-lg font-bold">{bonusSummary.count}名</span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-sm font-medium">賞与総額</span>
+                  <span className="text-lg font-bold">¥{bonusSummary.totalGross.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-sm font-medium">差引支給額</span>
+                  <span className="text-lg font-bold text-green-600">¥{bonusSummary.totalNet.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">ステータス</span>
+                  <span className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
+                    {bonusSummary.status === "calculated" ? "計算済" : bonusSummary.status === "approved" ? "承認済" : bonusSummary.status === "paid" ? "支払済" : bonusSummary.status === "rejected" ? "差戻し" : bonusSummary.status}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">今年の夏季賞与データがありません。賞与計算を実行してください。</p>
+            )}
           </div>
         </div>
     </PageLayout>

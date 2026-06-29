@@ -5,7 +5,7 @@ import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/components/toast";
-import { FileText, Search, Users } from "lucide-react";
+import { FileText, Search, Users, Gift } from "lucide-react";
 import { SkeletonTable } from "@/components/skeleton";
 
 interface TrialBalanceAccount {
@@ -44,6 +44,22 @@ interface PayrollSummaryItem {
   employee_name: string | null;
 }
 
+interface BonusSummaryItem {
+  bonus_id: string;
+  employee_id: string;
+  bonus_year: number;
+  bonus_term: string;
+  bonus_amount: string;
+  bonus_base_months: string;
+  performance_factor: string;
+  income_tax: string;
+  social_insurance: string;
+  total_deductions: string;
+  net_pay: string;
+  status: string;
+  employee_name: string | null;
+}
+
 const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   asset: "資産",
   liability: "負債",
@@ -56,12 +72,14 @@ export default function ReportsPage() {
   const { companyId } = useCompany();
   const { toast } = useToast();
   const [asOf, setAsOf] = useState(new Date().toISOString().split("T")[0]);
-  const [reportType, setReportType] = useState<"trial-balance" | "monthly" | "payroll">("trial-balance");
+  const [reportType, setReportType] = useState<"trial-balance" | "monthly" | "payroll" | "bonus">("trial-balance");
   const [year, setYear] = useState(new Date().getFullYear().toString());
   const [month, setMonth] = useState((new Date().getMonth() + 1).toString());
   const [data, setData] = useState<TrialBalance | null>(null);
   const [monthlyData, setMonthlyData] = useState<Record<string, unknown> | null>(null);
   const [payrollData, setPayrollData] = useState<PayrollSummaryItem[] | null>(null);
+  const [bonusData, setBonusData] = useState<BonusSummaryItem[] | null>(null);
+  const [bonusTerm, setBonusTerm] = useState("summer");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -75,6 +93,7 @@ export default function ReportsPage() {
     setData(null);
     setMonthlyData(null);
     setPayrollData(null);
+    setBonusData(null);
 
     try {
       if (reportType === "trial-balance") {
@@ -92,7 +111,7 @@ export default function ReportsPage() {
         });
         setMonthlyData(result);
         toast("月次残高を取得しました", "success");
-      } else {
+      } else if (reportType === "payroll") {
         const result = await apiGet<PayrollSummaryItem[]>("/payroll/records", {
           company_id: companyId,
           payroll_year: year,
@@ -100,6 +119,14 @@ export default function ReportsPage() {
         });
         setPayrollData(result);
         toast("給与サマリーを取得しました", "success");
+      } else {
+        const result = await apiGet<BonusSummaryItem[]>("/bonus/records", {
+          company_id: companyId,
+          bonus_year: year,
+          bonus_term: bonusTerm,
+        });
+        setBonusData(result);
+        toast("賞与サマリーを取得しました", "success");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "不明なエラー");
@@ -142,6 +169,15 @@ export default function ReportsPage() {
             >
               <Users className="h-4 w-4" />
               給与サマリー
+            </button>
+            <button
+              onClick={() => setReportType("bonus")}
+              className={`flex items-center gap-1 rounded-md px-4 py-2 text-sm font-medium ${
+                reportType === "bonus" ? "bg-primary text-primary-foreground" : "border"
+              }`}
+            >
+              <Gift className="h-4 w-4" />
+              賞与サマリー
             </button>
           </div>
 
@@ -190,6 +226,21 @@ export default function ReportsPage() {
             {reportType === "payroll" && (
               <div className="flex items-end">
                 <p className="text-xs text-muted-foreground">給与計算実行後にデータが表示されます</p>
+              </div>
+            )}
+            {reportType === "bonus" && (
+              <div>
+                <label className="mb-1 block text-sm font-medium">賞与区分</label>
+                <select
+                  value={bonusTerm}
+                  onChange={(e) => setBonusTerm(e.target.value)}
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                >
+                  <option value="summer">夏季賞与</option>
+                  <option value="winter">冬季賞与</option>
+                  <option value="yearend">年末賞与</option>
+                  <option value="other">その他</option>
+                </select>
               </div>
             )}
           </div>
@@ -302,6 +353,65 @@ export default function ReportsPage() {
           <div className="flex flex-col items-center justify-center rounded-lg border bg-card p-12">
             <Users className="mb-3 h-10 w-10 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">該当月の給与データがありません。給与計算を実行してください。</p>
+          </div>
+        )}
+
+        {loading && reportType === "bonus" && (
+          <SkeletonTable rows={5} columns={6} />
+        )}
+
+        {bonusData && bonusData.length > 0 && (
+          <div className="overflow-hidden rounded-lg border">
+            <div className="border-b bg-muted/50 px-4 py-3">
+              <h2 className="text-lg font-semibold">
+                賞与サマリー — {year}年 ({bonusTerm === "summer" ? "夏季" : bonusTerm === "winter" ? "冬季" : bonusTerm === "yearend" ? "年末" : "その他"})
+              </h2>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-muted/30">
+                <tr>
+                  <th className="px-4 py-2 text-left font-medium">従業員</th>
+                  <th className="px-4 py-2 text-right font-medium">基準月数</th>
+                  <th className="px-4 py-2 text-right font-medium">業績係数</th>
+                  <th className="px-4 py-2 text-right font-medium">賞与額</th>
+                  <th className="px-4 py-2 text-right font-medium">控除額</th>
+                  <th className="px-4 py-2 text-right font-medium">差引支給額</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bonusData.map((r) => (
+                  <tr key={r.bonus_id} className="border-t">
+                    <td className="px-4 py-2">{r.employee_name || r.employee_id.slice(0, 8)}</td>
+                    <td className="px-4 py-2 text-right">{parseFloat(r.bonus_base_months).toFixed(1)}ヶ月</td>
+                    <td className="px-4 py-2 text-right">{parseFloat(r.performance_factor).toFixed(2)}</td>
+                    <td className="px-4 py-2 text-right font-medium">¥{parseInt(r.bonus_amount).toLocaleString()}</td>
+                    <td className="px-4 py-2 text-right text-red-600">¥{parseInt(r.total_deductions).toLocaleString()}</td>
+                    <td className="px-4 py-2 text-right font-bold">¥{parseInt(r.net_pay).toLocaleString()}</td>
+                  </tr>
+                ))}
+                {(() => {
+                  const totalGross = bonusData.reduce((s, r) => s + parseInt(r.bonus_amount), 0);
+                  const totalDed = bonusData.reduce((s, r) => s + parseInt(r.total_deductions), 0);
+                  const totalNet = bonusData.reduce((s, r) => s + parseInt(r.net_pay), 0);
+                  return (
+                    <tr className="border-t-2 bg-muted/30 font-bold">
+                      <td className="px-4 py-3">合計</td>
+                      <td colSpan={2} />
+                      <td className="px-4 py-3 text-right">¥{totalGross.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right text-red-600">¥{totalDed.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right">¥{totalNet.toLocaleString()}</td>
+                    </tr>
+                  );
+                })()}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {bonusData && bonusData.length === 0 && (
+          <div className="flex flex-col items-center justify-center rounded-lg border bg-card p-12">
+            <Gift className="mb-3 h-10 w-10 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">該当の賞与データがありません。賞与計算を実行してください。</p>
           </div>
         )}
 
