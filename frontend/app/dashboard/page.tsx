@@ -5,7 +5,7 @@ import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
-import { Receipt, Clock, Sparkles, AlertCircle, TrendingUp, BookOpen, Calculator, FileCheck } from "lucide-react";
+import { Receipt, Clock, Sparkles, AlertCircle, TrendingUp, BookOpen, Calculator, FileCheck, Users, Handshake } from "lucide-react";
 import { SkeletonCard } from "@/components/skeleton";
 
 interface JournalList {
@@ -22,6 +22,8 @@ interface DashboardData {
   draftCount: number;
   accountCount: number;
   assetCount: number;
+  employeeCount: number;
+  partnerCount: number;
 }
 
 export default function DashboardPage() {
@@ -34,6 +36,8 @@ export default function DashboardPage() {
     draftCount: 0,
     accountCount: 0,
     assetCount: 0,
+    employeeCount: 0,
+    partnerCount: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -46,10 +50,12 @@ export default function DashboardPage() {
 
     const fetchDashboard = async () => {
       try {
-        const [journals, accounts, assets] = await Promise.allSettled([
+        const [journals, accounts, assets, employees, partners] = await Promise.allSettled([
           apiGet<JournalList>("/journals", { company_id: companyId, page: "1", page_size: "200" }),
           apiGet<unknown[]>("/masters", { company_id: companyId }),
           apiGet<unknown[]>("/fixed-assets", { company_id: companyId }),
+          apiGet<unknown[]>("/payroll/employees", { company_id: companyId }),
+          apiGet<unknown[]>("/partners", { company_id: companyId }),
         ]);
 
         const next: DashboardData = {
@@ -59,6 +65,8 @@ export default function DashboardPage() {
           draftCount: 0,
           accountCount: 0,
           assetCount: 0,
+          employeeCount: 0,
+          partnerCount: 0,
         };
 
         if (journals.status === "fulfilled") {
@@ -72,6 +80,12 @@ export default function DashboardPage() {
         }
         if (assets.status === "fulfilled" && Array.isArray(assets.value)) {
           next.assetCount = assets.value.length;
+        }
+        if (employees.status === "fulfilled" && Array.isArray(employees.value)) {
+          next.employeeCount = employees.value.length;
+        }
+        if (partners.status === "fulfilled" && Array.isArray(partners.value)) {
+          next.partnerCount = partners.value.length;
         }
 
         setData(next);
@@ -92,14 +106,16 @@ export default function DashboardPage() {
     { label: "下書き", value: data.draftCount, icon: AlertCircle, color: "text-gray-600" },
     { label: "勘定科目", value: data.accountCount, icon: BookOpen, color: "text-indigo-600" },
     { label: "固定資産", value: data.assetCount, icon: Calculator, color: "text-purple-600" },
+    { label: "従業員", value: data.employeeCount, icon: Users, color: "text-cyan-600" },
+    { label: "取引先", value: data.partnerCount, icon: Handshake, color: "text-orange-600" },
   ];
 
   if (loading || userLoading) {
     return (
       <PageLayout>
         <div className="mb-6 h-8 w-48 animate-pulse rounded bg-muted" />
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          {Array.from({ length: 6 }).map((_, i) => (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-8">
+          {Array.from({ length: 8 }).map((_, i) => (
             <SkeletonCard key={i} />
           ))}
         </div>
