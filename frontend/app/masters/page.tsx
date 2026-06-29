@@ -7,7 +7,7 @@ import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { SkeletonTable } from "@/components/skeleton";
-import { BookOpen, Plus, Search } from "lucide-react";
+import { BookOpen, Plus, Search, Download } from "lucide-react";
 
 interface Account {
   account_id: string;
@@ -37,6 +37,7 @@ export default function MastersPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
+  const [initLoading, setInitLoading] = useState(false);
   const [newAccount, setNewAccount] = useState({
     account_code: "",
     account_name: "",
@@ -83,6 +84,21 @@ export default function MastersPage() {
     }
   };
 
+  const handleInitStandard = async () => {
+    if (!companyId) return;
+    setInitLoading(true);
+    try {
+      const result = await apiPost<Account[]>(`/masters/initialize-standard-accounts?company_id=${companyId}`, {});
+      toast(`標準科目セットを初期化しました（${result.length}件追加）`, "success");
+      await fetchAccounts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "初期化に失敗しました");
+      toast(err instanceof Error ? err.message : "初期化に失敗しました", "error");
+    } finally {
+      setInitLoading(false);
+    }
+  };
+
   const filtered = accounts.filter(
     (a) =>
       a.account_code.includes(search) ||
@@ -97,13 +113,23 @@ export default function MastersPage() {
             <h1 className="text-2xl font-bold">マスタ管理</h1>
           </div>
           {canCreate && (
-            <button
-              onClick={() => setShowAddForm(!showAddForm)}
-              className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-            >
-              <Plus className="h-4 w-4" />
-              科目追加
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleInitStandard}
+                disabled={initLoading || !companyId}
+                className="flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50"
+              >
+                <Download className="h-4 w-4" />
+                {initLoading ? "初期化中..." : "標準科目セット"}
+              </button>
+              <button
+                onClick={() => setShowAddForm(!showAddForm)}
+                className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+              >
+                <Plus className="h-4 w-4" />
+                科目追加
+              </button>
+            </div>
           )}
         </div>
 

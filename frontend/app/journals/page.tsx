@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPostMultipart } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
-import { Receipt, ChevronLeft, ChevronRight, Filter, Search } from "lucide-react";
+import { Receipt, ChevronLeft, ChevronRight, Filter, Search, Download, Upload, BookOpen } from "lucide-react";
 import Link from "next/link";
 import { SkeletonTable } from "@/components/skeleton";
+import { useToast } from "@/components/toast";
 
 interface Journal {
   journal_header_id: string;
@@ -44,12 +45,14 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function JournalsListPage() {
   const { companyId } = useCompany();
+  const { toast } = useToast();
   const [data, setData] = useState<JournalList | null>(null);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [importLoading, setImportLoading] = useState(false);
 
   const fetchJournals = async () => {
     if (!companyId) {
@@ -95,6 +98,53 @@ export default function JournalsListPage() {
     : [];
 
   const totalPages = data ? Math.ceil(data.total / data.page_size) : 0;
+
+  const handleExportCSV = async () => {
+    if (!companyId) return;
+    const today = new Date().toISOString().split("T")[0];
+    const startDate = `${new Date().getFullYear()}-01-01`;
+    try {
+      const csv = await apiGet<string>("/journals/export/csv", {
+        company_id: companyId,
+        start_date: startDate,
+        end_date: today,
+      });
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `journals_${startDate}_${today}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("仕訳CSVを出力しました", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "CSV出力に失敗しました", "error");
+    }
+  };
+
+  const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!companyId || !e.target.files?.[0]) return;
+    setImportLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", e.target.files[0]);
+      const result = await apiPostMultipart<{ imported: number; errors: string[]; total_rows: number }>(
+        `/journals/import/csv`,
+        { company_id: companyId },
+        formData
+      );
+      toast(`${result.imported}件インポートしました${result.errors.length > 0 ? `（${result.errors.length}件エラー）` : ""}`, result.errors.length > 0 ? "warning" : "success");
+      if (result.errors.length > 0) {
+        console.error("Import errors:", result.errors);
+      }
+      await fetchJournals();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "CSVインポートに失敗しました", "error");
+    } finally {
+      setImportLoading(false);
+      e.target.value = "";
+    }
+  };
 
   return (
     <PageLayout>
@@ -142,6 +192,29 @@ export default function JournalsListPage() {
           >
             {loading ? "取得中..." : "検索"}
           </button>
+        </div>
+
+        <div className="mb-6 flex items-center gap-2">
+          <button
+            onClick={handleExportCSV}
+            disabled={!companyId}
+            className="flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50"
+          >
+            <Download className="h-4 w-4" />
+            仕訳CSV出力
+          </button>
+          <label className={`flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium ${importLoading || !companyId ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}>
+            <Upload className="h-4 w-4" />
+            {importLoading ? "インポート中..." : "仕訳CSVインポート"}
+            <input type="file" accept=".csv" onChange={handleImportCSV} className="hidden" disabled={importLoading || !companyId} />
+          </label>
+          <Link
+            href="/journals/general-ledger"
+            className="flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium"
+          >
+            <BookOpen className="h-4 w-4" />
+            総勘定元帳
+          </Link>
         </div>
 
         {error && (

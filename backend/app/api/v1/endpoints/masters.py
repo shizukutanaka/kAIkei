@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -19,6 +19,152 @@ from app.schemas.schemas import (
 )
 
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Standard Chart of Accounts (日本標準勘定科目セット)
+# Based on SKR (Standard Kontenrahmen) adapted for Japanese GAAP
+# ---------------------------------------------------------------------------
+
+STANDARD_CHART_OF_ACCOUNTS = [
+    # (code, name, type, debit_credit)
+    # --- Assets (資産) ---
+    ("1000", "現金", "asset", "debit"),
+    ("1010", "当座預金", "asset", "debit"),
+    ("1020", "普通預金", "asset", "debit"),
+    ("1030", "定期預金", "asset", "debit"),
+    ("1100", "売掛金", "asset", "debit"),
+    ("1110", "受取手形", "asset", "debit"),
+    ("1120", "電子記録債権", "asset", "debit"),
+    ("1150", "前払金", "asset", "debit"),
+    ("1160", "未収入金", "asset", "debit"),
+    ("1200", "仮払消費税", "asset", "debit"),
+    ("1210", "前払費用", "asset", "debit"),
+    ("1300", "商品", "asset", "debit"),
+    ("1310", "原材料", "asset", "debit"),
+    ("1320", "仕掛品", "asset", "debit"),
+    ("1330", "半製品", "asset", "debit"),
+    ("1340", "製品", "asset", "debit"),
+    ("1400", "消耗品費", "asset", "debit"),
+    ("1500", "前渡金", "asset", "debit"),
+    ("1600", "ソフトウェア", "asset", "debit"),
+    ("1610", "リース資産", "asset", "debit"),
+    ("1700", "建物", "asset", "debit"),
+    ("1710", "建物附属設備", "asset", "debit"),
+    ("1720", "構築物", "asset", "debit"),
+    ("1730", "機械装置", "asset", "debit"),
+    ("1740", "車両運搬具", "asset", "debit"),
+    ("1750", "工具器具備品", "asset", "debit"),
+    ("1760", "土地", "asset", "debit"),
+    ("1770", "減価償却累計額", "asset", "credit"),
+    ("1800", "のれん", "asset", "debit"),
+    ("1900", "長期前払費用", "asset", "debit"),
+    # --- Liabilities (負債) ---
+    ("2000", "買掛金", "liability", "credit"),
+    ("2010", "支払手形", "liability", "credit"),
+    ("2020", "電子記録債務", "liability", "credit"),
+    ("2050", "未払金", "liability", "credit"),
+    ("2060", "未払費用", "liability", "credit"),
+    ("2070", "前受金", "liability", "credit"),
+    ("2080", "預り金", "liability", "credit"),
+    ("2100", "仮受消費税", "liability", "credit"),
+    ("2110", "未払消費税", "liability", "credit"),
+    ("2120", "未払法人税等", "liability", "credit"),
+    ("2130", "未払所得税", "liability", "credit"),
+    ("2140", "法定福利費預り金", "liability", "credit"),
+    ("2200", "短期借入金", "liability", "credit"),
+    ("2210", "リース債務", "liability", "credit"),
+    ("2300", "長期借入金", "liability", "credit"),
+    ("2400", "社債", "liability", "credit"),
+    ("2500", "引当金", "liability", "credit"),
+    # --- Equity (純資産) ---
+    ("3000", "資本金", "equity", "credit"),
+    ("3100", "資本準備金", "equity", "credit"),
+    ("3200", "利益準備金", "equity", "credit"),
+    ("3300", "その他資本剰余金", "equity", "credit"),
+    ("3400", "繰越利益剰余金", "equity", "credit"),
+    ("3500", "任意積立金", "equity", "credit"),
+    ("3900", "当期純利益", "equity", "credit"),
+    # --- Revenue (収益) ---
+    ("4000", "売上", "revenue", "credit"),
+    ("4010", "売上値引・戻り", "revenue", "debit"),
+    ("4100", "受取手形売却損", "revenue", "debit"),
+    ("4200", "受取利息", "revenue", "credit"),
+    ("4300", "受取配当金", "revenue", "credit"),
+    ("4400", "有価証券売却益", "revenue", "credit"),
+    ("4500", "固定資産売却益", "revenue", "credit"),
+    ("4600", "営業外収益", "revenue", "credit"),
+    ("4900", "雑収入", "revenue", "credit"),
+    # --- Expenses (費用) ---
+    ("5000", "売上原価", "expense", "debit"),
+    ("5100", "給与手当", "expense", "debit"),
+    ("5110", "賞与", "expense", "debit"),
+    ("5120", "退職金", "expense", "debit"),
+    ("5130", "法定福利費", "expense", "debit"),
+    ("5140", "福利厚生費", "expense", "debit"),
+    ("5200", "旅費交通費", "expense", "debit"),
+    ("5210", "接待交際費", "expense", "debit"),
+    ("5220", "会議費", "expense", "debit"),
+    ("5230", "広告宣伝費", "expense", "debit"),
+    ("5240", "発送費", "expense", "debit"),
+    ("5250", "消耗品費", "expense", "debit"),
+    ("5260", "通信費", "expense", "debit"),
+    ("5270", "水道光熱費", "expense", "debit"),
+    ("5280", "減価償却費", "expense", "debit"),
+    ("5290", "租税公課", "expense", "debit"),
+    ("5300", "地代家賃", "expense", "debit"),
+    ("5310", "保険料", "expense", "debit"),
+    ("5320", "修繕費", "expense", "debit"),
+    ("5330", "雑費", "expense", "debit"),
+    ("5400", "支払利息", "expense", "debit"),
+    ("5410", "手形売却損", "expense", "debit"),
+    ("5420", "貸倒損失", "expense", "debit"),
+    ("5430", "固定資産売却損", "expense", "debit"),
+    ("5440", "有価証券売却損", "expense", "debit"),
+    ("5900", "法人税等", "expense", "debit"),
+]
+
+
+@router.post("/initialize-standard-accounts", response_model=list[AccountResponse])
+async def initialize_standard_accounts(
+    company_id: UUID,
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),
+    db: AsyncSession = Depends(get_db),
+) -> list[Account]:
+    """日本標準勘定科目セットを初期化する。
+
+    既存の勘定科目がある場合は重複をスキップし、不足分のみ追加する。
+    市販会計ソフト（Freee/MoneyForward/Yayoi等）と互換性のある標準科目体系。
+    """
+    # Check existing accounts
+    existing_result = await db.execute(
+        select(Account.account_code).where(
+            Account.company_id == company_id,
+            Account.is_deleted == False,  # noqa: E712
+        )
+    )
+    existing_codes = {row[0] for row in existing_result.all()}
+
+    created: list[Account] = []
+    for code, name, acct_type, dc in STANDARD_CHART_OF_ACCOUNTS:
+        if code in existing_codes:
+            continue
+        account = Account(
+            company_id=company_id,
+            account_code=code,
+            account_name=name,
+            account_type=acct_type,
+            debit_credit=dc,
+        )
+        db.add(account)
+        created.append(account)
+
+    if created:
+        await db.flush()
+        for acct in created:
+            await db.refresh(acct)
+
+    return created
 
 
 # ---------------------------------------------------------------------------
