@@ -5,7 +5,7 @@ import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
-import { Receipt, Clock, Sparkles, AlertCircle, TrendingUp, BookOpen, Calculator, FileCheck, Users, Handshake, Gift, CalendarClock } from "lucide-react";
+import { Receipt, Clock, Sparkles, AlertCircle, TrendingUp, BookOpen, Calculator, FileCheck, Users, Handshake, Gift, CalendarClock, Wallet } from "lucide-react";
 import { SkeletonCard } from "@/components/skeleton";
 
 interface JournalList {
@@ -47,6 +47,21 @@ interface YearEndSummary {
   status: string | null;
 }
 
+interface AttendanceSummary {
+  count: number;
+  totalWorkMinutes: number;
+  totalOvertimeMinutes: number;
+  paidLeaveDays: number;
+  absentDays: number;
+}
+
+interface ExpenseSummary {
+  count: number;
+  totalAmount: number;
+  pendingCount: number;
+  approvedCount: number;
+}
+
 export default function DashboardPage() {
   const { companyId } = useCompany();
   const { user, loading: userLoading } = useUser();
@@ -64,6 +79,8 @@ export default function DashboardPage() {
   const [payrollSummary, setPayrollSummary] = useState<PayrollSummary | null>(null);
   const [bonusSummary, setBonusSummary] = useState<BonusSummary | null>(null);
   const [yearEndSummary, setYearEndSummary] = useState<YearEndSummary | null>(null);
+  const [attendanceSummary, setAttendanceSummary] = useState<AttendanceSummary | null>(null);
+  const [expenseSummary, setExpenseSummary] = useState<ExpenseSummary | null>(null);
 
   useEffect(() => {
     if (!companyId) {
@@ -74,7 +91,7 @@ export default function DashboardPage() {
 
     const fetchDashboard = async () => {
       try {
-        const [journals, accounts, assets, employees, partners, payrollRecs, bonusRecs, yearEndRecs] = await Promise.allSettled([
+        const [journals, accounts, assets, employees, partners, payrollRecs, bonusRecs, yearEndRecs, attendanceRecs, expenseRecs] = await Promise.allSettled([
           apiGet<JournalList>("/journals", { company_id: companyId, page: "1", page_size: "200" }),
           apiGet<unknown[]>("/masters", { company_id: companyId }),
           apiGet<unknown[]>("/fixed-assets", { company_id: companyId }),
@@ -93,6 +110,14 @@ export default function DashboardPage() {
           apiGet<Array<{ total_gross: string; adjustment_amount: string; status: string }>>("/year-end/records", {
             company_id: companyId,
             adjustment_year: new Date().getFullYear().toString(),
+          }),
+          apiGet<Array<{ total_work_minutes: number; total_overtime_minutes: number; paid_leave_days: number; absent_days: number }>>("/attendance/summary", {
+            company_id: companyId,
+            year: new Date().getFullYear().toString(),
+            month: (new Date().getMonth() + 1).toString(),
+          }),
+          apiGet<Array<{ total_amount: string; status: string }>>("/expenses/reports", {
+            company_id: companyId,
           }),
         ]);
 
@@ -154,6 +179,27 @@ export default function DashboardPage() {
           });
         } else {
           setYearEndSummary(null);
+        }
+        if (attendanceRecs.status === "fulfilled" && Array.isArray(attendanceRecs.value) && attendanceRecs.value.length > 0) {
+          setAttendanceSummary({
+            count: attendanceRecs.value.length,
+            totalWorkMinutes: attendanceRecs.value.reduce((s, r) => s + r.total_work_minutes, 0),
+            totalOvertimeMinutes: attendanceRecs.value.reduce((s, r) => s + r.total_overtime_minutes, 0),
+            paidLeaveDays: attendanceRecs.value.reduce((s, r) => s + r.paid_leave_days, 0),
+            absentDays: attendanceRecs.value.reduce((s, r) => s + r.absent_days, 0),
+          });
+        } else {
+          setAttendanceSummary(null);
+        }
+        if (expenseRecs.status === "fulfilled" && Array.isArray(expenseRecs.value) && expenseRecs.value.length > 0) {
+          setExpenseSummary({
+            count: expenseRecs.value.length,
+            totalAmount: expenseRecs.value.reduce((s, r) => s + parseFloat(r.total_amount), 0),
+            pendingCount: expenseRecs.value.filter((r) => r.status === "submitted").length,
+            approvedCount: expenseRecs.value.filter((r) => r.status === "approved").length,
+          });
+        } else {
+          setExpenseSummary(null);
         }
 
         setData(next);
@@ -394,6 +440,72 @@ export default function DashboardPage() {
           ) : (
             <p className="text-sm text-muted-foreground">今年の年末調整データがありません。年末調整計算を実行してください。</p>
           )}
+        </div>
+
+        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="rounded-lg border bg-card p-6">
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+              <Clock className="h-5 w-5 text-blue-600" />
+              勤怠サマリー（{new Date().getFullYear()}年{new Date().getMonth() + 1}月）
+            </h2>
+            {attendanceSummary ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-sm font-medium">対象人数</span>
+                  <span className="text-lg font-bold">{attendanceSummary.count}名</span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-sm font-medium">総勤務時間</span>
+                  <span className="text-lg font-bold">{Math.floor(attendanceSummary.totalWorkMinutes / 60)}h{attendanceSummary.totalWorkMinutes % 60 > 0 ? `${attendanceSummary.totalWorkMinutes % 60}m` : ""}</span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-sm font-medium">総残業時間</span>
+                  <span className={`text-lg font-bold ${attendanceSummary.totalOvertimeMinutes > 0 ? "text-orange-600" : ""}`}>
+                    {attendanceSummary.totalOvertimeMinutes > 0 ? `${Math.floor(attendanceSummary.totalOvertimeMinutes / 60)}h${attendanceSummary.totalOvertimeMinutes % 60 > 0 ? `${attendanceSummary.totalOvertimeMinutes % 60}m` : ""}` : "-"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">有給・欠勤</span>
+                  <span className="text-sm">
+                    <span className="text-green-600 font-medium">有給{attendanceSummary.paidLeaveDays}日</span>
+                    {" / "}
+                    <span className="text-red-600 font-medium">欠勤{attendanceSummary.absentDays}日</span>
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">今月の勤怠データがありません。</p>
+            )}
+          </div>
+
+          <div className="rounded-lg border bg-card p-6">
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+              <Wallet className="h-5 w-5 text-purple-600" />
+              経費精算サマリー
+            </h2>
+            {expenseSummary ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-sm font-medium">申請件数</span>
+                  <span className="text-lg font-bold">{expenseSummary.count}件</span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-sm font-medium">合計金額</span>
+                  <span className="text-lg font-bold">¥{expenseSummary.totalAmount.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-sm font-medium">承認待ち</span>
+                  <span className={`text-lg font-bold ${expenseSummary.pendingCount > 0 ? "text-yellow-600" : ""}`}>{expenseSummary.pendingCount}件</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">承認済み</span>
+                  <span className="text-lg font-bold text-green-600">{expenseSummary.approvedCount}件</span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">経費精算データがありません。</p>
+            )}
+          </div>
         </div>
     </PageLayout>
   );

@@ -5,7 +5,7 @@ import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/components/toast";
-import { FileText, Search, Users, Gift } from "lucide-react";
+import { FileText, Search, Users, Gift, Clock, Wallet } from "lucide-react";
 import { SkeletonTable } from "@/components/skeleton";
 
 interface TrialBalanceAccount {
@@ -72,13 +72,15 @@ export default function ReportsPage() {
   const { companyId } = useCompany();
   const { toast } = useToast();
   const [asOf, setAsOf] = useState(new Date().toISOString().split("T")[0]);
-  const [reportType, setReportType] = useState<"trial-balance" | "monthly" | "payroll" | "bonus">("trial-balance");
+  const [reportType, setReportType] = useState<"trial-balance" | "monthly" | "payroll" | "bonus" | "attendance" | "expenses">("trial-balance");
   const [year, setYear] = useState(new Date().getFullYear().toString());
   const [month, setMonth] = useState((new Date().getMonth() + 1).toString());
   const [data, setData] = useState<TrialBalance | null>(null);
   const [monthlyData, setMonthlyData] = useState<Record<string, unknown> | null>(null);
   const [payrollData, setPayrollData] = useState<PayrollSummaryItem[] | null>(null);
   const [bonusData, setBonusData] = useState<BonusSummaryItem[] | null>(null);
+  const [attendanceData, setAttendanceData] = useState<Array<{ employee_id: string; employee_name: string; employee_code: string; days: number; total_work_minutes: number; total_overtime_minutes: number; paid_leave_days: number; absent_days: number }> | null>(null);
+  const [expenseData, setExpenseData] = useState<Array<{ report_id: string; title: string; employee_name: string | null; total_amount: string; status: string; report_date: string }> | null>(null);
   const [bonusTerm, setBonusTerm] = useState("summer");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -94,6 +96,8 @@ export default function ReportsPage() {
     setMonthlyData(null);
     setPayrollData(null);
     setBonusData(null);
+    setAttendanceData(null);
+    setExpenseData(null);
 
     try {
       if (reportType === "trial-balance") {
@@ -119,6 +123,20 @@ export default function ReportsPage() {
         });
         setPayrollData(result);
         toast("給与サマリーを取得しました", "success");
+      } else if (reportType === "attendance") {
+        const result = await apiGet<Array<{ employee_id: string; employee_name: string; employee_code: string; days: number; total_work_minutes: number; total_overtime_minutes: number; paid_leave_days: number; absent_days: number }>>("/attendance/summary", {
+          company_id: companyId,
+          year,
+          month,
+        });
+        setAttendanceData(result);
+        toast("勤怠集計を取得しました", "success");
+      } else if (reportType === "expenses") {
+        const result = await apiGet<Array<{ report_id: string; title: string; employee_name: string | null; total_amount: string; status: string; report_date: string }>>("/expenses/reports", {
+          company_id: companyId,
+        });
+        setExpenseData(result);
+        toast("経費集計を取得しました", "success");
       } else {
         const result = await apiGet<BonusSummaryItem[]>("/bonus/records", {
           company_id: companyId,
@@ -178,6 +196,24 @@ export default function ReportsPage() {
             >
               <Gift className="h-4 w-4" />
               賞与サマリー
+            </button>
+            <button
+              onClick={() => setReportType("attendance")}
+              className={`flex items-center gap-1 rounded-md px-4 py-2 text-sm font-medium ${
+                reportType === "attendance" ? "bg-primary text-primary-foreground" : "border"
+              }`}
+            >
+              <Clock className="h-4 w-4" />
+              勤怠集計
+            </button>
+            <button
+              onClick={() => setReportType("expenses")}
+              className={`flex items-center gap-1 rounded-md px-4 py-2 text-sm font-medium ${
+                reportType === "expenses" ? "bg-primary text-primary-foreground" : "border"
+              }`}
+            >
+              <Wallet className="h-4 w-4" />
+              経費集計
             </button>
           </div>
 
@@ -452,6 +488,125 @@ export default function ReportsPage() {
                 </tr>
               </tbody>
             </table>
+          </div>
+        )}
+
+        {attendanceData && attendanceData.length > 0 && (
+          <div className="overflow-hidden rounded-lg border">
+            <div className="border-b bg-muted/50 px-4 py-3">
+              <h2 className="text-lg font-semibold">勤怠集計 — {year}年{month}月</h2>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-muted/30">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium">従業員コード</th>
+                  <th className="px-4 py-3 text-left font-medium">氏名</th>
+                  <th className="px-4 py-3 text-right font-medium">出勤日数</th>
+                  <th className="px-4 py-3 text-right font-medium">総勤務時間</th>
+                  <th className="px-4 py-3 text-right font-medium">総残業時間</th>
+                  <th className="px-4 py-3 text-right font-medium">有給日数</th>
+                  <th className="px-4 py-3 text-right font-medium">欠勤日数</th>
+                </tr>
+              </thead>
+              <tbody>
+                {attendanceData.map((r) => (
+                  <tr key={r.employee_id} className="border-t hover:bg-muted/30">
+                    <td className="px-4 py-3 font-mono">{r.employee_code}</td>
+                    <td className="px-4 py-3">{r.employee_name}</td>
+                    <td className="px-4 py-3 text-right">{r.days}日</td>
+                    <td className="px-4 py-3 text-right">{Math.floor(r.total_work_minutes / 60)}h{r.total_work_minutes % 60 > 0 ? `${r.total_work_minutes % 60}m` : ""}</td>
+                    <td className={`px-4 py-3 text-right ${r.total_overtime_minutes > 0 ? "text-orange-600 font-medium" : ""}`}>
+                      {r.total_overtime_minutes > 0 ? `${Math.floor(r.total_overtime_minutes / 60)}h${r.total_overtime_minutes % 60 > 0 ? `${r.total_overtime_minutes % 60}m` : ""}` : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-right">{r.paid_leave_days}日</td>
+                    <td className={`px-4 py-3 text-right ${r.absent_days > 0 ? "text-red-600" : ""}`}>{r.absent_days > 0 ? `${r.absent_days}日` : "-"}</td>
+                  </tr>
+                ))}
+                {(() => {
+                  const totalDays = attendanceData.reduce((s, r) => s + r.days, 0);
+                  const totalWork = attendanceData.reduce((s, r) => s + r.total_work_minutes, 0);
+                  const totalOT = attendanceData.reduce((s, r) => s + r.total_overtime_minutes, 0);
+                  const totalPaid = attendanceData.reduce((s, r) => s + r.paid_leave_days, 0);
+                  const totalAbsent = attendanceData.reduce((s, r) => s + r.absent_days, 0);
+                  return (
+                    <tr className="border-t-2 bg-muted/30 font-bold">
+                      <td className="px-4 py-3">合計</td>
+                      <td />
+                      <td className="px-4 py-3 text-right">{totalDays}日</td>
+                      <td className="px-4 py-3 text-right">{Math.floor(totalWork / 60)}h{totalWork % 60 > 0 ? `${totalWork % 60}m` : ""}</td>
+                      <td className="px-4 py-3 text-right text-orange-600">{totalOT > 0 ? `${Math.floor(totalOT / 60)}h${totalOT % 60 > 0 ? `${totalOT % 60}m` : ""}` : "-"}</td>
+                      <td className="px-4 py-3 text-right">{totalPaid}日</td>
+                      <td className="px-4 py-3 text-right">{totalAbsent}日</td>
+                    </tr>
+                  );
+                })()}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {attendanceData && attendanceData.length === 0 && (
+          <div className="flex flex-col items-center justify-center rounded-lg border bg-card p-12">
+            <Clock className="mb-3 h-10 w-10 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">該当月の勤怠データがありません。</p>
+          </div>
+        )}
+
+        {expenseData && expenseData.length > 0 && (
+          <div className="overflow-hidden rounded-lg border">
+            <div className="border-b bg-muted/50 px-4 py-3">
+              <h2 className="text-lg font-semibold">経費精算一覧</h2>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-muted/30">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium">精算日</th>
+                  <th className="px-4 py-3 text-left font-medium">タイトル</th>
+                  <th className="px-4 py-3 text-left font-medium">従業員</th>
+                  <th className="px-4 py-3 text-right font-medium">金額</th>
+                  <th className="px-4 py-3 text-center font-medium">ステータス</th>
+                </tr>
+              </thead>
+              <tbody>
+                {expenseData.map((r) => (
+                  <tr key={r.report_id} className="border-t hover:bg-muted/30">
+                    <td className="px-4 py-3">{r.report_date}</td>
+                    <td className="px-4 py-3 font-medium">{r.title}</td>
+                    <td className="px-4 py-3">{r.employee_name || "-"}</td>
+                    <td className="px-4 py-3 text-right font-medium">¥{parseInt(r.total_amount).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`rounded px-2 py-0.5 text-xs ${
+                        r.status === "submitted" ? "bg-yellow-100 text-yellow-700" :
+                        r.status === "approved" ? "bg-green-100 text-green-700" :
+                        r.status === "rejected" ? "bg-red-100 text-red-700" :
+                        r.status === "paid" ? "bg-blue-100 text-blue-700" :
+                        "bg-gray-100 text-gray-700"
+                      }`}>
+                        {r.status === "submitted" ? "申請中" : r.status === "approved" ? "承認済" : r.status === "rejected" ? "差戻し" : r.status === "paid" ? "支払済" : r.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {(() => {
+                  const total = expenseData.reduce((s, r) => s + parseInt(r.total_amount), 0);
+                  return (
+                    <tr className="border-t-2 bg-muted/30 font-bold">
+                      <td className="px-4 py-3">合計</td>
+                      <td colSpan={2} />
+                      <td className="px-4 py-3 text-right">¥{total.toLocaleString()}</td>
+                      <td />
+                    </tr>
+                  );
+                })()}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {expenseData && expenseData.length === 0 && (
+          <div className="flex flex-col items-center justify-center rounded-lg border bg-card p-12">
+            <Wallet className="mb-3 h-10 w-10 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">経費精算データがありません。</p>
           </div>
         )}
     </PageLayout>
