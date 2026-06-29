@@ -5,7 +5,8 @@ import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
-import { Receipt, Clock, Sparkles, AlertCircle, TrendingUp, BookOpen, Calculator, FileCheck, Users, Handshake, Gift, CalendarClock, Wallet, FilePlus, Landmark, TrendingDown, RefreshCw } from "lucide-react";
+import { Receipt, Clock, Sparkles, AlertCircle, TrendingUp, BookOpen, Calculator, FileCheck, Users, Handshake, Gift, CalendarClock, Wallet, FilePlus, Landmark, TrendingDown, RefreshCw, ArrowRight } from "lucide-react";
+import Link from "next/link";
 import { SkeletonCard } from "@/components/skeleton";
 
 interface JournalList {
@@ -305,14 +306,14 @@ export default function DashboardPage() {
   }, []);
 
   const cards = [
-    { label: "仕訳数", value: data.journalCount, icon: Receipt, color: "text-blue-600" },
-    { label: "未承認", value: data.pendingApprovals, icon: Clock, color: "text-yellow-600" },
-    { label: "承認済", value: data.approvedCount, icon: FileCheck, color: "text-green-600" },
-    { label: "下書き", value: data.draftCount, icon: AlertCircle, color: "text-gray-600" },
-    { label: "勘定科目", value: data.accountCount, icon: BookOpen, color: "text-indigo-600" },
-    { label: "固定資産", value: data.assetCount, icon: Calculator, color: "text-purple-600" },
-    { label: "従業員", value: data.employeeCount, icon: Users, color: "text-cyan-600" },
-    { label: "取引先", value: data.partnerCount, icon: Handshake, color: "text-orange-600" },
+    { label: "仕訳数", value: data.journalCount, icon: Receipt, color: "text-blue-600", href: "/journals" },
+    { label: "未承認", value: data.pendingApprovals, icon: Clock, color: "text-yellow-600", href: "/approvals" },
+    { label: "承認済", value: data.approvedCount, icon: FileCheck, color: "text-green-600", href: "/journals" },
+    { label: "下書き", value: data.draftCount, icon: AlertCircle, color: "text-gray-600", href: "/journals" },
+    { label: "勘定科目", value: data.accountCount, icon: BookOpen, color: "text-indigo-600", href: "/masters" },
+    { label: "固定資産", value: data.assetCount, icon: Calculator, color: "text-purple-600", href: "/assets" },
+    { label: "従業員", value: data.employeeCount, icon: Users, color: "text-cyan-600", href: "/payroll" },
+    { label: "取引先", value: data.partnerCount, icon: Handshake, color: "text-orange-600", href: "/partners" },
   ];
 
   if (loading || userLoading) {
@@ -369,23 +370,32 @@ export default function DashboardPage() {
           {cards.map((card) => {
             const Icon = card.icon;
             return (
-              <div key={card.label} className="rounded-lg border bg-card p-6">
+              <Link
+                key={card.label}
+                href={card.href}
+                className="rounded-lg border bg-card p-6 transition-shadow hover:shadow-md"
+              >
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-muted-foreground">{card.label}</p>
                   <Icon className={`h-5 w-5 ${card.color}`} />
                 </div>
                 <p className="mt-2 text-3xl font-bold">{card.value}</p>
-              </div>
+              </Link>
             );
           })}
         </div>
 
         <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="rounded-lg border bg-card p-6">
-            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              仕訳ステータス
-            </h2>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                仕訳ステータス
+              </h2>
+              <Link href="/journals" className="flex items-center gap-1 text-xs text-primary hover:underline">
+                詳細 <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between border-b pb-3">
                 <div className="flex items-center gap-3">
@@ -455,10 +465,15 @@ export default function DashboardPage() {
 
         <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="rounded-lg border bg-card p-6">
-            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-              <Users className="h-5 w-5 text-cyan-600" />
-              当月の給与サマリー
-            </h2>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <Users className="h-5 w-5 text-cyan-600" />
+                当月の給与サマリー
+              </h2>
+              <Link href="/payroll" className="flex items-center gap-1 text-xs text-primary hover:underline">
+                詳細 <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
             {payrollSummary ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between border-b pb-3">
@@ -486,10 +501,15 @@ export default function DashboardPage() {
           </div>
 
           <div className="rounded-lg border bg-card p-6">
-            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-              <Gift className="h-5 w-5 text-purple-600" />
-              賞与サマリー（夏季）
-            </h2>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <Gift className="h-5 w-5 text-purple-600" />
+                賞与サマリー（夏季）
+              </h2>
+              <Link href="/bonus" className="flex items-center gap-1 text-xs text-primary hover:underline">
+                詳細 <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
             {bonusSummary ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between border-b pb-3">
@@ -518,10 +538,15 @@ export default function DashboardPage() {
         </div>
 
         <div className="mt-8 rounded-lg border bg-card p-6">
-          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-            <CalendarClock className="h-5 w-5 text-indigo-600" />
-            年末調整サマリー（{new Date().getFullYear()}年）
-          </h2>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-lg font-semibold">
+              <CalendarClock className="h-5 w-5 text-indigo-600" />
+              年末調整サマリー（{new Date().getFullYear()}年）
+            </h2>
+            <Link href="/year-end" className="flex items-center gap-1 text-xs text-primary hover:underline">
+              詳細 <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
           {yearEndSummary ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="flex items-center justify-between border-b pb-3">
@@ -552,10 +577,15 @@ export default function DashboardPage() {
 
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="rounded-lg border bg-card p-6">
-            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-              <Clock className="h-5 w-5 text-blue-600" />
-              勤怠サマリー（{new Date().getFullYear()}年{new Date().getMonth() + 1}月）
-            </h2>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <Clock className="h-5 w-5 text-blue-600" />
+                勤怠サマリー（{new Date().getFullYear()}年{new Date().getMonth() + 1}月）
+              </h2>
+              <Link href="/attendance" className="flex items-center gap-1 text-xs text-primary hover:underline">
+                詳細 <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
             {attendanceSummary ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between border-b pb-3">
@@ -587,10 +617,15 @@ export default function DashboardPage() {
           </div>
 
           <div className="rounded-lg border bg-card p-6">
-            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-              <Wallet className="h-5 w-5 text-purple-600" />
-              経費精算サマリー
-            </h2>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <Wallet className="h-5 w-5 text-purple-600" />
+                経費精算サマリー
+              </h2>
+              <Link href="/expenses" className="flex items-center gap-1 text-xs text-primary hover:underline">
+                詳細 <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
             {expenseSummary ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between border-b pb-3">
@@ -618,10 +653,15 @@ export default function DashboardPage() {
 
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="rounded-lg border bg-card p-6">
-            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-              <FilePlus className="h-5 w-5 text-indigo-600" />
-              請求書サマリー（{new Date().getFullYear()}年）
-            </h2>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <FilePlus className="h-5 w-5 text-indigo-600" />
+                請求書サマリー（{new Date().getFullYear()}年）
+              </h2>
+              <Link href="/invoices" className="flex items-center gap-1 text-xs text-primary hover:underline">
+                詳細 <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
             {invoiceSummary ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between border-b pb-3">
@@ -657,10 +697,15 @@ export default function DashboardPage() {
           </div>
 
           <div className="rounded-lg border bg-card p-6">
-            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-              <Landmark className="h-5 w-5 text-red-600" />
-              消費税申告サマリー
-            </h2>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <Landmark className="h-5 w-5 text-red-600" />
+                消費税申告サマリー
+              </h2>
+              <Link href="/tax-returns" className="flex items-center gap-1 text-xs text-primary hover:underline">
+                詳細 <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
             {taxReturnSummary ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between border-b pb-3">
@@ -689,10 +734,15 @@ export default function DashboardPage() {
         </div>
 
         <div className="mt-8 rounded-lg border bg-card p-6">
-          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-            {plSummary && plSummary.netIncome >= 0 ? <TrendingUp className="h-5 w-5 text-green-600" /> : <TrendingDown className="h-5 w-5 text-red-600" />}
-            損益計算書クイックサマリー（{new Date().toISOString().split("T")[0]}時点）
-          </h2>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-lg font-semibold">
+              {plSummary && plSummary.netIncome >= 0 ? <TrendingUp className="h-5 w-5 text-green-600" /> : <TrendingDown className="h-5 w-5 text-red-600" />}
+              損益計算書クイックサマリー（{new Date().toISOString().split("T")[0]}時点）
+            </h2>
+            <Link href="/reports" className="flex items-center gap-1 text-xs text-primary hover:underline">
+              詳細 <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
           {plSummary ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="rounded-md border bg-blue-50/50 p-4">
