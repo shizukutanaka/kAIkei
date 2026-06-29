@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/components/toast";
-import { Save, Send, Plus } from "lucide-react";
+import { Save, Send, Plus, FilePlus } from "lucide-react";
 
 interface Account {
   account_id: string;
@@ -28,6 +29,7 @@ interface JournalLine {
 export default function JournalEntryPage() {
   const { companyId } = useCompany();
   const { toast } = useToast();
+  const router = useRouter();
   const [transactionDate, setTransactionDate] = useState("");
   const [summary, setSummary] = useState("");
   const [lines, setLines] = useState<JournalLine[]>([
@@ -137,12 +139,40 @@ export default function JournalEntryPage() {
       const data = await apiPost<Record<string, unknown>>("/journals", payload);
       setResult(data);
       toast("仕訳を保存しました", "success");
+      return data;
     } catch (err) {
       setError(err instanceof Error ? err.message : "不明なエラー");
       toast(err instanceof Error ? err.message : "仕訳の保存に失敗しました", "error");
+      return null;
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSubmitForApproval = async () => {
+    if (!isBalanced || !companyId || !transactionDate) return;
+    const saved = await handleSave();
+    if (!saved) return;
+    const journalId = saved.journal_header_id as string;
+    try {
+      await apiPost(`/approvals/submit`, { journal_header_id: journalId });
+      toast("仕訳を承認待ちに提出しました", "success");
+      resetForm();
+      router.push("/journals");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "提出に失敗しました", "error");
+    }
+  };
+
+  const resetForm = () => {
+    setTransactionDate("");
+    setSummary("");
+    setLines([
+      { debit_credit: "debit", account_code: "", account_name: "", account_id: "", amount: "", tax_amount: "0", description: "" },
+      { debit_credit: "credit", account_code: "", account_name: "", account_id: "", amount: "", tax_amount: "0", description: "" },
+    ]);
+    setResult(null);
+    setError("");
   };
 
   return (
@@ -332,12 +362,22 @@ export default function JournalEntryPage() {
             {saving ? "保存中..." : "保存"}
           </button>
           <button
+            onClick={handleSubmitForApproval}
             disabled={!isBalanced || saving || !companyId}
             className="flex items-center gap-2 rounded-md border px-6 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
           >
             <Send className="h-4 w-4" />
-            確定
+            保存して承認待ちに提出
           </button>
+          {result && (
+            <button
+              onClick={resetForm}
+              className="flex items-center gap-2 rounded-md border px-6 py-2 text-sm font-medium hover:bg-accent"
+            >
+              <FilePlus className="h-4 w-4" />
+              新規作成
+            </button>
+          )}
         </div>
     </PageLayout>
   );
