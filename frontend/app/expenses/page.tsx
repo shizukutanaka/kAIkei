@@ -413,7 +413,7 @@ export default function ExpensesPage() {
               <p className="text-sm font-bold">¥{parseInt(selectedReport.total_amount).toLocaleString()}</p>
             </div>
           </div>
-          <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border">
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>

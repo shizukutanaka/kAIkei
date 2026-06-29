@@ -8,7 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
-import { BookOpen, Plus, Search, Download, Filter, RefreshCw, Loader2 } from "lucide-react";
+import { BookOpen, Plus, Search, Download, Filter, RefreshCw, Loader2, X } from "lucide-react";
 
 interface Account {
   account_id: string;
@@ -207,8 +207,9 @@ export default function MastersPage() {
             <div className="mt-4 flex gap-2">
               <button
                 onClick={handleAddAccount}
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+                className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
               >
+                <Plus className="h-4 w-4" />
                 追加
               </button>
               <button
@@ -235,14 +236,24 @@ export default function MastersPage() {
 
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="科目コード・科目名で検索"
-              className="flex-1 rounded-md border px-3 py-2 text-sm"
-            />
+            <div className="relative flex-1">
+              <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="科目コード・科目名で検索"
+                className="w-full rounded-md border px-3 py-2 pl-8 pr-7 text-sm"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
+                >
+                  <X className="h-3 w-3 text-muted-foreground" />
+                </button>
+              )}
+            </div>
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
@@ -268,7 +279,7 @@ export default function MastersPage() {
         {loading ? (
           <SkeletonTable rows={6} columns={5} />
         ) : (
-          <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border">
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
@@ -282,7 +293,7 @@ export default function MastersPage() {
               </thead>
               <tbody>
                 {filtered.map((account) => (
-                  <tr key={account.account_id} className="border-t">
+                  <tr key={account.account_id} className="border-t hover:bg-muted/30">
                     <td className="px-4 py-3 font-mono">{account.account_code}</td>
                     <td className="px-4 py-3">{account.account_name}</td>
                     <td className="px-4 py-3">{ACCOUNT_TYPES[account.account_type] || account.account_type}</td>

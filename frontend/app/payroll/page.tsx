@@ -414,7 +414,7 @@ export default function PayrollPage() {
           {loading ? (
             <SkeletonTable rows={5} columns={7} />
           ) : filteredEmployees.length > 0 ? (
-            <div className="overflow-hidden rounded-lg border">
+            <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50">
                   <tr>
@@ -523,7 +523,7 @@ export default function PayrollPage() {
             <SkeletonTable rows={5} columns={8} />
           ) : payrollRecords.length > 0 ? (
             <>
-              <div className="overflow-hidden rounded-lg border">
+              <div className="overflow-x-auto rounded-lg border">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50">
                     <tr>

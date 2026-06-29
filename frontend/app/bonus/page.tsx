@@ -282,7 +282,7 @@ export default function BonusPage() {
             </div>
             <span className="text-xs text-muted-foreground">{filteredRecords.length}/{bonusRecords.length}件</span>
           </div>
-          <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border">
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>

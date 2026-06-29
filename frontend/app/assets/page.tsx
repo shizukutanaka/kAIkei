@@ -244,7 +244,7 @@ export default function FixedAssetsPage() {
         {loading && <SkeletonTable rows={5} columns={8} />}
 
         {assets.length > 0 && (
-          <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border">
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>

@@ -462,7 +462,7 @@ export default function ReportsPage() {
         )}
 
         {data && (
-          <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border">
             <div className="flex items-center justify-between border-b bg-muted/50 px-4 py-3">
               <h2 className="text-lg font-semibold">試算表 — {data.as_of}</h2>
               <span className={`rounded px-2 py-0.5 text-xs font-medium ${data.is_balanced ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
@@ -504,7 +504,7 @@ export default function ReportsPage() {
         )}
 
         {payrollData && payrollData.length > 0 && (
-          <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border">
             <div className="border-b bg-muted/50 px-4 py-3">
               <h2 className="text-lg font-semibold">給与サマリー — {year}年{month}月</h2>
             </div>
@@ -561,7 +561,7 @@ export default function ReportsPage() {
         )}
 
         {bonusData && bonusData.length > 0 && (
-          <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border">
             <div className="border-b bg-muted/50 px-4 py-3">
               <h2 className="text-lg font-semibold">
                 賞与サマリー — {year}年 ({bonusTerm === "summer" ? "夏季" : bonusTerm === "winter" ? "冬季" : bonusTerm === "yearend" ? "年末" : "その他"})
@@ -616,7 +616,7 @@ export default function ReportsPage() {
         )}
 
         {monthlyData && (
-          <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border">
             <div className="border-b bg-muted/50 px-4 py-3">
               <h2 className="text-lg font-semibold">
                 月次残高 — {monthlyData.year as string}年{monthlyData.month as string}月
@@ -656,7 +656,7 @@ export default function ReportsPage() {
         )}
 
         {attendanceData && attendanceData.length > 0 && (
-          <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border">
             <div className="border-b bg-muted/50 px-4 py-3">
               <h2 className="text-lg font-semibold">勤怠集計 — {year}年{month}月</h2>
             </div>
@@ -717,7 +717,7 @@ export default function ReportsPage() {
         )}
 
         {expenseData && expenseData.length > 0 && (
-          <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border">
             <div className="border-b bg-muted/50 px-4 py-3">
               <h2 className="text-lg font-semibold">経費精算一覧</h2>
             </div>
@@ -775,7 +775,7 @@ export default function ReportsPage() {
         )}
 
         {incomeData && (
-          <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border">
             <div className="flex items-center justify-between border-b bg-muted/50 px-4 py-3">
               <h2 className="text-lg font-semibold">損益計算書（P/L） — {incomeData.as_of}</h2>
               <span className={`rounded px-2 py-0.5 text-xs font-medium ${parseFloat(incomeData.net_income) >= 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
@@ -824,7 +824,7 @@ export default function ReportsPage() {
         )}
 
         {balanceData && (
-          <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border">
             <div className="flex items-center justify-between border-b bg-muted/50 px-4 py-3">
               <h2 className="text-lg font-semibold">貸借対照表（B/S） — {balanceData.as_of}</h2>
               <span className={`rounded px-2 py-0.5 text-xs font-medium ${balanceData.is_balanced ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
@@ -886,7 +886,7 @@ export default function ReportsPage() {
         )}
 
         {cashFlowData && (
-          <div className="mt-6 overflow-hidden rounded-lg border">
+          <div className="mt-6 overflow-x-auto rounded-lg border">
             <table className="w-full text-sm">
               <thead className="bg-primary/10">
                 <tr>

@@ -190,7 +190,7 @@ export default function GeneralLedgerPage() {
             {data.accounts.map((acct) => {
               const isExpanded = expandedAccount === acct.account_code;
               return (
-                <div key={acct.account_code} className="overflow-hidden rounded-lg border">
+                <div key={acct.account_code} className="overflow-x-auto rounded-lg border">
                   <button
                     onClick={() => setExpandedAccount(isExpanded ? null : acct.account_code)}
                     className="flex w-full items-center justify-between bg-primary/5 px-4 py-3 text-left"

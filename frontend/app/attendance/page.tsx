@@ -404,7 +404,7 @@ export default function AttendancePage() {
           {loading ? (
             <SkeletonTable rows={5} columns={7} />
           ) : filteredRecords.length > 0 ? (
-            <div className="overflow-hidden rounded-lg border">
+            <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50">
                   <tr>
@@ -456,7 +456,7 @@ export default function AttendancePage() {
           ) : summary.length > 0 ? (
             <>
             <p className="mb-2 text-xs text-muted-foreground">{summary.length}人</p>
-            <div className="overflow-hidden rounded-lg border">
+            <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50">
                   <tr>

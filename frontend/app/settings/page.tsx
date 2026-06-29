@@ -224,7 +224,7 @@ export default function SettingsPage() {
                 読み込み中...
               </div>
             ) : (
-              <div className="overflow-hidden rounded-lg border">
+              <div className="overflow-x-auto rounded-lg border">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50">
                     <tr>

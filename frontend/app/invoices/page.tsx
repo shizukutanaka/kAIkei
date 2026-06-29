@@ -440,7 +440,7 @@ export default function InvoicesPage() {
               </span>
             </div>
           </div>
-          <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border">
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
