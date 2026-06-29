@@ -19,6 +19,8 @@ from app.schemas.schemas import (
     ExpenseListResponse,
 )
 from app.services.auto_journal import generate_expense_payment_journal
+from app.services.notification_service import create_notification
+from app.schemas.schemas import NotificationCreate
 
 router = APIRouter()
 
@@ -211,6 +213,20 @@ async def transition_expense_report(
             )
         except ValueError:
             pass  # Account not found — skip auto-journal
+
+    # Notify on expense transition
+    action_labels = {"approved": "承認", "rejected": "差戻し", "paid": "支払完了"}
+    try:
+        await create_notification(db, current_user.tenant_id, NotificationCreate(
+            company_id=rep.company_id,
+            category="expense",
+            priority="high" if action == "paid" else "normal",
+            title=f"経費精算「{rep.title}」{action_labels[action]}",
+            body=f"経費精算「{rep.title}」を{action_labels[action]}しました。",
+            action_url="/expenses",
+        ))
+    except Exception:
+        pass
 
     await db.commit()
     await db.refresh(rep, attribute_names=["items"])

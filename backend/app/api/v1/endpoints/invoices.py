@@ -22,6 +22,8 @@ from app.services.auto_journal import (
     generate_invoice_issue_journal,
     generate_invoice_payment_journal,
 )
+from app.services.notification_service import create_notification
+from app.schemas.schemas import NotificationCreate
 
 router = APIRouter()
 
@@ -255,6 +257,20 @@ async def transition_invoice(
             )
         except ValueError:
             pass
+
+    # Notify on invoice transition
+    action_labels = {"issued": "発行", "paid": "入金確認", "cancelled": "キャンセル"}
+    try:
+        await create_notification(db, current_user.tenant_id, NotificationCreate(
+            company_id=inv.company_id,
+            category="invoice",
+            priority="high" if action == "paid" else "normal",
+            title=f"請求書 {inv.invoice_number} {action_labels[action]}",
+            body=f"請求書 {inv.invoice_number} を{action_labels[action]}しました。",
+            action_url="/invoices",
+        ))
+    except Exception:
+        pass
 
     await db.commit()
     await db.refresh(inv, attribute_names=["lines"])
