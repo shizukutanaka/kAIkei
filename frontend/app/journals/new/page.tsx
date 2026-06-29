@@ -7,7 +7,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
-import { Save, Send, Plus, FilePlus, BookOpen } from "lucide-react";
+import { Save, Send, Plus, FilePlus, BookOpen, Loader2 } from "lucide-react";
 
 interface Account {
   account_id: string;
@@ -215,7 +215,7 @@ export default function JournalEntryPage() {
             <div className="text-sm text-muted-foreground">
               {accountsLoading ? (
                 <span className="flex items-center gap-1">
-                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+                  <Loader2 className="h-3 w-3 animate-spin" />
                   読み込み中...
                 </span>
               ) : accounts.length > 0 ? `${accounts.length}件の科目` : "会社を選択して科目を読み込み"}
@@ -375,7 +375,7 @@ export default function JournalEntryPage() {
             disabled={!isBalanced || saving || !companyId}
             className="flex items-center gap-2 rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
-            <Save className="h-4 w-4" />
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             {saving ? "保存中..." : "保存"}
           </button>
           <button
@@ -383,8 +383,8 @@ export default function JournalEntryPage() {
             disabled={!isBalanced || saving || !companyId}
             className="flex items-center gap-2 rounded-md border px-6 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
           >
-            <Send className="h-4 w-4" />
-            保存して承認待ちに提出
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {saving ? "提出中..." : "保存して承認待ちに提出"}
           </button>
           {result && (
             <button

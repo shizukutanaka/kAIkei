@@ -8,7 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
-import { FileText, Plus, X, Search, Download, Send, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { FileText, Plus, X, Search, Download, Send, CheckCircle, XCircle, Loader2, RefreshCw } from "lucide-react";
 import { Pagination } from "@/components/pagination";
 
 interface InvoiceLine {
@@ -102,6 +102,7 @@ export default function InvoicesPage() {
     note: "",
   });
   const [lines, setLines] = useState([{ ...emptyLine }]);
+  const [submitLoading, setSubmitLoading] = useState(false);
 
   const fetchInvoices = async () => {
     if (!companyId) return;
@@ -167,6 +168,7 @@ export default function InvoicesPage() {
       toast("明細の内容と単価を入力してください", "warning");
       return;
     }
+    setSubmitLoading(true);
     try {
       await apiPost("/invoices/invoices", {
         company_id: companyId,
@@ -196,6 +198,8 @@ export default function InvoicesPage() {
       fetchInvoices();
     } catch (err) {
       toast(err instanceof Error ? err.message : "作成に失敗しました", "error");
+    } finally {
+      setSubmitLoading(false);
     }
   };
 
@@ -296,6 +300,14 @@ export default function InvoicesPage() {
               合計: ¥{filteredInvoices.reduce((s, inv) => s + parseInt(inv.total_amount), 0).toLocaleString()}
             </span>
           )}
+          <button
+            onClick={() => fetchInvoices()}
+            disabled={loading || !companyId}
+            className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            更新
+          </button>
         </div>
         {canCreate && (
           <button
@@ -381,8 +393,9 @@ export default function InvoicesPage() {
           </div>
 
           <div className="flex gap-2">
-            <button onClick={handleSubmit} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
-              作成
+            <button onClick={handleSubmit} disabled={submitLoading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+              {submitLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {submitLoading ? "作成中..." : "作成"}
             </button>
             <button onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
               キャンセル

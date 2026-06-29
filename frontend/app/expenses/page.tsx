@@ -8,7 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
-import { Receipt, Plus, X, Search, Download, CheckCircle, XCircle, Banknote, Loader2 } from "lucide-react";
+import { Receipt, Plus, X, Search, Download, CheckCircle, XCircle, Banknote, Loader2, RefreshCw } from "lucide-react";
 import { Pagination } from "@/components/pagination";
 
 interface ExpenseItem {
@@ -83,6 +83,7 @@ export default function ExpensesPage() {
   const [total, setTotal] = useState(0);
   const pageSize = 50;
   const [showForm, setShowForm] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
   const [selectedReport, setSelectedReport] = useState<ExpenseReport | null>(null);
   const [formData, setFormData] = useState({
     employee_id: "",
@@ -158,6 +159,7 @@ export default function ExpensesPage() {
       toast("明細の摘要と金額を入力してください", "warning");
       return;
     }
+    setSubmitLoading(true);
     try {
       await apiPost("/expenses/reports", {
         company_id: companyId,
@@ -179,6 +181,8 @@ export default function ExpensesPage() {
       fetchReports();
     } catch (err) {
       toast(err instanceof Error ? err.message : "提出に失敗しました", "error");
+    } finally {
+      setSubmitLoading(false);
     }
   };
 
@@ -279,6 +283,14 @@ export default function ExpensesPage() {
               合計: ¥{filteredReports.reduce((s, r) => s + parseInt(r.total_amount), 0).toLocaleString()}
             </span>
           )}
+          <button
+            onClick={() => fetchReports()}
+            disabled={loading || !companyId}
+            className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            更新
+          </button>
         </div>
         {canCreate && (
           <button
@@ -354,8 +366,9 @@ export default function ExpensesPage() {
           </div>
 
           <div className="flex gap-2">
-            <button onClick={handleSubmit} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
-              提出
+            <button onClick={handleSubmit} disabled={submitLoading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+              {submitLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {submitLoading ? "提出中..." : "提出"}
             </button>
             <button onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
               キャンセル
