@@ -280,8 +280,16 @@ export default function InvoicesPage() {
               placeholder="請求書番号・取引先名で検索..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-56 rounded-md border py-1.5 pl-8 pr-3 text-sm"
+              className="w-56 rounded-md border py-1.5 pl-8 pr-7 text-sm"
             />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
+              >
+                <X className="h-3 w-3 text-muted-foreground" />
+              </button>
+            )}
           </div>
           <select
             value={statusFilter}
@@ -496,7 +504,7 @@ export default function InvoicesPage() {
       {loading ? (
         <SkeletonTable rows={5} columns={7} />
       ) : filteredInvoices.length > 0 ? (
-        <div className="overflow-hidden rounded-lg border">
+        <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>
@@ -511,7 +519,7 @@ export default function InvoicesPage() {
             </thead>
             <tbody>
               {filteredInvoices.map((inv) => (
-                <tr key={inv.invoice_id} className="border-t hover:bg-muted/30">
+                <tr key={inv.invoice_id} className="cursor-pointer border-t hover:bg-muted/30" onClick={() => setSelectedInvoice(inv)}>
                   <td className="px-4 py-3 font-mono font-medium">{inv.invoice_number}</td>
                   <td className="px-4 py-3">{inv.invoice_date}</td>
                   <td className="px-4 py-3">{inv.due_date}</td>
@@ -522,7 +530,7 @@ export default function InvoicesPage() {
                       {STATUS_LABELS[inv.status] || inv.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1">
                       <button onClick={() => setSelectedInvoice(inv)} className="rounded px-2 py-1 text-xs hover:bg-accent">詳細</button>
                       <button onClick={() => handleDownload(inv.invoice_id, inv.invoice_number)} className="inline-flex items-center justify-center rounded p-1 hover:bg-accent" title="CSV出力">

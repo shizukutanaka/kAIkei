@@ -263,8 +263,16 @@ export default function ExpensesPage() {
               placeholder="タイトル・従業員名で検索..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-48 rounded-md border py-1.5 pl-8 pr-3 text-sm"
+              className="w-48 rounded-md border py-1.5 pl-8 pr-7 text-sm"
             />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
+              >
+                <X className="h-3 w-3 text-muted-foreground" />
+              </button>
+            )}
           </div>
           <select
             value={statusFilter}
@@ -459,7 +467,7 @@ export default function ExpensesPage() {
       {loading ? (
         <SkeletonTable rows={5} columns={6} />
       ) : filteredReports.length > 0 ? (
-        <div className="overflow-hidden rounded-lg border">
+        <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>
@@ -473,7 +481,7 @@ export default function ExpensesPage() {
             </thead>
             <tbody>
               {filteredReports.map((r) => (
-                <tr key={r.report_id} className="border-t hover:bg-muted/30">
+                <tr key={r.report_id} className="cursor-pointer border-t hover:bg-muted/30" onClick={() => setSelectedReport(r)}>
                   <td className="px-4 py-3">{r.report_date}</td>
                   <td className="px-4 py-3 font-medium">{r.title}</td>
                   <td className="px-4 py-3">{r.employee_name || r.employee_id.slice(0, 8)}</td>
@@ -483,7 +491,7 @@ export default function ExpensesPage() {
                       {STATUS_LABELS[r.status] || r.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1">
                       <button
                         onClick={() => setSelectedReport(r)}

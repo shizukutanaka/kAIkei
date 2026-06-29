@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPostMultipart } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
-import { Receipt, Filter, Search, Download, Upload, BookOpen, Plus, RefreshCw } from "lucide-react";
+import { Receipt, Filter, Search, Download, Upload, BookOpen, Plus, RefreshCw, X } from "lucide-react";
 import Link from "next/link";
 import { SkeletonTable } from "@/components/skeleton";
 import { useToast } from "@/components/toast";
@@ -169,8 +169,16 @@ export default function JournalsListPage() {
                 placeholder="仕訳番号・摘要で検索..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-48 rounded-md border py-1.5 pl-8 pr-3 text-sm"
+                className="w-48 rounded-md border py-1.5 pl-8 pr-7 text-sm"
               />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
+                >
+                  <X className="h-3 w-3 text-muted-foreground" />
+                </button>
+              )}
             </div>
             <Filter className="h-4 w-4 text-muted-foreground" />
             <select
@@ -239,7 +247,7 @@ export default function JournalsListPage() {
 
         {data && (
           <>
-            <div className="overflow-hidden rounded-lg border">
+            <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50">
                   <tr>

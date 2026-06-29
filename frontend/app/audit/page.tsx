@@ -7,7 +7,7 @@ import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { SkeletonTable } from "@/components/skeleton";
 import { Pagination } from "@/components/pagination";
-import { ScrollText, Download, Search, RefreshCw } from "lucide-react";
+import { ScrollText, Download, Search, RefreshCw, X } from "lucide-react";
 
 interface AuditLog {
   log_id: string;
@@ -170,8 +170,16 @@ export default function AuditLogPage() {
             placeholder="リソース種別でフィルタ..."
             value={resourceFilter}
             onChange={(e) => { setResourceFilter(e.target.value); setPage(1); }}
-            className="w-48 rounded-md border py-1.5 pl-8 pr-3 text-sm"
+            className="w-48 rounded-md border py-1.5 pl-8 pr-7 text-sm"
           />
+          {resourceFilter && (
+            <button
+              onClick={() => { setResourceFilter(""); setPage(1); }}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
+            >
+              <X className="h-3 w-3 text-muted-foreground" />
+            </button>
+          )}
         </div>
         {total > 0 && <span className="text-xs text-muted-foreground">{total}件</span>}
         <button
@@ -187,7 +195,7 @@ export default function AuditLogPage() {
       {loading ? (
         <SkeletonTable rows={5} columns={7} />
       ) : logs.length > 0 ? (
-        <div className="overflow-hidden rounded-lg border">
+        <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>
