@@ -7,7 +7,7 @@ import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { SkeletonTable } from "@/components/skeleton";
-import { Gift, Calculator, CheckCircle, XCircle, Banknote, FileText, Download } from "lucide-react";
+import { Gift, Calculator, CheckCircle, XCircle, Banknote, FileText, Download, Search } from "lucide-react";
 
 interface BonusRecord {
   bonus_id: string;
@@ -71,6 +71,7 @@ export default function BonusPage() {
   const [bonusTerm, setBonusTerm] = useState("summer");
   const [baseMonths, setBaseMonths] = useState("2.0");
   const [perfFactors, setPerfFactors] = useState<Record<string, string>>({});
+  const [searchQuery, setSearchQuery] = useState("");
 
   const fetchBonusRecords = async () => {
     if (!companyId) return;
@@ -176,6 +177,12 @@ export default function BonusPage() {
   const totalDeductions = bonusRecords.reduce((s, r) => s + parseFloat(r.total_deductions), 0);
   const totalNet = bonusRecords.reduce((s, r) => s + parseFloat(r.net_pay), 0);
 
+  const filteredRecords = bonusRecords.filter((r) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (r.employee_name || r.employee_id).toLowerCase().includes(q);
+  });
+
   const allSameStatus = bonusRecords.length > 0 && bonusRecords.every((r) => r.status === bonusRecords[0].status);
   const currentStatus = bonusRecords[0]?.status;
 
@@ -256,6 +263,19 @@ export default function BonusPage() {
         <SkeletonTable rows={5} columns={7} />
       ) : bonusRecords.length > 0 ? (
         <>
+          <div className="mb-3 flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="従業員名で検索..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-48 rounded-md border py-1.5 pl-8 pr-3 text-sm"
+              />
+            </div>
+            <span className="text-xs text-muted-foreground">{filteredRecords.length}/{bonusRecords.length}件</span>
+          </div>
           <div className="overflow-hidden rounded-lg border">
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
@@ -272,7 +292,7 @@ export default function BonusPage() {
                 </tr>
               </thead>
               <tbody>
-                {bonusRecords.map((r) => (
+                {filteredRecords.map((r) => (
                   <tr key={r.bonus_id} className="border-t hover:bg-muted/30">
                     <td className="px-4 py-3">{r.employee_name || r.employee_id.slice(0, 8)}</td>
                     <td className="px-4 py-3 text-right">{parseFloat(r.bonus_base_months).toFixed(1)}ヶ月</td>

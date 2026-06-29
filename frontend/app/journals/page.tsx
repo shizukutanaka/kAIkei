@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
-import { Receipt, ChevronLeft, ChevronRight, Filter } from "lucide-react";
+import { Receipt, ChevronLeft, ChevronRight, Filter, Search } from "lucide-react";
 import Link from "next/link";
 import { SkeletonTable } from "@/components/skeleton";
 
@@ -47,6 +47,7 @@ export default function JournalsListPage() {
   const [data, setData] = useState<JournalList | null>(null);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -83,9 +84,14 @@ export default function JournalsListPage() {
   }, [companyId, page, statusFilter]);
 
   const filteredItems = data
-    ? statusFilter
-      ? data.items.filter((j) => j.approval_status === statusFilter)
-      : data.items
+    ? data.items.filter((j) => {
+        const matchesStatus = !statusFilter || j.approval_status === statusFilter;
+        const matchesSearch =
+          !searchQuery ||
+          j.journal_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (j.summary || "").toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesStatus && matchesSearch;
+      })
     : [];
 
   const totalPages = data ? Math.ceil(data.total / data.page_size) : 0;
@@ -104,6 +110,16 @@ export default function JournalsListPage() {
               <p className="text-sm text-muted-foreground">{companyId || "未設定"}</p>
             </div>
             <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="検索..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-40 rounded-md border py-1.5 pl-8 pr-3 text-sm"
+                />
+              </div>
               <Filter className="h-4 w-4 text-muted-foreground" />
               <select
                 value={statusFilter}

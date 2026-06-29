@@ -7,7 +7,7 @@ import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { SkeletonTable } from "@/components/skeleton";
-import { Users, Plus, Calculator, Trash2, FileText, Download, CheckCircle, XCircle, Banknote } from "lucide-react";
+import { Users, Plus, Calculator, Trash2, FileText, Download, CheckCircle, XCircle, Banknote, Search } from "lucide-react";
 
 interface Employee {
   employee_id: string;
@@ -94,6 +94,8 @@ export default function PayrollPage() {
   const [payrollMonth, setPayrollMonth] = useState((new Date().getMonth() + 1).toString());
   const [overtimeMap, setOvertimeMap] = useState<Record<string, string>>({});
   const [calculating, setCalculating] = useState(false);
+  const [empSearch, setEmpSearch] = useState("");
+  const [empDeptFilter, setEmpDeptFilter] = useState("");
 
   const fetchEmployees = async () => {
     if (!companyId) return;
@@ -134,6 +136,16 @@ export default function PayrollPage() {
       fetchPayrollRecords();
     }
   }, [companyId, tab, payrollYear, payrollMonth]);
+
+  const departments = Array.from(new Set(employees.map((e) => e.department).filter(Boolean) as string[])).sort();
+  const filteredEmployees = employees.filter((e) => {
+    const matchesSearch =
+      !empSearch ||
+      e.employee_code.toLowerCase().includes(empSearch.toLowerCase()) ||
+      e.employee_name.toLowerCase().includes(empSearch.toLowerCase());
+    const matchesDept = !empDeptFilter || e.department === empDeptFilter;
+    return matchesSearch && matchesDept;
+  });
 
   const handleCreateEmployee = async () => {
     if (!formData.employee_code || !formData.employee_name) {
@@ -291,8 +303,34 @@ export default function PayrollPage() {
 
       {tab === "employees" && (
         <>
-          <div className="mb-4 flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">{employees.length}件の従業員</p>
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted-foreground">{filteredEmployees.length}件の従業員</p>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="検索..."
+                    value={empSearch}
+                    onChange={(e) => setEmpSearch(e.target.value)}
+                    className="w-40 rounded-md border py-1.5 pl-8 pr-3 text-sm"
+                  />
+                </div>
+                {departments.length > 0 && (
+                  <select
+                    value={empDeptFilter}
+                    onChange={(e) => setEmpDeptFilter(e.target.value)}
+                    className="rounded-md border px-2 py-1.5 text-sm"
+                  >
+                    <option value="">全部署</option>
+                    {departments.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
             {canCreate && (
               <button
                 onClick={() => setShowForm(!showForm)}
@@ -358,7 +396,7 @@ export default function PayrollPage() {
 
           {loading ? (
             <SkeletonTable rows={5} columns={6} />
-          ) : employees.length > 0 ? (
+          ) : filteredEmployees.length > 0 ? (
             <div className="overflow-hidden rounded-lg border">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50">
@@ -372,7 +410,7 @@ export default function PayrollPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {employees.map((e) => (
+                  {filteredEmployees.map((e) => (
                     <tr key={e.employee_id} className="border-t hover:bg-muted/30">
                       <td className="px-4 py-3 font-mono">{e.employee_code}</td>
                       <td className="px-4 py-3">{e.employee_name}</td>
@@ -396,7 +434,7 @@ export default function PayrollPage() {
               </table>
             </div>
           ) : (
-            <p className="text-center text-sm text-muted-foreground">従業員データがありません</p>
+            <p className="text-center text-sm text-muted-foreground">{employees.length === 0 ? "従業員データがありません" : "該当する従業員がいません"}</p>
           )}
         </>
       )}

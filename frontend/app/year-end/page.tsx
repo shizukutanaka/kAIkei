@@ -7,7 +7,7 @@ import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { SkeletonTable } from "@/components/skeleton";
-import { CalendarClock, Calculator, CheckCircle, FileText, Download } from "lucide-react";
+import { CalendarClock, Calculator, CheckCircle, FileText, Download, Search } from "lucide-react";
 
 interface YearEndAdjustment {
   adjustment_id: string;
@@ -57,6 +57,7 @@ export default function YearEndPage() {
   const [error, setError] = useState("");
   const [adjustmentYear, setAdjustmentYear] = useState(new Date().getFullYear().toString());
   const [dependentsMap, setDependentsMap] = useState<Record<string, string>>({});
+  const [searchQuery, setSearchQuery] = useState("");
 
   const fetchRecords = async () => {
     if (!companyId) return;
@@ -159,6 +160,12 @@ export default function YearEndPage() {
   const totalEstimated = records.reduce((s, r) => s + parseFloat(r.estimated_annual_tax), 0);
   const totalAdjustment = records.reduce((s, r) => s + parseFloat(r.adjustment_amount), 0);
 
+  const filteredRecords = records.filter((r) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (r.employee_name || r.employee_id).toLowerCase().includes(q);
+  });
+
   const allSameStatus = records.length > 0 && records.every((r) => r.status === records[0].status);
   const currentStatus = records[0]?.status;
 
@@ -227,6 +234,19 @@ export default function YearEndPage() {
         <SkeletonTable rows={5} columns={7} />
       ) : records.length > 0 ? (
         <>
+          <div className="mb-3 flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="従業員名で検索..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-48 rounded-md border py-1.5 pl-8 pr-3 text-sm"
+              />
+            </div>
+            <span className="text-xs text-muted-foreground">{filteredRecords.length}/{records.length}件</span>
+          </div>
           <div className="overflow-hidden rounded-lg border">
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
@@ -244,7 +264,7 @@ export default function YearEndPage() {
                 </tr>
               </thead>
               <tbody>
-                {records.map((r) => (
+                {filteredRecords.map((r) => (
                   <tr key={r.adjustment_id} className="border-t hover:bg-muted/30">
                     <td className="px-4 py-3">{r.employee_name || r.employee_id.slice(0, 8)}</td>
                     <td className="px-4 py-3 text-right">¥{parseInt(r.annual_salary).toLocaleString()}</td>
