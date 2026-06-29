@@ -17,6 +17,7 @@ from app.schemas.schemas import (
     PayrollCalculateRequest,
     PayrollRecordResponse,
 )
+from app.services.auto_journal import generate_payroll_journal
 
 router = APIRouter()
 
@@ -364,9 +365,31 @@ async def batch_transition_payroll(
         )
 
     updated: list[PayrollRecordResponse] = []
+    total_gross_sum = Decimal("0")
+    total_deductions_sum = Decimal("0")
+    net_pay_sum = Decimal("0")
     for rec, emp_name in rows:
         rec.status = action
+        total_gross_sum += rec.total_gross
+        total_deductions_sum += rec.total_deductions
+        net_pay_sum += rec.net_pay
         updated.append(_to_payroll_response(rec, emp_name))
+
+    # Auto-generate payroll journal on batch "paid" transition
+    if action == "paid":
+        try:
+            await generate_payroll_journal(
+                db,
+                company_id=company_id,
+                payroll_year=payroll_year,
+                payroll_month=payroll_month,
+                total_gross=total_gross_sum,
+                total_deductions=total_deductions_sum,
+                net_pay=net_pay_sum,
+                created_by=current_user.user_id,
+            )
+        except ValueError:
+            pass  # Account not found — skip auto-journal
 
     await db.commit()
     return updated

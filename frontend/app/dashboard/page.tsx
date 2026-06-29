@@ -5,7 +5,7 @@ import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
-import { Receipt, Clock, Sparkles, AlertCircle, TrendingUp, BookOpen, Calculator, FileCheck, Users, Handshake, Gift, CalendarClock, Wallet } from "lucide-react";
+import { Receipt, Clock, Sparkles, AlertCircle, TrendingUp, BookOpen, Calculator, FileCheck, Users, Handshake, Gift, CalendarClock, Wallet, FilePlus, Landmark } from "lucide-react";
 import { SkeletonCard } from "@/components/skeleton";
 
 interface JournalList {
@@ -62,6 +62,23 @@ interface ExpenseSummary {
   approvedCount: number;
 }
 
+interface InvoiceSummary {
+  count: number;
+  totalSubtotal: number;
+  totalTax: number;
+  totalAmount: number;
+  draftCount: number;
+  issuedCount: number;
+  paidCount: number;
+}
+
+interface TaxReturnSummary {
+  count: number;
+  totalPayable: number;
+  latestYear: number | null;
+  latestStatus: string | null;
+}
+
 export default function DashboardPage() {
   const { companyId } = useCompany();
   const { user, loading: userLoading } = useUser();
@@ -81,6 +98,8 @@ export default function DashboardPage() {
   const [yearEndSummary, setYearEndSummary] = useState<YearEndSummary | null>(null);
   const [attendanceSummary, setAttendanceSummary] = useState<AttendanceSummary | null>(null);
   const [expenseSummary, setExpenseSummary] = useState<ExpenseSummary | null>(null);
+  const [invoiceSummary, setInvoiceSummary] = useState<InvoiceSummary | null>(null);
+  const [taxReturnSummary, setTaxReturnSummary] = useState<TaxReturnSummary | null>(null);
 
   useEffect(() => {
     if (!companyId) {
@@ -91,7 +110,7 @@ export default function DashboardPage() {
 
     const fetchDashboard = async () => {
       try {
-        const [journals, accounts, assets, employees, partners, payrollRecs, bonusRecs, yearEndRecs, attendanceRecs, expenseRecs] = await Promise.allSettled([
+        const [journals, accounts, assets, employees, partners, payrollRecs, bonusRecs, yearEndRecs, attendanceRecs, expenseRecs, invoiceStats, taxRecs] = await Promise.allSettled([
           apiGet<JournalList>("/journals", { company_id: companyId, page: "1", page_size: "200" }),
           apiGet<unknown[]>("/masters", { company_id: companyId }),
           apiGet<unknown[]>("/fixed-assets", { company_id: companyId }),
@@ -117,6 +136,13 @@ export default function DashboardPage() {
             month: (new Date().getMonth() + 1).toString(),
           }),
           apiGet<Array<{ total_amount: string; status: string }>>("/expenses/reports", {
+            company_id: companyId,
+          }),
+          apiGet<{ count: number; total_subtotal: string; total_tax: string; total_amount: string; draft_count: number; issued_count: number; paid_count: number; cancelled_count: number }>("/invoices/stats", {
+            company_id: companyId,
+            year: new Date().getFullYear().toString(),
+          }),
+          apiGet<Array<{ tax_year: number; tax_payable: string; status: string }>>("/tax-returns/records", {
             company_id: companyId,
           }),
         ]);
@@ -200,6 +226,31 @@ export default function DashboardPage() {
           });
         } else {
           setExpenseSummary(null);
+        }
+        if (invoiceStats.status === "fulfilled" && invoiceStats.value) {
+          const v = invoiceStats.value;
+          setInvoiceSummary({
+            count: v.count,
+            totalSubtotal: parseFloat(v.total_subtotal),
+            totalTax: parseFloat(v.total_tax),
+            totalAmount: parseFloat(v.total_amount),
+            draftCount: v.draft_count,
+            issuedCount: v.issued_count,
+            paidCount: v.paid_count,
+          });
+        } else {
+          setInvoiceSummary(null);
+        }
+        if (taxRecs.status === "fulfilled" && Array.isArray(taxRecs.value) && taxRecs.value.length > 0) {
+          const latest = taxRecs.value[0];
+          setTaxReturnSummary({
+            count: taxRecs.value.length,
+            totalPayable: taxRecs.value.reduce((s, r) => s + parseFloat(r.tax_payable), 0),
+            latestYear: latest.tax_year,
+            latestStatus: latest.status,
+          });
+        } else {
+          setTaxReturnSummary(null);
         }
 
         setData(next);
@@ -504,6 +555,78 @@ export default function DashboardPage() {
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">経費精算データがありません。</p>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="rounded-lg border bg-card p-6">
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+              <FilePlus className="h-5 w-5 text-indigo-600" />
+              請求書サマリー（{new Date().getFullYear()}年）
+            </h2>
+            {invoiceSummary ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-sm font-medium">請求件数</span>
+                  <span className="text-lg font-bold">{invoiceSummary.count}件</span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-sm font-medium">売上合計</span>
+                  <span className="text-lg font-bold">¥{invoiceSummary.totalSubtotal.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-sm font-medium">消費税合計</span>
+                  <span className="text-sm font-bold text-orange-600">¥{invoiceSummary.totalTax.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-sm font-medium">総合計</span>
+                  <span className="text-lg font-bold text-primary">¥{invoiceSummary.totalAmount.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">ステータス内訳</span>
+                  <span className="text-sm">
+                    <span className="text-gray-600 font-medium">下書き{invoiceSummary.draftCount}</span>
+                    {" / "}
+                    <span className="text-blue-600 font-medium">発行済{invoiceSummary.issuedCount}</span>
+                    {" / "}
+                    <span className="text-green-600 font-medium">入金済{invoiceSummary.paidCount}</span>
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">今年の請求書データがありません。</p>
+            )}
+          </div>
+
+          <div className="rounded-lg border bg-card p-6">
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+              <Landmark className="h-5 w-5 text-red-600" />
+              消費税申告サマリー
+            </h2>
+            {taxReturnSummary ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-sm font-medium">申告件数</span>
+                  <span className="text-lg font-bold">{taxReturnSummary.count}件</span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-sm font-medium">納付税額累計</span>
+                  <span className="text-lg font-bold text-red-600">¥{taxReturnSummary.totalPayable.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-sm font-medium">最新年度</span>
+                  <span className="text-lg font-bold">{taxReturnSummary.latestYear}年度</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">最新ステータス</span>
+                  <span className={`rounded px-2 py-0.5 text-xs ${taxReturnSummary.latestStatus === "filed" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
+                    {taxReturnSummary.latestStatus === "filed" ? "申告済" : "計算済"}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">消費税申告データがありません。</p>
             )}
           </div>
         </div>
