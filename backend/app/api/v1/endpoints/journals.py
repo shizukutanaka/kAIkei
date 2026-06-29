@@ -85,25 +85,30 @@ async def list_journals(
     company_id: UUID,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
+    approval_status: str | None = Query(None, description="Filter by approval status"),
     current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> JournalListResponse:
-    """List journals for a company with pagination."""
+    """List journals for a company with pagination and optional status filter."""
     offset = (page - 1) * page_size
-    result = await db.execute(
+    query = (
         select(JournalHeader)
         .where(JournalHeader.company_id == company_id, JournalHeader.is_deleted == False)  # noqa: E712
-        .order_by(JournalHeader.transaction_date.desc(), JournalHeader.created_at.desc())
-        .offset(offset)
-        .limit(page_size)
     )
+    if approval_status:
+        query = query.where(JournalHeader.approval_status == approval_status)
+    query = query.order_by(JournalHeader.transaction_date.desc(), JournalHeader.created_at.desc())
+    result = await db.execute(query.offset(offset).limit(page_size))
     items = result.scalars().all()
 
-    count_result = await db.execute(
+    count_query = (
         select(func.count())
         .select_from(JournalHeader)
         .where(JournalHeader.company_id == company_id, JournalHeader.is_deleted == False)  # noqa: E712
     )
+    if approval_status:
+        count_query = count_query.where(JournalHeader.approval_status == approval_status)
+    count_result = await db.execute(count_query)
     total = count_result.scalar() or 0
 
     return JournalListResponse(items=items, total=total, page=page, page_size=page_size)
