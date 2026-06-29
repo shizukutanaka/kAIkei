@@ -214,8 +214,11 @@ export default function KnowledgePage() {
             ))}
 
             {results.items.length === 0 && (
-              <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-                該当する結果が見つかりませんでした
+              <div className="flex flex-col items-center justify-center rounded-lg border bg-card p-12">
+                <Search className="mb-3 h-10 w-10 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  該当する結果が見つかりませんでした。別のキーワードをお試しください。
+                </p>
               </div>
             )}
           </div>

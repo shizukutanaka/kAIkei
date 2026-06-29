@@ -7,7 +7,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
-import { ArrowLeft, Receipt, Send, CheckCircle, XCircle, FileCheck } from "lucide-react";
+import { ArrowLeft, Receipt, Send, CheckCircle, XCircle, FileCheck, Loader2 } from "lucide-react";
 import { SkeletonTable } from "@/components/skeleton";
 
 interface JournalLine {
@@ -250,7 +250,7 @@ export default function JournalDetailPage() {
             disabled={actionLoading}
             className="flex items-center gap-2 rounded-md bg-yellow-600 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-700 disabled:opacity-50"
           >
-            <Send className="h-4 w-4" />
+            {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             承認に提出
           </button>
         )}
@@ -261,7 +261,7 @@ export default function JournalDetailPage() {
               disabled={actionLoading}
               className="flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
             >
-              <CheckCircle className="h-4 w-4" />
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
               承認
             </button>
             <button
@@ -269,7 +269,7 @@ export default function JournalDetailPage() {
               disabled={actionLoading}
               className="flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
             >
-              <XCircle className="h-4 w-4" />
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
               差し戻し
             </button>
           </>
@@ -280,7 +280,7 @@ export default function JournalDetailPage() {
             disabled={actionLoading}
             className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            <FileCheck className="h-4 w-4" />
+            {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck className="h-4 w-4" />}
             転記
           </button>
         )}

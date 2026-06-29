@@ -102,7 +102,7 @@ export default function Sidebar() {
                   href={item.href}
                   onClick={() => setOpen(false)}
                   className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground ${
-                    isActive ? "bg-accent text-accent-foreground" : ""
+                    isActive ? "bg-accent text-accent-foreground border-l-2 border-primary" : "border-l-2 border-transparent"
                   }`}
                 >
                   <Icon className="h-4 w-4" />

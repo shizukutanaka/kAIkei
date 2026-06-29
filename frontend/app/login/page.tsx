@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiPost } from "@/lib/api";
-import { Building2, LogIn, Eye, EyeOff } from "lucide-react";
+import { Building2, LogIn, Eye, EyeOff, Loader2 } from "lucide-react";
 
 interface LoginResponse {
   access_token: string;
@@ -103,7 +103,7 @@ export default function LoginPage() {
             disabled={loading}
             className="flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
-            <LogIn className="h-4 w-4" />
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
             {loading ? "ログイン中..." : "ログイン"}
           </button>
         </form>
