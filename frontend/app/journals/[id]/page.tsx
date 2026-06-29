@@ -6,6 +6,7 @@ import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost } from "@/lib/api";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
+import { useConfirm } from "@/components/confirm-dialog";
 import { ArrowLeft, Receipt, Send, CheckCircle, XCircle, FileCheck } from "lucide-react";
 
 interface JournalLine {
@@ -51,6 +52,7 @@ export default function JournalDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const { user } = useUser();
   const perms = user?.permissions ?? [];
   const canSubmit = perms.includes("journal:create");
@@ -81,6 +83,19 @@ export default function JournalDetailPage() {
   }, [id]);
 
   const handleApprovalAction = async (action: string) => {
+    const actionLabels: Record<string, string> = {
+      submit: "承認に提出",
+      approve: "承認",
+      reject: "差戻し",
+      post: "転記",
+    };
+    const ok = await confirm({
+      title: actionLabels[action] || action,
+      message: `仕訳「${journal?.summary || journal?.journal_number}」を${actionLabels[action]}しますか？`,
+      confirmText: actionLabels[action] || action,
+      variant: action === "reject" ? "danger" : "default",
+    });
+    if (!ok) return;
     setActionLoading(true);
     try {
       await apiPost(`/approvals/${action}`, { journal_header_id: id });
