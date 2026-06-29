@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPostMultipart } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
-import { Receipt, Filter, Search, Download, Upload, BookOpen, Plus } from "lucide-react";
+import { Receipt, Filter, Search, Download, Upload, BookOpen, Plus, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { SkeletonTable } from "@/components/skeleton";
 import { useToast } from "@/components/toast";
@@ -186,7 +186,7 @@ export default function JournalsListPage() {
             disabled={loading || !companyId}
             className="flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
-            <Search className="h-4 w-4" />
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             {loading ? "取得中..." : "更新"}
           </button>
         </div>

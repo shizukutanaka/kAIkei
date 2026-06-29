@@ -98,6 +98,7 @@ export default function PayrollPage() {
   const [calculating, setCalculating] = useState(false);
   const [empSearch, setEmpSearch] = useState("");
   const [empDeptFilter, setEmpDeptFilter] = useState("");
+  const [empActiveFilter, setEmpActiveFilter] = useState("");
 
   const fetchEmployees = async () => {
     if (!companyId) return;
@@ -146,7 +147,8 @@ export default function PayrollPage() {
       e.employee_code.toLowerCase().includes(empSearch.toLowerCase()) ||
       e.employee_name.toLowerCase().includes(empSearch.toLowerCase());
     const matchesDept = !empDeptFilter || e.department === empDeptFilter;
-    return matchesSearch && matchesDept;
+    const matchesActive = !empActiveFilter || (empActiveFilter === "active" ? e.is_active : !e.is_active);
+    return matchesSearch && matchesDept && matchesActive;
   });
 
   const handleCreateEmployee = async () => {
@@ -307,7 +309,7 @@ export default function PayrollPage() {
         <>
           <div className="mb-4 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <p className="text-sm text-muted-foreground">{filteredEmployees.length}件の従業員</p>
+              <p className="text-sm text-muted-foreground">{filteredEmployees.length}/{employees.length}件の従業員</p>
               <div className="flex items-center gap-2">
                 <div className="relative">
                   <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -331,6 +333,15 @@ export default function PayrollPage() {
                     ))}
                   </select>
                 )}
+                <select
+                  value={empActiveFilter}
+                  onChange={(e) => setEmpActiveFilter(e.target.value)}
+                  className="rounded-md border px-2 py-1.5 text-sm"
+                >
+                  <option value="">全員</option>
+                  <option value="active">在籍中</option>
+                  <option value="inactive">退職</option>
+                </select>
               </div>
             </div>
             {canCreate && (
@@ -397,7 +408,7 @@ export default function PayrollPage() {
           )}
 
           {loading ? (
-            <SkeletonTable rows={5} columns={6} />
+            <SkeletonTable rows={5} columns={7} />
           ) : filteredEmployees.length > 0 ? (
             <div className="overflow-hidden rounded-lg border">
               <table className="w-full text-sm">
@@ -407,6 +418,7 @@ export default function PayrollPage() {
                     <th className="px-4 py-3 text-left font-medium">氏名</th>
                     <th className="px-4 py-3 text-left font-medium">部署</th>
                     <th className="px-4 py-3 text-left font-medium">雇用形態</th>
+                    <th className="px-4 py-3 text-center font-medium">状態</th>
                     <th className="px-4 py-3 text-right font-medium">基本給</th>
                     <th className="px-4 py-3 text-center font-medium">操作</th>
                   </tr>
@@ -418,6 +430,11 @@ export default function PayrollPage() {
                       <td className="px-4 py-3">{e.employee_name}</td>
                       <td className="px-4 py-3">{e.department || "-"}</td>
                       <td className="px-4 py-3">{EMPLOYMENT_TYPE_LABELS[e.employment_type] || e.employment_type}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`rounded px-2 py-0.5 text-xs ${e.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                          {e.is_active ? "在籍" : "退職"}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-right">¥{parseInt(e.base_salary).toLocaleString()}</td>
                       <td className="px-4 py-3 text-center">
                         {canDelete && (
