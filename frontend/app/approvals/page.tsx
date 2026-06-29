@@ -110,6 +110,10 @@ export default function ApprovalsPage() {
     setComment("");
   };
 
+  useEffect(() => {
+    if (selectedId) fetchHistory();
+  }, [selectedId]);
+
   const fetchHistory = async () => {
     if (!selectedId) return;
     try {

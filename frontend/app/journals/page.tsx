@@ -154,44 +154,40 @@ export default function JournalsListPage() {
           <h1 className="text-2xl font-bold">仕訳一覧</h1>
         </div>
 
-        <div className="mb-6 flex items-center justify-between rounded-lg border bg-card p-4">
-          <div className="flex items-center gap-4">
-            <div>
-              <p className="text-sm font-medium">会社ID</p>
-              <p className="text-sm text-muted-foreground">{companyId || "未設定"}</p>
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="仕訳番号・摘要で検索..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-48 rounded-md border py-1.5 pl-8 pr-3 text-sm"
+              />
             </div>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="検索..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-40 rounded-md border py-1.5 pl-8 pr-3 text-sm"
-                />
-              </div>
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <select
-                value={statusFilter}
-                onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-                className="rounded-md border px-2 py-1.5 text-sm"
-              >
-                <option value="">全ステータス</option>
-                <option value="draft">下書き</option>
-                <option value="submitted">承認待ち</option>
-                <option value="approved">承認済</option>
-                <option value="posted">転記済</option>
-                <option value="rejected">差し戻し</option>
-              </select>
-            </div>
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <select
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+              className="rounded-md border px-2 py-1.5 text-sm"
+            >
+              <option value="">全ステータス</option>
+              <option value="draft">下書き</option>
+              <option value="submitted">承認待ち</option>
+              <option value="approved">承認済</option>
+              <option value="posted">転記済</option>
+              <option value="rejected">差し戻し</option>
+            </select>
+            {data && <span className="text-xs text-muted-foreground">{filteredItems.length}/{data.total}件</span>}
           </div>
           <button
             onClick={() => { setPage(1); fetchJournals(); }}
             disabled={loading || !companyId}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+            className="flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
-            {loading ? "取得中..." : "検索"}
+            <Search className="h-4 w-4" />
+            {loading ? "取得中..." : "更新"}
           </button>
         </div>
 
