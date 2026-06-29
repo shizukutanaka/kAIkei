@@ -6,6 +6,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
+import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
 import { FileText, Plus, X, Search, Download, Send, CheckCircle, XCircle } from "lucide-react";
 import { Pagination } from "@/components/pagination";
@@ -76,6 +77,7 @@ export default function InvoicesPage() {
   const { companyId } = useCompany();
   const { user } = useUser();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const perms = user?.permissions ?? [];
   const canCreate = perms.includes("journal:create");
   const canPost = perms.includes("journal:post");
@@ -198,6 +200,14 @@ export default function InvoicesPage() {
   };
 
   const handleTransition = async (invoiceId: string, action: "issued" | "paid" | "cancelled") => {
+    const labels: Record<string, string> = { issued: "発行", paid: "入金確認", cancelled: "キャンセル" };
+    const ok = await confirm({
+      title: labels[action],
+      message: `請求書 ${selectedInvoice?.invoice_number || ""} を${labels[action]}しますか？`,
+      confirmText: labels[action],
+      variant: action === "cancelled" ? "danger" : "default",
+    });
+    if (!ok) return;
     try {
       const data = await apiPost<Invoice>(
         `/invoices/invoices/${invoiceId}/transition?action=${action}&company_id=${companyId}`,

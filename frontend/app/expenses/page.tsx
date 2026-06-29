@@ -6,6 +6,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
+import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
 import { Receipt, Plus, X, Search, Download, CheckCircle, XCircle, Banknote } from "lucide-react";
 import { Pagination } from "@/components/pagination";
@@ -67,6 +68,7 @@ export default function ExpensesPage() {
   const { companyId } = useCompany();
   const { user } = useUser();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const perms = user?.permissions ?? [];
   const canCreate = perms.includes("journal:create");
   const canApprove = perms.includes("payroll:approve");
@@ -181,6 +183,14 @@ export default function ExpensesPage() {
   };
 
   const handleTransition = async (reportId: string, action: "approved" | "rejected" | "paid") => {
+    const labels: Record<string, string> = { approved: "承認", rejected: "差戻し", paid: "支払完了" };
+    const ok = await confirm({
+      title: labels[action],
+      message: `経費精算「${selectedReport?.title || ""}」を${labels[action]}しますか？`,
+      confirmText: labels[action],
+      variant: action === "rejected" ? "danger" : "default",
+    });
+    if (!ok) return;
     try {
       const data = await apiPost<ExpenseReport>(
         `/expenses/reports/${reportId}/transition?action=${action}&company_id=${companyId}`,
