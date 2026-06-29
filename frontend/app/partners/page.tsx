@@ -8,7 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
-import { Handshake, Plus, Search, Trash2, Pencil, X, Users, RefreshCw } from "lucide-react";
+import { Handshake, Plus, Search, Trash2, Pencil, X, Users, RefreshCw, Loader2 } from "lucide-react";
 import { Pagination } from "@/components/pagination";
 
 interface Partner {
@@ -293,8 +293,9 @@ export default function PartnersPage() {
             <button
               onClick={handleSave}
               disabled={loading}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+              className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
             >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {loading ? "保存中..." : editingId ? "更新" : "登録"}
             </button>
             <button onClick={handleCancel} className="rounded-md border px-4 py-2 text-sm">
@@ -312,8 +313,16 @@ export default function PartnersPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="コード・名称で検索"
-            className="w-full rounded-md border py-1.5 pl-8 pr-3 text-sm"
+            className="w-full rounded-md border py-1.5 pl-8 pr-7 text-sm"
           />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
+            >
+              <X className="h-3 w-3 text-muted-foreground" />
+            </button>
+          )}
         </div>
         <select
           value={typeFilter}
@@ -339,7 +348,7 @@ export default function PartnersPage() {
       {loading && partners.length === 0 ? (
         <SkeletonTable rows={6} columns={7} />
       ) : filtered.length > 0 ? (
-        <div className="overflow-hidden rounded-lg border">
+        <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>

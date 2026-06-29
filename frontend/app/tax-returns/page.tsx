@@ -198,8 +198,9 @@ export default function TaxReturnsPage() {
             <button
               onClick={handleCalculate}
               disabled={!companyId || calculating}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+              className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
             >
+              {calculating ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {calculating ? "計算中..." : "計算実行"}
             </button>
           </div>
@@ -307,8 +308,16 @@ export default function TaxReturnsPage() {
             placeholder="年度・申告区分で検索..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-48 rounded-md border py-1.5 pl-8 pr-3 text-sm"
+            className="w-48 rounded-md border py-1.5 pl-8 pr-7 text-sm"
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
+            >
+              <X className="h-3 w-3 text-muted-foreground" />
+            </button>
+          )}
         </div>
         <span className="text-xs text-muted-foreground">{filteredRecords.length}/{records.length}件</span>
         <button
@@ -324,7 +333,7 @@ export default function TaxReturnsPage() {
       {loading ? (
         <SkeletonTable rows={5} columns={6} />
       ) : filteredRecords.length > 0 ? (
-        <div className="overflow-hidden rounded-lg border">
+        <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>
@@ -339,7 +348,7 @@ export default function TaxReturnsPage() {
             </thead>
             <tbody>
               {filteredRecords.map((r) => (
-                <tr key={r.return_id} className="border-t hover:bg-muted/30">
+                <tr key={r.return_id} className="cursor-pointer border-t hover:bg-muted/30" onClick={() => setSelectedRecord(r)}>
                   <td className="px-4 py-3 font-medium">{r.tax_year}年度</td>
                   <td className="px-4 py-3">{FILING_LABELS[r.filing_type] || r.filing_type}</td>
                   <td className="px-4 py-3 text-right">{fmt(r.total_sales)}</td>
@@ -350,7 +359,7 @@ export default function TaxReturnsPage() {
                       {STATUS_LABELS[r.status] || r.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1">
                       <button onClick={() => setSelectedRecord(r)} className="rounded px-2 py-1 text-xs hover:bg-accent">詳細</button>
                       <button onClick={() => handleDownload(r.return_id, r.tax_year.toString())} className="inline-flex items-center justify-center rounded p-1 hover:bg-accent" title="CSV出力">
