@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPostMultipart } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
-import { Receipt, Filter, Search, Download, Upload, BookOpen } from "lucide-react";
+import { Receipt, Filter, Search, Download, Upload, BookOpen, Plus } from "lucide-react";
 import Link from "next/link";
 import { SkeletonTable } from "@/components/skeleton";
 import { useToast } from "@/components/toast";
@@ -69,6 +69,7 @@ export default function JournalsListPage() {
         page: String(page),
         page_size: "20",
       };
+      if (statusFilter) params.approval_status = statusFilter;
       const data = await apiGet<JournalList>("/journals", params);
       setData(data);
     } catch (err) {
@@ -89,12 +90,11 @@ export default function JournalsListPage() {
 
   const filteredItems = data
     ? data.items.filter((j) => {
-        const matchesStatus = !statusFilter || j.approval_status === statusFilter;
         const matchesSearch =
           !searchQuery ||
           j.journal_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
           (j.summary || "").toLowerCase().includes(searchQuery.toLowerCase());
-        return matchesStatus && matchesSearch;
+        return matchesSearch;
       })
     : [];
 
@@ -196,6 +196,13 @@ export default function JournalsListPage() {
         </div>
 
         <div className="mb-6 flex items-center gap-2">
+          <Link
+            href="/journals/new"
+            className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+          >
+            <Plus className="h-4 w-4" />
+            新規仕訳入力
+          </Link>
           <button
             onClick={handleExportCSV}
             disabled={!companyId}
