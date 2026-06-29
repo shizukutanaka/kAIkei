@@ -62,6 +62,13 @@ async def calculate_bonus(
     db: AsyncSession = Depends(get_db),
 ) -> list[BonusRecordResponse]:
     """賞与計算を実行する。"""
+    valid_terms = {"summer", "winter", "yearend", "other"}
+    if payload.bonus_term not in valid_terms:
+        raise HTTPException(
+            status_code=422,
+            detail=f"無効な賞与区分: {payload.bonus_term}。有効な値: {', '.join(sorted(valid_terms))}",
+        )
+
     await db.execute(
         delete(BonusRecord).where(
             BonusRecord.company_id == payload.company_id,

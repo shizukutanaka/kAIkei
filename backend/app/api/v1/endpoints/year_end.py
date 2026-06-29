@@ -54,7 +54,7 @@ def _calc_annual_tax(gross: Decimal, dependents: int) -> Decimal:
         deduction = Decimal("636000")
     elif taxable <= 18000000:
         rate = Decimal("0.33")
-        deduction =Decimal("1536000")
+        deduction = Decimal("1536000")
     elif taxable <= 40000000:
         rate = Decimal("0.40")
         deduction = Decimal("2796000")

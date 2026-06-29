@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import AuthGuard from "@/components/auth-guard";
+import ErrorBoundary from "@/components/error-boundary";
 import { CompanyProvider } from "@/lib/company-context";
 import { ToastProvider } from "@/components/toast";
 
@@ -19,7 +20,9 @@ export default function RootLayout({
       <body className="min-h-screen bg-background antialiased">
         <AuthGuard>
           <CompanyProvider>
-            <ToastProvider>{children}</ToastProvider>
+            <ToastProvider>
+              <ErrorBoundary>{children}</ErrorBoundary>
+            </ToastProvider>
           </CompanyProvider>
         </AuthGuard>
       </body>

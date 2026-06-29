@@ -73,6 +73,9 @@ export async function apiDelete<T>(path: string): Promise<T> {
     method: "DELETE",
     headers: buildHeaders(),
   });
+  if (response.status === 204) {
+    return undefined as T;
+  }
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data.detail?.message || data.detail || "リクエストに失敗しました");
