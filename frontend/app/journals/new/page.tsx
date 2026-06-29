@@ -6,6 +6,7 @@ import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/components/toast";
+import { useConfirm } from "@/components/confirm-dialog";
 import { Save, Send, Plus, FilePlus } from "lucide-react";
 
 interface Account {
@@ -29,6 +30,7 @@ interface JournalLine {
 export default function JournalEntryPage() {
   const { companyId } = useCompany();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const router = useRouter();
   const [transactionDate, setTransactionDate] = useState("");
   const [summary, setSummary] = useState("");
@@ -151,6 +153,13 @@ export default function JournalEntryPage() {
 
   const handleSubmitForApproval = async () => {
     if (!isBalanced || !companyId || !transactionDate) return;
+    const ok = await confirm({
+      title: "承認待ちに提出",
+      message: "この仕訳を承認待ちに提出しますか？提出後は編集できません。",
+      confirmText: "提出",
+      variant: "default",
+    });
+    if (!ok) return;
     const saved = await handleSave();
     if (!saved) return;
     const journalId = saved.journal_header_id as string;
@@ -192,12 +201,6 @@ export default function JournalEntryPage() {
         )}
 
         <div className="mb-4 flex gap-4">
-          <div className="flex-1">
-            <label className="mb-1 block text-sm font-medium">会社ID</label>
-            <div className="w-full rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-              {companyId || "サイドバーで設定"}
-            </div>
-          </div>
           <div className="flex-1">
             <label className="mb-1 block text-sm font-medium">科目マスタ</label>
             <div className="text-sm text-muted-foreground">
