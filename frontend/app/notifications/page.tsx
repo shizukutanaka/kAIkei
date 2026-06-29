@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost } from "@/lib/api";
+import { useToast } from "@/components/toast";
 import { Pagination } from "@/components/pagination";
 import { Bell, Check, CheckCheck, BellOff } from "lucide-react";
 
@@ -53,6 +54,7 @@ const PRIORITY_LABELS: Record<string, string> = {
 };
 
 export default function NotificationsPage() {
+  const { toast } = useToast();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -88,8 +90,9 @@ export default function NotificationsPage() {
       setNotifications((prev) =>
         prev.map((n) => (n.notification_id === id ? { ...n, is_read: true } : n))
       );
+      toast("通知を既読にしました", "success");
     } catch {
-      // silent
+      toast("既読処理に失敗しました", "error");
     }
   };
 
@@ -97,8 +100,9 @@ export default function NotificationsPage() {
     try {
       await apiPost("/notifications/mark-all-read", {});
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      toast("全ての通知を既読にしました", "success");
     } catch {
-      // silent
+      toast("一括既読処理に失敗しました", "error");
     }
   };
 
@@ -114,6 +118,9 @@ export default function NotificationsPage() {
           <h1 className="text-2xl font-bold">通知</h1>
         </div>
         <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {notifications.filter((n) => !n.is_read).length}件の未読
+          </span>
           <button
             onClick={() => { setUnreadOnly(!unreadOnly); setPage(1); }}
             className={`rounded-md border px-3 py-1.5 text-sm font-medium ${

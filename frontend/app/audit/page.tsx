@@ -151,28 +151,29 @@ export default function AuditLogPage() {
       )}
 
       <div className="mb-4 flex items-center gap-2">
+        <select
+          value={actionFilter}
+          onChange={(e) => { setActionFilter(e.target.value); setPage(1); }}
+          className="rounded-md border px-2 py-1.5 text-sm"
+        >
+          <option value="">全アクション</option>
+          <option value="get">取得</option>
+          <option value="post">作成</option>
+          <option value="put">更新</option>
+          <option value="patch">部分更新</option>
+          <option value="delete">削除</option>
+        </select>
         <div className="relative">
           <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <select
-            value={actionFilter}
-            onChange={(e) => { setActionFilter(e.target.value); setPage(1); }}
-            className="rounded-md border px-2 py-1.5 text-sm"
-          >
-            <option value="">全アクション</option>
-            <option value="get">取得</option>
-            <option value="post">作成</option>
-            <option value="put">更新</option>
-            <option value="patch">部分更新</option>
-            <option value="delete">削除</option>
-          </select>
+          <input
+            type="text"
+            placeholder="リソース種別でフィルタ..."
+            value={resourceFilter}
+            onChange={(e) => { setResourceFilter(e.target.value); setPage(1); }}
+            className="w-48 rounded-md border py-1.5 pl-8 pr-3 text-sm"
+          />
         </div>
-        <input
-          type="text"
-          placeholder="リソース種別でフィルタ..."
-          value={resourceFilter}
-          onChange={(e) => { setResourceFilter(e.target.value); setPage(1); }}
-          className="w-48 rounded-md border px-3 py-1.5 text-sm"
-        />
+        {total > 0 && <span className="text-xs text-muted-foreground">{total}件</span>}
       </div>
 
       {loading ? (

@@ -110,22 +110,14 @@ export default function AiInferencePage() {
         <div className="mb-6 rounded-lg border bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold">入力</h2>
 
-          <div className="mb-4 grid grid-cols-2 gap-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium">会社ID</label>
-              <div className="w-full rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-                {companyId || "サイドバーで設定"}
-              </div>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium">取引日</label>
-              <input
-                type="date"
-                value={transactionDate}
-                onChange={(e) => setTransactionDate(e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
-              />
-            </div>
+          <div className="mb-4">
+            <label className="mb-1 block text-sm font-medium">取引日</label>
+            <input
+              type="date"
+              value={transactionDate}
+              onChange={(e) => setTransactionDate(e.target.value)}
+              className="w-full rounded-md border px-3 py-2 text-sm"
+            />
           </div>
 
           <div className="mb-4 grid grid-cols-2 gap-4">
