@@ -6,6 +6,7 @@ import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
+import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
 import { Users, Plus, Calculator, Trash2, FileText, Download, CheckCircle, XCircle, Banknote, Search } from "lucide-react";
 
@@ -67,6 +68,7 @@ export default function PayrollPage() {
   const { companyId } = useCompany();
   const { user } = useUser();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const perms = user?.permissions ?? [];
   const canCreate = perms.includes("master:create");
   const canDelete = perms.includes("master:delete");
@@ -181,7 +183,7 @@ export default function PayrollPage() {
   };
 
   const handleDeleteEmployee = async (empId: string) => {
-    if (!confirm("この従業員を削除しますか？")) return;
+    if (!await confirm({ title: "従業員削除", message: "この従業員を削除しますか？", confirmText: "削除", variant: "danger" })) return;
     try {
       await apiDelete(`/payroll/employees/${empId}`);
       toast("従業員を削除しました", "success");
@@ -251,7 +253,7 @@ export default function PayrollPage() {
       rejected: "差戻し",
       paid: "支払完了",
     };
-    if (!confirm(`全件${actionLabels[action]}しますか？`)) return;
+    if (!await confirm({ title: "一括処理", message: `全件${actionLabels[action]}しますか？`, confirmText: actionLabels[action] })) return;
     try {
       const data = await apiPost<PayrollRecord[]>(
         `/payroll/records/batch-transition?company_id=${companyId}&payroll_year=${payrollYear}&payroll_month=${payrollMonth}&action=${action}`,

@@ -6,6 +6,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
+import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
 import { Gift, Calculator, CheckCircle, XCircle, Banknote, FileText, Download, Search } from "lucide-react";
 
@@ -57,6 +58,7 @@ export default function BonusPage() {
   const { companyId } = useCompany();
   const { user } = useUser();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const perms = user?.permissions ?? [];
   const canCalculate = perms.includes("journal:create");
   const canApprove = perms.includes("payroll:approve");
@@ -138,7 +140,7 @@ export default function BonusPage() {
   const handleBatchTransition = async (action: "approved" | "rejected" | "paid") => {
     if (!companyId) return;
     const labels: Record<string, string> = { approved: "承認", rejected: "差戻し", paid: "支払完了" };
-    if (!confirm(`全件${labels[action]}しますか？`)) return;
+    if (!await confirm({ title: "一括処理", message: `全件${labels[action]}しますか？`, confirmText: labels[action] })) return;
     try {
       const data = await apiPost<BonusRecord[]>(
         `/bonus/records/batch-transition?company_id=${companyId}&bonus_year=${bonusYear}&bonus_term=${bonusTerm}&action=${action}`,

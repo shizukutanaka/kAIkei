@@ -6,6 +6,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
+import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
 import { CalendarClock, Calculator, CheckCircle, FileText, Download, Search } from "lucide-react";
 
@@ -46,6 +47,7 @@ export default function YearEndPage() {
   const { companyId } = useCompany();
   const { user } = useUser();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const perms = user?.permissions ?? [];
   const canCalculate = perms.includes("journal:create");
   const canApprove = perms.includes("payroll:approve");
@@ -120,7 +122,7 @@ export default function YearEndPage() {
 
   const handleBatchApprove = async () => {
     if (!companyId) return;
-    if (!confirm("全件確定しますか？")) return;
+    if (!await confirm({ title: "一括確定", message: "全件確定しますか？", confirmText: "確定", variant: "default" })) return;
     try {
       const data = await apiPost<YearEndAdjustment[]>(
         `/year-end/records/batch-transition?company_id=${companyId}&adjustment_year=${adjustmentYear}&action=approved`,

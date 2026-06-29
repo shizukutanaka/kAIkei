@@ -6,6 +6,7 @@ import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
+import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
 import { Handshake, Plus, Search, Trash2, Pencil, X } from "lucide-react";
 import { Pagination } from "@/components/pagination";
@@ -48,6 +49,7 @@ export default function PartnersPage() {
   const { companyId } = useCompany();
   const { user } = useUser();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const perms = user?.permissions ?? [];
   const canCreate = perms.includes("master:create");
   const canUpdate = perms.includes("master:update");
@@ -145,7 +147,7 @@ export default function PartnersPage() {
   };
 
   const handleDelete = async (partnerId: string) => {
-    if (!confirm("この取引先を削除しますか？")) return;
+    if (!await confirm({ title: "取引先削除", message: "この取引先を削除しますか？", confirmText: "削除", variant: "danger" })) return;
     try {
       await apiDelete(`/partners/${partnerId}?company_id=${companyId}`);
       toast("取引先を削除しました", "success");

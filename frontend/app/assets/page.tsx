@@ -5,6 +5,7 @@ import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/components/toast";
+import { useConfirm } from "@/components/confirm-dialog";
 import { Calculator, Plus, TrendingDown, Trash2 } from "lucide-react";
 
 interface FixedAsset {
@@ -35,6 +36,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 export default function FixedAssetsPage() {
   const { companyId } = useCompany();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [assets, setAssets] = useState<FixedAsset[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -115,7 +117,7 @@ export default function FixedAssetsPage() {
   };
 
   const handleDispose = async (assetId: string) => {
-    if (!confirm("この資産を除却しますか？")) return;
+    if (!await confirm({ title: "資産除却", message: "この資産を除却しますか？", confirmText: "除却", variant: "danger" })) return;
     try {
       await apiDelete(`/fixed-assets/${assetId}?disposal_date=${new Date().toISOString().split("T")[0]}`);
       toast("資産を除却しました", "success");

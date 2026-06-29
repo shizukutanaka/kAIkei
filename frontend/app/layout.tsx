@@ -4,6 +4,7 @@ import AuthGuard from "@/components/auth-guard";
 import ErrorBoundary from "@/components/error-boundary";
 import { CompanyProvider } from "@/lib/company-context";
 import { ToastProvider } from "@/components/toast";
+import { ConfirmProvider } from "@/components/confirm-dialog";
 
 export const metadata: Metadata = {
   title: "kAIkei — 統合バックオフィスプラットフォーム",
@@ -21,7 +22,9 @@ export default function RootLayout({
         <AuthGuard>
           <CompanyProvider>
             <ToastProvider>
-              <ErrorBoundary>{children}</ErrorBoundary>
+              <ConfirmProvider>
+                <ErrorBoundary>{children}</ErrorBoundary>
+              </ConfirmProvider>
             </ToastProvider>
           </CompanyProvider>
         </AuthGuard>
