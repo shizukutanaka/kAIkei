@@ -280,3 +280,122 @@ async def generate_payroll_journal(
 
     await db.flush()
     return header
+
+
+async def generate_bonus_journal(
+    db: AsyncSession,
+    *,
+    company_id: UUID,
+    bonus_year: int,
+    bonus_term: str,
+    total_gross: Decimal,
+    total_deductions: Decimal,
+    net_pay: Decimal,
+    created_by: UUID,
+) -> JournalHeader:
+    """賞与支払仕訳: (借) 賞与費用 / (貸) 現金預金(差引) + 預り金(控除額)"""
+    bonus_account = await _find_account(db, company_id, "expense", "51")
+    cash_account = await _find_account(db, company_id, "asset", "12")
+
+    term_label = {"summer": "夏季", "winter": "冬季", "yearend": "年末", "other": "その他"}.get(bonus_term, bonus_term)
+    journal_number = await _next_journal_number(db, company_id)
+
+    header = JournalHeader(
+        company_id=company_id,
+        journal_number=journal_number,
+        transaction_date=date(bonus_year, 12, 1),
+        voucher_type="payment",
+        summary=f"賞与支払 {bonus_year}年{term_label}",
+        approval_status="draft",
+        source_type="bonus",
+        created_by=created_by,
+    )
+    db.add(header)
+    await db.flush()
+
+    line_no = 1
+
+    db.add(JournalLine(
+        journal_header_id=header.journal_header_id,
+        line_number=line_no,
+        debit_credit="debit",
+        account_id=bonus_account.account_id,
+        amount=total_gross,
+        description=f"賞与費用 {bonus_year}年{term_label}",
+    ))
+    line_no += 1
+
+    db.add(JournalLine(
+        journal_header_id=header.journal_header_id,
+        line_number=line_no,
+        debit_credit="credit",
+        account_id=cash_account.account_id,
+        amount=net_pay,
+        description=f"賞与支払額 {bonus_year}年{term_label}",
+    ))
+    line_no += 1
+
+    if total_deductions > 0:
+        withholding_account = await _find_account(db, company_id, "liability", "22")
+        db.add(JournalLine(
+            journal_header_id=header.journal_header_id,
+            line_number=line_no,
+            debit_credit="credit",
+            account_id=withholding_account.account_id,
+            amount=total_deductions,
+            description=f"賞与控除額 {bonus_year}年{term_label}",
+        ))
+
+    await db.flush()
+    return header
+
+
+async def generate_depreciation_journal(
+    db: AsyncSession,
+    *,
+    company_id: UUID,
+    asset_name: str,
+    asset_code: str,
+    fiscal_year: int,
+    month: int,
+    depreciation_amount: Decimal,
+    created_by: UUID,
+) -> JournalHeader:
+    """減価償却仕訳: (借) 減価償却費 / (貸) 固定資産(累計減価償却)"""
+    dep_account = await _find_account(db, company_id, "expense", "53")
+    accum_account = await _find_account(db, company_id, "asset", "15")
+
+    journal_number = await _next_journal_number(db, company_id)
+
+    header = JournalHeader(
+        company_id=company_id,
+        journal_number=journal_number,
+        transaction_date=date(fiscal_year, month, 28),
+        voucher_type="depreciation",
+        summary=f"減価償却 {asset_name} ({asset_code}) {fiscal_year}/{month:02d}",
+        approval_status="draft",
+        source_type="depreciation",
+        created_by=created_by,
+    )
+    db.add(header)
+    await db.flush()
+
+    db.add(JournalLine(
+        journal_header_id=header.journal_header_id,
+        line_number=1,
+        debit_credit="debit",
+        account_id=dep_account.account_id,
+        amount=depreciation_amount,
+        description=f"減価償却費 {asset_name}",
+    ))
+    db.add(JournalLine(
+        journal_header_id=header.journal_header_id,
+        line_number=2,
+        debit_credit="credit",
+        account_id=accum_account.account_id,
+        amount=depreciation_amount,
+        description=f"減価償却累計 {asset_name}",
+    ))
+
+    await db.flush()
+    return header
