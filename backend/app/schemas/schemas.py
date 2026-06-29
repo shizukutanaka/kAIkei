@@ -576,3 +576,59 @@ class AttendanceListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# ---------------------------------------------------------------------------
+# Notification schemas
+# ---------------------------------------------------------------------------
+
+class NotificationResponse(BaseModel):
+    notification_id: UUID
+    company_id: UUID | None = None
+    user_id: UUID | None = None
+    category: str
+    priority: str
+    title: str
+    body: str
+    action_url: str | None = None
+    is_read: bool
+    read_at: datetime | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class NotificationListResponse(BaseModel):
+    items: list[NotificationResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class NotificationCreate(BaseModel):
+    company_id: UUID | None = None
+    user_id: UUID | None = None
+    category: str = Field(max_length=50)
+    priority: str = Field(default="normal", max_length=20)
+    title: str = Field(max_length=200)
+    body: str
+    action_url: str | None = None
+
+
+class NotificationPreferenceResponse(BaseModel):
+    preference_id: UUID
+    user_id: UUID
+    category: str
+    channel_inapp: bool
+    channel_email: bool
+    channel_push: bool
+    channel_webhook: bool
+
+    model_config = {"from_attributes": True}
+
+
+class NotificationPreferenceUpdate(BaseModel):
+    channel_inapp: bool | None = None
+    channel_email: bool | None = None
+    channel_push: bool | None = None
+    channel_webhook: bool | None = None
