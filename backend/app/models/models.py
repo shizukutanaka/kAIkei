@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, Time, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -376,6 +376,28 @@ class YearEndAdjustment(Base):
     dependent_deduction: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
     adjustment_amount: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    employee = relationship("Employee")
+    company = relationship("Company")
+
+
+class AttendanceRecord(Base):
+    """勤怠記録。"""
+    __tablename__ = "attendance_records"
+
+    attendance_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    employee_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("employees.employee_id"), nullable=False)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    work_date: Mapped[date] = mapped_column(Date, nullable=False)
+    clock_in: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    clock_out: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    break_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
+    work_minutes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    overtime_minutes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    leave_type: Mapped[str] = mapped_column(String(20), default="none", nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

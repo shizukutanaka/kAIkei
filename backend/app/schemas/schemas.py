@@ -331,3 +331,41 @@ class BonusRecordResponse(BaseModel):
     employee_name: str | None = None
 
     model_config = {"from_attributes": True}
+
+
+class AttendanceClockInRequest(BaseModel):
+    company_id: UUID
+    employee_id: UUID
+
+
+class AttendanceClockOutRequest(BaseModel):
+    company_id: UUID
+    employee_id: UUID
+
+
+class AttendanceManualRequest(BaseModel):
+    company_id: UUID
+    employee_id: UUID
+    work_date: date
+    clock_in: datetime | None = None
+    clock_out: datetime | None = None
+    break_minutes: int = Field(default=60, ge=0)
+    leave_type: str = Field(default="none")
+    note: str | None = None
+
+
+class AttendanceResponse(BaseModel):
+    attendance_id: UUID
+    employee_id: UUID
+    company_id: UUID
+    work_date: date
+    clock_in: datetime | None = None
+    clock_out: datetime | None = None
+    break_minutes: int
+    work_minutes: int
+    overtime_minutes: int
+    leave_type: str
+    note: str | None = None
+    employee_name: str | None = None
+
+    model_config = {"from_attributes": True}
