@@ -154,6 +154,12 @@ export default function JournalsListPage() {
           <h1 className="text-2xl font-bold">仕訳一覧</h1>
         </div>
 
+        {!companyId && (
+          <div className="mb-6 rounded-md border border-yellow-500/50 bg-yellow-50 p-4 text-sm text-yellow-700">
+            サイドバーで会社を選択してください。
+          </div>
+        )}
+
         <div className="mb-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className="relative">

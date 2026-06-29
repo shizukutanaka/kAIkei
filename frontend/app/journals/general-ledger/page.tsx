@@ -112,6 +112,12 @@ export default function GeneralLedgerPage() {
         <h1 className="text-2xl font-bold">総勘定元帳</h1>
       </div>
 
+      {!companyId && (
+        <div className="mb-6 rounded-md border border-yellow-500/50 bg-yellow-50 p-4 text-sm text-yellow-700">
+          サイドバーで会社を選択してください。
+        </div>
+      )}
+
       <div className="mb-6 rounded-lg border bg-card p-4">
         <div className="grid grid-cols-3 gap-4">
           <div>

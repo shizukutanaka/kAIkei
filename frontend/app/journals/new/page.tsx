@@ -7,7 +7,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
-import { Save, Send, Plus, FilePlus } from "lucide-react";
+import { Save, Send, Plus, FilePlus, BookOpen } from "lucide-react";
 
 interface Account {
   account_id: string;
@@ -186,7 +186,16 @@ export default function JournalEntryPage() {
 
   return (
     <PageLayout>
-      <h1 className="mb-6 text-2xl font-bold">仕訳入力</h1>
+      <div className="mb-6 flex items-center gap-3">
+        <BookOpen className="h-6 w-6 text-primary" />
+        <h1 className="text-2xl font-bold">仕訳入力</h1>
+      </div>
+
+        {!companyId && (
+          <div className="mb-6 rounded-md border border-yellow-500/50 bg-yellow-50 p-4 text-sm text-yellow-700">
+            サイドバーで会社を選択してください。
+          </div>
+        )}
 
         {error && (
           <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
@@ -204,7 +213,12 @@ export default function JournalEntryPage() {
           <div className="flex-1">
             <label className="mb-1 block text-sm font-medium">科目マスタ</label>
             <div className="text-sm text-muted-foreground">
-              {accountsLoading ? "読み込み中..." : accounts.length > 0 ? `${accounts.length}件の科目` : "会社IDを入力して科目を読み込み"}
+              {accountsLoading ? (
+                <span className="flex items-center gap-1">
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+                  読み込み中...
+                </span>
+              ) : accounts.length > 0 ? `${accounts.length}件の科目` : "会社を選択して科目を読み込み"}
             </div>
           </div>
           <div className="flex-1">
