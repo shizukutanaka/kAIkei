@@ -6,7 +6,7 @@ import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
-import { Calculator, Plus, TrendingDown, Trash2, RefreshCw } from "lucide-react";
+import { Calculator, Plus, TrendingDown, Trash2, RefreshCw, Loader2 } from "lucide-react";
 import { SkeletonTable } from "@/components/skeleton";
 
 interface FixedAsset {
@@ -42,6 +42,7 @@ export default function FixedAssetsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     asset_code: "",
     asset_name: "",
@@ -115,6 +116,7 @@ export default function FixedAssetsPage() {
     });
     if (!ok) return;
     const now = new Date();
+    setActionLoading(`dep-${assetId}`);
     try {
       await apiPost(`/fixed-assets/${assetId}/depreciate`, {
         fiscal_year: now.getFullYear(),
@@ -125,11 +127,14 @@ export default function FixedAssetsPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "償却に失敗しました");
       toast("償却に失敗しました", "error");
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleDispose = async (assetId: string) => {
     if (!await confirm({ title: "資産除却", message: "この資産を除却しますか？", confirmText: "除却", variant: "danger" })) return;
+    setActionLoading(`disp-${assetId}`);
     try {
       await apiDelete(`/fixed-assets/${assetId}?disposal_date=${new Date().toISOString().split("T")[0]}`);
       toast("資産を除却しました", "success");
@@ -137,6 +142,8 @@ export default function FixedAssetsPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "除却に失敗しました");
       toast("除却に失敗しました", "error");
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -211,7 +218,8 @@ export default function FixedAssetsPage() {
               </div>
             </div>
             <div className="mt-4 flex gap-2">
-              <button onClick={handleCreate} disabled={loading} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+              <button onClick={handleCreate} disabled={loading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 {loading ? "登録中..." : "登録"}
               </button>
               <button onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
@@ -269,12 +277,12 @@ export default function FixedAssetsPage() {
                     <td className="px-4 py-3 text-center">
                       {!a.is_disposed && (
                         <div className="flex items-center justify-center gap-2">
-                          <button onClick={() => handleDepreciate(a.asset_id, a.asset_name)} className="flex items-center gap-1 rounded border px-2 py-1 text-xs hover:bg-accent" title="償却実行">
-                            <TrendingDown className="h-3 w-3" />
+                          <button onClick={() => handleDepreciate(a.asset_id, a.asset_name)} disabled={actionLoading === `dep-${a.asset_id}`} className="flex items-center gap-1 rounded border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50" title="償却実行">
+                            {actionLoading === `dep-${a.asset_id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <TrendingDown className="h-3 w-3" />}
                             償却
                           </button>
-                          <button onClick={() => handleDispose(a.asset_id)} className="flex items-center gap-1 rounded border border-destructive/50 px-2 py-1 text-xs text-destructive hover:bg-destructive/10" title="除却">
-                            <Trash2 className="h-3 w-3" />
+                          <button onClick={() => handleDispose(a.asset_id)} disabled={actionLoading === `disp-${a.asset_id}`} className="flex items-center gap-1 rounded border border-destructive/50 px-2 py-1 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50" title="除却">
+                            {actionLoading === `disp-${a.asset_id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
                             除却
                           </button>
                         </div>

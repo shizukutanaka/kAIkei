@@ -6,7 +6,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
-import { FileText, Search, Users, Gift, Clock, Wallet, TrendingUp, Scale, Download, Lock, LockOpen, RefreshCw } from "lucide-react";
+import { FileText, Search, Users, Gift, Clock, Wallet, TrendingUp, Scale, Download, Lock, LockOpen, RefreshCw, Loader2 } from "lucide-react";
 import { SkeletonTable } from "@/components/skeleton";
 
 interface TrialBalanceAccount {
@@ -952,8 +952,9 @@ export default function ReportsPage() {
           <button
             onClick={fetchPeriodCloses}
             disabled={!companyId}
-            className="mb-4 rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+            className="mb-4 flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
           >
+            <RefreshCw className="h-4 w-4" />
             更新
           </button>
           {periodCloses.length > 0 ? (
@@ -977,7 +978,7 @@ export default function ReportsPage() {
                         isClosed ? "bg-yellow-100 text-yellow-700 hover:bg-yellow-200" : "bg-primary/10 text-primary hover:bg-primary/20"
                       }`}
                     >
-                      {isClosed ? <LockOpen className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+                      {closeLoading === `${m}-${isClosed ? "reopen" : "close"}` ? <Loader2 className="h-3 w-3 animate-spin" /> : isClosed ? <LockOpen className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
                       {isClosed ? "再開" : "締切"}
                     </button>
                   </div>
