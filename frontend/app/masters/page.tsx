@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
-import { apiGet, apiPost } from "@/lib/api";
+import { apiGet, apiPost, apiPut } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
+import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
 import { BookOpen, Plus, Search, Download } from "lucide-react";
 
@@ -31,6 +32,7 @@ export default function MastersPage() {
   const { companyId } = useCompany();
   const { user } = useUser();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const canCreate = user?.permissions.includes("master:create") ?? false;
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,6 +88,13 @@ export default function MastersPage() {
 
   const handleInitStandard = async () => {
     if (!companyId) return;
+    const ok = await confirm({
+      title: "標準科目セット初期化",
+      message: "標準勘定科目セットを初期化します。既存の科目は重複しません。続行しますか？",
+      confirmText: "初期化",
+      variant: "default",
+    });
+    if (!ok) return;
     setInitLoading(true);
     try {
       const result = await apiPost<Account[]>(`/masters/initialize-standard-accounts?company_id=${companyId}`, {});
@@ -96,6 +105,18 @@ export default function MastersPage() {
       toast(err instanceof Error ? err.message : "初期化に失敗しました", "error");
     } finally {
       setInitLoading(false);
+    }
+  };
+
+  const handleToggleActive = async (account: Account) => {
+    try {
+      const updated = await apiPut<Account>(`/masters/${account.account_id}`, {
+        is_active: !account.is_active,
+      });
+      setAccounts(accounts.map((a) => (a.account_id === account.account_id ? updated : a)));
+      toast(`科目「${account.account_name}」を${!account.is_active ? "有効" : "無効"}にしました`, "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "更新に失敗しました", "error");
     }
   };
 
@@ -204,15 +225,18 @@ export default function MastersPage() {
           </div>
         )}
 
-        <div className="mb-4 flex items-center gap-2">
-          <Search className="h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="科目コード・科目名で検索"
-            className="flex-1 rounded-md border px-3 py-2 text-sm"
-          />
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Search className="h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="科目コード・科目名で検索"
+              className="flex-1 rounded-md border px-3 py-2 text-sm"
+            />
+          </div>
+          <span className="text-xs text-muted-foreground">{filtered.length} / {accounts.length} 件</span>
         </div>
 
         {loading ? (
@@ -227,6 +251,7 @@ export default function MastersPage() {
                   <th className="px-4 py-3 text-left font-medium">区分</th>
                   <th className="px-4 py-3 text-left font-medium">借方/貸方</th>
                   <th className="px-4 py-3 text-left font-medium">状態</th>
+                  {canCreate && <th className="px-4 py-3 text-center font-medium">操作</th>}
                 </tr>
               </thead>
               <tbody>
@@ -241,11 +266,21 @@ export default function MastersPage() {
                         {account.is_active ? "有効" : "無効"}
                       </span>
                     </td>
+                    {canCreate && (
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => handleToggleActive(account)}
+                          className={`rounded px-2 py-1 text-xs font-medium ${account.is_active ? "bg-gray-100 text-gray-600 hover:bg-gray-200" : "bg-green-100 text-green-700 hover:bg-green-200"}`}
+                        >
+                          {account.is_active ? "無効化" : "有効化"}
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan={canCreate ? 6 : 5} className="px-4 py-8 text-center text-muted-foreground">
                       勘定科目がありません
                     </td>
                   </tr>
