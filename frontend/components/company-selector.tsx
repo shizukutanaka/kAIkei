@@ -21,6 +21,15 @@ export default function CompanySelector() {
       try {
         const data = await apiGet<CompanyOption[]>("/companies");
         setCompanies(data);
+        if (data.length > 0 && !companyId) {
+          const saved = typeof window !== "undefined" ? localStorage.getItem("company_id") || "" : "";
+          const matched = saved && data.find((c) => c.company_id === saved);
+          if (matched) {
+            setCompanyId(matched.company_id);
+          } else if (data.length === 1) {
+            setCompanyId(data[0].company_id);
+          }
+        }
       } catch {
         // API not running
       } finally {

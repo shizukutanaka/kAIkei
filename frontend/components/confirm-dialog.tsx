@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useState, ReactNode } from "react";
+import { createContext, useCallback, useContext, useState, useEffect, ReactNode } from "react";
 import { AlertTriangle, X } from "lucide-react";
 
 interface ConfirmOptions {
@@ -46,6 +46,16 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     state?.resolve(false);
     setState(null);
   };
+
+  useEffect(() => {
+    if (!state) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleCancel();
+      if (e.key === "Enter") handleConfirm();
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [state]);
 
   return (
     <ConfirmContext.Provider value={{ confirm }}>
