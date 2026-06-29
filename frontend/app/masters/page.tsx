@@ -8,7 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
-import { BookOpen, Plus, Search, Download } from "lucide-react";
+import { BookOpen, Plus, Search, Download, Filter } from "lucide-react";
 
 interface Account {
   account_id: string;
@@ -38,6 +38,7 @@ export default function MastersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [initLoading, setInitLoading] = useState(false);
   const [newAccount, setNewAccount] = useState({
@@ -122,8 +123,9 @@ export default function MastersPage() {
 
   const filtered = accounts.filter(
     (a) =>
-      a.account_code.includes(search) ||
-      a.account_name.includes(search)
+      (a.account_code.includes(search) ||
+      a.account_name.includes(search)) &&
+      (!typeFilter || a.account_type === typeFilter)
   );
 
   return (
@@ -219,6 +221,12 @@ export default function MastersPage() {
           </div>
         )}
 
+        {!companyId && (
+          <div className="mb-6 rounded-md border border-yellow-500/50 bg-yellow-50 p-4 text-sm text-yellow-700">
+            サイドバーで会社を選択してください。
+          </div>
+        )}
+
         {error && (
           <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
             {error}
@@ -235,6 +243,16 @@ export default function MastersPage() {
               placeholder="科目コード・科目名で検索"
               className="flex-1 rounded-md border px-3 py-2 text-sm"
             />
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="rounded-md border px-2 py-2 text-sm"
+            >
+              <option value="">全区分</option>
+              {Object.entries(ACCOUNT_TYPES).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
           </div>
           <span className="text-xs text-muted-foreground">{filtered.length} / {accounts.length} 件</span>
         </div>

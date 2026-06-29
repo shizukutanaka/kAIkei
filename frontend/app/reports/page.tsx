@@ -6,7 +6,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
-import { FileText, Search, Users, Gift, Clock, Wallet, TrendingUp, Scale, Download, Lock, LockOpen } from "lucide-react";
+import { FileText, Search, Users, Gift, Clock, Wallet, TrendingUp, Scale, Download, Lock, LockOpen, RefreshCw } from "lucide-react";
 import { SkeletonTable } from "@/components/skeleton";
 
 interface TrialBalanceAccount {
@@ -370,13 +370,7 @@ export default function ReportsPage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium">会社ID</label>
-              <div className="w-full rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-                {companyId || "未設定"}
-              </div>
-            </div>
+          <div className="grid grid-cols-2 gap-4">
             {reportType === "trial-balance" || reportType === "income-statement" || reportType === "balance-sheet" || reportType === "cash-flow" ? (
               <div>
                 <label className="mb-1 block text-sm font-medium">基準日</label>
@@ -439,7 +433,7 @@ export default function ReportsPage() {
             disabled={loading || !companyId}
             className="mt-4 flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
-            <Search className="h-4 w-4" />
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             {loading ? "取得中..." : "帳票取得"}
           </button>
 

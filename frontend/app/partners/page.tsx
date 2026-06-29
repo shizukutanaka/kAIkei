@@ -8,7 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
-import { Handshake, Plus, Search, Trash2, Pencil, X } from "lucide-react";
+import { Handshake, Plus, Search, Trash2, Pencil, X, Users } from "lucide-react";
 import { Pagination } from "@/components/pagination";
 
 interface Partner {
@@ -184,6 +184,12 @@ export default function PartnersPage() {
       {error && (
         <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
           {error}
+        </div>
+      )}
+
+      {!companyId && (
+        <div className="mb-6 rounded-md border border-yellow-500/50 bg-yellow-50 p-4 text-sm text-yellow-700">
+          サイドバーで会社を選択してください。
         </div>
       )}
 
@@ -392,9 +398,12 @@ export default function PartnersPage() {
           </table>
         </div>
       ) : (
-        <p className="text-center text-sm text-muted-foreground">
-          {companyId ? "取引先データがありません" : "会社を選択してください"}
-        </p>
+        <div className="flex flex-col items-center justify-center rounded-lg border bg-card p-12">
+          <Users className="mb-3 h-10 w-10 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            {companyId ? "取引先データがありません。取引先追加から登録してください。" : "会社を選択してください。"}
+          </p>
+        </div>
       )}
 
       <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} />
