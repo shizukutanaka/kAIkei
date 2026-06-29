@@ -2,6 +2,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import PlainTextResponse
 from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -229,3 +230,50 @@ async def batch_transition_year_end(
 
     await db.commit()
     return updated
+
+
+@router.get("/export/{adjustment_id}", response_class=PlainTextResponse)
+async def export_year_end_slip(
+    adjustment_id: UUID,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+    db: AsyncSession = Depends(get_db),
+) -> str:
+    """年末調整明細をCSV形式で出力する。"""
+    result = await db.execute(
+        select(YearEndAdjustment, Employee.employee_name, Employee.employee_code, Employee.department)
+        .join(Employee, YearEndAdjustment.employee_id == Employee.employee_id)
+        .where(YearEndAdjustment.adjustment_id == adjustment_id)
+    )
+    row = result.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="年末調整レコードが見つかりません")
+
+    rec, emp_name, emp_code, dept = row
+    adjustment_sign = "還付" if rec.adjustment_amount >= 0 else "追加徴収"
+
+    lines = [
+        "項目,内容",
+        f"従業員コード,{emp_code}",
+        f"従業員名,{emp_name}",
+        f"部署,{dept or ''}",
+        f"対象年度,{rec.adjustment_year}年",
+        "",
+        "年間収入,金額",
+        f"年間給与,{rec.annual_salary}",
+        f"年間賞与,{rec.annual_bonus}",
+        f"課税対象額,{rec.total_gross}",
+        "",
+        "税額,金額",
+        f"源泉徴収額合計,{rec.withholding_tax_total}",
+        f"推定年税額,{rec.estimated_annual_tax}",
+        f"社会保険料合計,{rec.social_insurance_total}",
+        "",
+        "扶養控除,内容",
+        f"扶養親族数,{rec.dependents}人",
+        f"扶養控除額,{rec.dependent_deduction}",
+        "",
+        f"調整額,{rec.adjustment_amount}({adjustment_sign})",
+        f"ステータス,{rec.status}",
+    ]
+
+    return "\n".join(lines)

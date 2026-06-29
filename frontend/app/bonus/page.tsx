@@ -7,7 +7,7 @@ import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { SkeletonTable } from "@/components/skeleton";
-import { Gift, Calculator, CheckCircle, XCircle, Banknote, FileText } from "lucide-react";
+import { Gift, Calculator, CheckCircle, XCircle, Banknote, FileText, Download } from "lucide-react";
 
 interface BonusRecord {
   bonus_id: string;
@@ -150,6 +150,28 @@ export default function BonusPage() {
     }
   };
 
+  const handleDownload = async (bonusId: string, empName: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
+      const res = await fetch(`${base}/bonus/export/${bonusId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("取得に失敗しました");
+      const text = await res.text();
+      const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `bonus_${empName}_${bonusYear}_${bonusTerm}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("CSVをダウンロードしました", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "ダウンロードに失敗しました", "error");
+    }
+  };
+
   const totalGross = bonusRecords.reduce((s, r) => s + parseFloat(r.bonus_amount), 0);
   const totalDeductions = bonusRecords.reduce((s, r) => s + parseFloat(r.total_deductions), 0);
   const totalNet = bonusRecords.reduce((s, r) => s + parseFloat(r.net_pay), 0);
@@ -246,6 +268,7 @@ export default function BonusPage() {
                   <th className="px-4 py-3 text-right font-medium">社会保険料</th>
                   <th className="px-4 py-3 text-right font-medium">差引支給額</th>
                   <th className="px-4 py-3 text-center font-medium">ステータス</th>
+                  <th className="px-4 py-3 text-center font-medium">CSV</th>
                 </tr>
               </thead>
               <tbody>
@@ -263,6 +286,15 @@ export default function BonusPage() {
                         {BONUS_STATUS_LABELS[r.status] || r.status}
                       </span>
                     </td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        onClick={() => handleDownload(r.bonus_id, r.employee_name || r.employee_id.slice(0, 8))}
+                        className="inline-flex items-center justify-center rounded p-1 hover:bg-accent"
+                        title="CSV出力"
+                      >
+                        <Download className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -273,7 +305,7 @@ export default function BonusPage() {
                   <td className="px-4 py-3 text-right">¥{totalGross.toLocaleString()}</td>
                   <td colSpan={2} />
                   <td className="px-4 py-3 text-right">¥{totalNet.toLocaleString()}</td>
-                  <td />
+                  <td colSpan={2} />
                 </tr>
               </tfoot>
             </table>

@@ -7,7 +7,7 @@ import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { SkeletonTable } from "@/components/skeleton";
-import { CalendarClock, Calculator, CheckCircle, FileText } from "lucide-react";
+import { CalendarClock, Calculator, CheckCircle, FileText, Download } from "lucide-react";
 
 interface YearEndAdjustment {
   adjustment_id: string;
@@ -132,6 +132,28 @@ export default function YearEndPage() {
     }
   };
 
+  const handleDownload = async (adjustmentId: string, empName: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
+      const res = await fetch(`${base}/year-end/export/${adjustmentId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("取得に失敗しました");
+      const text = await res.text();
+      const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `year_end_${empName}_${adjustmentYear}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("CSVをダウンロードしました", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "ダウンロードに失敗しました", "error");
+    }
+  };
+
   const totalGross = records.reduce((s, r) => s + parseFloat(r.total_gross), 0);
   const totalWithholding = records.reduce((s, r) => s + parseFloat(r.withholding_tax_total), 0);
   const totalEstimated = records.reduce((s, r) => s + parseFloat(r.estimated_annual_tax), 0);
@@ -218,6 +240,7 @@ export default function YearEndPage() {
                   <th className="px-4 py-3 text-right font-medium">調整額</th>
                   <th className="px-4 py-3 text-center font-medium">扶養</th>
                   <th className="px-4 py-3 text-center font-medium">ステータス</th>
+                  <th className="px-4 py-3 text-center font-medium">CSV</th>
                 </tr>
               </thead>
               <tbody>
@@ -238,6 +261,15 @@ export default function YearEndPage() {
                         {STATUS_LABELS[r.status] || r.status}
                       </span>
                     </td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        onClick={() => handleDownload(r.adjustment_id, r.employee_name || r.employee_id.slice(0, 8))}
+                        className="inline-flex items-center justify-center rounded p-1 hover:bg-accent"
+                        title="CSV出力"
+                      >
+                        <Download className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -251,7 +283,7 @@ export default function YearEndPage() {
                   <td className={`px-4 py-3 text-right ${totalAdjustment >= 0 ? "text-green-600" : "text-red-600"}`}>
                     {totalAdjustment >= 0 ? "+" : ""}¥{totalAdjustment.toLocaleString()}
                   </td>
-                  <td colSpan={2} />
+                  <td colSpan={3} />
                 </tr>
               </tfoot>
             </table>

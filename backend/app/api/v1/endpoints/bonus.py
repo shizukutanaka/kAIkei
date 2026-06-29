@@ -2,6 +2,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import PlainTextResponse
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +11,13 @@ from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.models.models import Employee, BonusRecord
 from app.schemas.schemas import BonusCalculateRequest, BonusRecordResponse
+
+BONUS_TERM_LABELS = {
+    "summer": "夏季賞与",
+    "winter": "冬季賞与",
+    "yearend": "年末賞与",
+    "other": "その他",
+}
 
 router = APIRouter()
 
@@ -195,3 +203,47 @@ async def batch_transition_bonus(
 
     await db.commit()
     return updated
+
+
+@router.get("/export/{bonus_id}", response_class=PlainTextResponse)
+async def export_bonus_slip(
+    bonus_id: UUID,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+    db: AsyncSession = Depends(get_db),
+) -> str:
+    """賞与明細をCSV形式で出力する。"""
+    result = await db.execute(
+        select(BonusRecord, Employee.employee_name, Employee.employee_code, Employee.department)
+        .join(Employee, BonusRecord.employee_id == Employee.employee_id)
+        .where(BonusRecord.bonus_id == bonus_id)
+    )
+    row = result.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="賞与レコードが見つかりません")
+
+    rec, emp_name, emp_code, dept = row
+    term_label = BONUS_TERM_LABELS.get(rec.bonus_term, rec.bonus_term)
+
+    lines = [
+        "項目,内容",
+        f"従業員コード,{emp_code}",
+        f"従業員名,{emp_name}",
+        f"部署,{dept or ''}",
+        f"対象年度,{rec.bonus_year}年",
+        f"賞与区分,{term_label}",
+        "",
+        "支給項目,金額",
+        f"基準月数,{rec.bonus_base_months}ヶ月",
+        f"業績係数,{rec.performance_factor}",
+        f"賞与額,{rec.bonus_amount}",
+        "",
+        "控除項目,金額",
+        f"源泉所得税,{rec.income_tax}",
+        f"社会保険料,{rec.social_insurance}",
+        f"控除合計,{rec.total_deductions}",
+        "",
+        f"差引支給額,{rec.net_pay}",
+        f"ステータス,{rec.status}",
+    ]
+
+    return "\n".join(lines)

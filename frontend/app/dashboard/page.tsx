@@ -5,7 +5,7 @@ import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
-import { Receipt, Clock, Sparkles, AlertCircle, TrendingUp, BookOpen, Calculator, FileCheck, Users, Handshake, Gift } from "lucide-react";
+import { Receipt, Clock, Sparkles, AlertCircle, TrendingUp, BookOpen, Calculator, FileCheck, Users, Handshake, Gift, CalendarClock } from "lucide-react";
 import { SkeletonCard } from "@/components/skeleton";
 
 interface JournalList {
@@ -40,6 +40,13 @@ interface BonusSummary {
   status: string | null;
 }
 
+interface YearEndSummary {
+  count: number;
+  totalGross: number;
+  totalAdjustment: number;
+  status: string | null;
+}
+
 export default function DashboardPage() {
   const { companyId } = useCompany();
   const { user, loading: userLoading } = useUser();
@@ -56,6 +63,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [payrollSummary, setPayrollSummary] = useState<PayrollSummary | null>(null);
   const [bonusSummary, setBonusSummary] = useState<BonusSummary | null>(null);
+  const [yearEndSummary, setYearEndSummary] = useState<YearEndSummary | null>(null);
 
   useEffect(() => {
     if (!companyId) {
@@ -66,7 +74,7 @@ export default function DashboardPage() {
 
     const fetchDashboard = async () => {
       try {
-        const [journals, accounts, assets, employees, partners, payrollRecs, bonusRecs] = await Promise.allSettled([
+        const [journals, accounts, assets, employees, partners, payrollRecs, bonusRecs, yearEndRecs] = await Promise.allSettled([
           apiGet<JournalList>("/journals", { company_id: companyId, page: "1", page_size: "200" }),
           apiGet<unknown[]>("/masters", { company_id: companyId }),
           apiGet<unknown[]>("/fixed-assets", { company_id: companyId }),
@@ -81,6 +89,10 @@ export default function DashboardPage() {
             company_id: companyId,
             bonus_year: new Date().getFullYear().toString(),
             bonus_term: "summer",
+          }),
+          apiGet<Array<{ total_gross: string; adjustment_amount: string; status: string }>>("/year-end/records", {
+            company_id: companyId,
+            adjustment_year: new Date().getFullYear().toString(),
           }),
         ]);
 
@@ -132,6 +144,16 @@ export default function DashboardPage() {
           });
         } else {
           setBonusSummary(null);
+        }
+        if (yearEndRecs.status === "fulfilled" && Array.isArray(yearEndRecs.value) && yearEndRecs.value.length > 0) {
+          setYearEndSummary({
+            count: yearEndRecs.value.length,
+            totalGross: yearEndRecs.value.reduce((s, r) => s + parseFloat(r.total_gross), 0),
+            totalAdjustment: yearEndRecs.value.reduce((s, r) => s + parseFloat(r.adjustment_amount), 0),
+            status: yearEndRecs.value[0].status,
+          });
+        } else {
+          setYearEndSummary(null);
         }
 
         setData(next);
@@ -339,6 +361,39 @@ export default function DashboardPage() {
               <p className="text-sm text-muted-foreground">今年の夏季賞与データがありません。賞与計算を実行してください。</p>
             )}
           </div>
+        </div>
+
+        <div className="mt-8 rounded-lg border bg-card p-6">
+          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+            <CalendarClock className="h-5 w-5 text-indigo-600" />
+            年末調整サマリー（{new Date().getFullYear()}年）
+          </h2>
+          {yearEndSummary ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="flex items-center justify-between border-b pb-3">
+                <span className="text-sm font-medium">対象人数</span>
+                <span className="text-lg font-bold">{yearEndSummary.count}名</span>
+              </div>
+              <div className="flex items-center justify-between border-b pb-3">
+                <span className="text-sm font-medium">課税対象額</span>
+                <span className="text-lg font-bold">¥{yearEndSummary.totalGross.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between border-b pb-3">
+                <span className="text-sm font-medium">調整額合計</span>
+                <span className={`text-lg font-bold ${yearEndSummary.totalAdjustment >= 0 ? "text-green-600" : "text-red-600"}`}>
+                  {yearEndSummary.totalAdjustment >= 0 ? "+" : ""}¥{yearEndSummary.totalAdjustment.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">ステータス</span>
+                <span className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
+                  {yearEndSummary.status === "calculated" ? "計算済" : yearEndSummary.status === "approved" ? "確定済" : yearEndSummary.status}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">今年の年末調整データがありません。年末調整計算を実行してください。</p>
+          )}
         </div>
     </PageLayout>
   );
