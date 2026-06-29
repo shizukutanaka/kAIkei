@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
-import { Receipt, Clock, Sparkles, AlertCircle, TrendingUp, BookOpen, Calculator, FileCheck, Users, Handshake, Gift, CalendarClock, Wallet, FilePlus, Landmark, TrendingDown } from "lucide-react";
+import { Receipt, Clock, Sparkles, AlertCircle, TrendingUp, BookOpen, Calculator, FileCheck, Users, Handshake, Gift, CalendarClock, Wallet, FilePlus, Landmark, TrendingDown, RefreshCw } from "lucide-react";
 import { SkeletonCard } from "@/components/skeleton";
 
 interface JournalList {
@@ -108,15 +108,16 @@ export default function DashboardPage() {
   const [taxReturnSummary, setTaxReturnSummary] = useState<TaxReturnSummary | null>(null);
   const [plSummary, setPlSummary] = useState<PLQuickSummary | null>(null);
   const [apiStatus, setApiStatus] = useState<"ok" | "error" | "checking">("checking");
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  useEffect(() => {
+  const fetchDashboard = useCallback(async () => {
     if (!companyId) {
       setLoading(false);
       return;
     }
     setLoading(true);
 
-    const fetchDashboard = async () => {
+    const doFetch = async () => {
       try {
         const [journals, accounts, assets, employees, partners, payrollRecs, bonusRecs, yearEndRecs, attendanceRecs, expenseRecs, invoiceStats, taxRecs, plData] = await Promise.allSettled([
           apiGet<JournalList>("/journals", { company_id: companyId, page: "1", page_size: "200" }),
@@ -284,10 +285,11 @@ export default function DashboardPage() {
         // API not running
       } finally {
         setLoading(false);
+        setLastUpdated(new Date());
       }
     };
 
-    fetchDashboard();
+    doFetch();
   }, [companyId]);
 
   useEffect(() => {
@@ -329,15 +331,32 @@ export default function DashboardPage() {
   return (
     <PageLayout>
         <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">ダッシュボード</h1>
-          {user && (
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-muted-foreground">{user.display_name}</span>
-              <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                {user.role}
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold">ダッシュボード</h1>
+            {lastUpdated && (
+              <span className="text-xs text-muted-foreground">
+                最終更新: {lastUpdated.toLocaleTimeString("ja-JP")}
               </span>
-            </div>
-          )}
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => fetchDashboard()}
+              disabled={loading || !companyId}
+              className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              更新
+            </button>
+            {user && (
+              <>
+                <span className="text-sm text-muted-foreground">{user.display_name}</span>
+                <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                  {user.role}
+                </span>
+              </>
+            )}
+          </div>
         </div>
 
         {!companyId && (

@@ -20,6 +20,13 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     setCompanyIdState(saved);
   }, []);
 
+  useEffect(() => {
+    if (!companyId) {
+      const saved = typeof window !== "undefined" ? localStorage.getItem("company_id") || "" : "";
+      if (saved) setCompanyIdState(saved);
+    }
+  }, [companyId]);
+
   const setCompanyId = (id: string) => {
     setCompanyIdState(id);
     if (typeof window !== "undefined") {
