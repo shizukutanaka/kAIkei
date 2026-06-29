@@ -180,7 +180,10 @@ export default function GeneralLedgerPage() {
       {data && (
         <div className="space-y-4">
           {data.accounts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">該当期間の取引データがありません</p>
+            <div className="flex flex-col items-center justify-center rounded-lg border bg-card p-12">
+              <BookOpen className="mb-3 h-10 w-10 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">該当期間の取引データがありません</p>
+            </div>
           ) : (
             <>
             <p className="mb-2 text-xs text-muted-foreground">{data.accounts.length}科目</p>

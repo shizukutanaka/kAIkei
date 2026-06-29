@@ -453,7 +453,12 @@ export default function PayrollPage() {
               </table>
             </div>
           ) : (
-            <p className="text-center text-sm text-muted-foreground">{employees.length === 0 ? "従業員データがありません" : "該当する従業員がいません"}</p>
+            <div className="flex flex-col items-center justify-center rounded-lg border bg-card p-12">
+              <Users className="mb-3 h-10 w-10 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                {employees.length === 0 ? "従業員データがありません。従業員を登録してください。" : "該当する従業員がいません。"}
+              </p>
+            </div>
           )}
         </>
       )}
