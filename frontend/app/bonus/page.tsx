@@ -8,7 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
-import { Gift, Calculator, CheckCircle, XCircle, Banknote, FileText, Download, Search } from "lucide-react";
+import { Gift, Calculator, CheckCircle, XCircle, Banknote, FileText, Download, Search, Loader2 } from "lucide-react";
 
 interface BonusRecord {
   bonus_id: string;
@@ -68,6 +68,7 @@ export default function BonusPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(false);
   const [calculating, setCalculating] = useState(false);
+  const [batchLoading, setBatchLoading] = useState(false);
   const [error, setError] = useState("");
   const [bonusYear, setBonusYear] = useState(new Date().getFullYear().toString());
   const [bonusTerm, setBonusTerm] = useState("summer");
@@ -141,6 +142,7 @@ export default function BonusPage() {
     if (!companyId) return;
     const labels: Record<string, string> = { approved: "承認", rejected: "差戻し", paid: "支払完了" };
     if (!await confirm({ title: "一括処理", message: `全件${labels[action]}しますか？`, confirmText: labels[action] })) return;
+    setBatchLoading(true);
     try {
       const data = await apiPost<BonusRecord[]>(
         `/bonus/records/batch-transition?company_id=${companyId}&bonus_year=${bonusYear}&bonus_term=${bonusTerm}&action=${action}`,
@@ -150,6 +152,8 @@ export default function BonusPage() {
       toast(`${data.length}件を${labels[action]}しました`, "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "ステータス更新に失敗しました", "error");
+    } finally {
+      setBatchLoading(false);
     }
   };
 
@@ -232,7 +236,7 @@ export default function BonusPage() {
             disabled={calculating || !companyId}
             className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
-            <Calculator className="h-4 w-4" />
+            {calculating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
             {calculating ? "計算中..." : "賞与計算実行"}
           </button>
         )}
@@ -355,16 +359,18 @@ export default function BonusPage() {
                 <>
                   <button
                     onClick={() => handleBatchTransition("approved")}
-                    className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+                    disabled={batchLoading}
+                    className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
                   >
-                    <CheckCircle className="h-4 w-4" />
+                    {batchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
                     全件承認
                   </button>
                   <button
                     onClick={() => handleBatchTransition("rejected")}
-                    className="flex items-center gap-1 rounded-md border border-red-500 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
+                    disabled={batchLoading}
+                    className="flex items-center gap-1 rounded-md border border-red-500 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
                   >
-                    <XCircle className="h-4 w-4" />
+                    {batchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
                     全件差戻し
                   </button>
                 </>
@@ -372,18 +378,20 @@ export default function BonusPage() {
               {currentStatus === "approved" && canPost && (
                 <button
                   onClick={() => handleBatchTransition("paid")}
-                  className="flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                  disabled={batchLoading}
+                  className="flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 >
-                  <Banknote className="h-4 w-4" />
+                  {batchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
                   全件支払完了
                 </button>
               )}
               {currentStatus === "rejected" && (
                 <button
                   onClick={() => handleBatchTransition("approved")}
-                  className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+                  disabled={batchLoading}
+                  className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
                 >
-                  <CheckCircle className="h-4 w-4" />
+                  {batchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
                   再承認
                 </button>
               )}

@@ -8,7 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
-import { CalendarClock, Calculator, CheckCircle, FileText, Download, Search } from "lucide-react";
+import { CalendarClock, Calculator, CheckCircle, FileText, Download, Search, Loader2 } from "lucide-react";
 
 interface YearEndAdjustment {
   adjustment_id: string;
@@ -56,6 +56,7 @@ export default function YearEndPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(false);
   const [calculating, setCalculating] = useState(false);
+  const [batchLoading, setBatchLoading] = useState(false);
   const [error, setError] = useState("");
   const [adjustmentYear, setAdjustmentYear] = useState(new Date().getFullYear().toString());
   const [dependentsMap, setDependentsMap] = useState<Record<string, string>>({});
@@ -123,6 +124,7 @@ export default function YearEndPage() {
   const handleBatchApprove = async () => {
     if (!companyId) return;
     if (!await confirm({ title: "一括確定", message: "全件確定しますか？", confirmText: "確定", variant: "default" })) return;
+    setBatchLoading(true);
     try {
       const data = await apiPost<YearEndAdjustment[]>(
         `/year-end/records/batch-transition?company_id=${companyId}&adjustment_year=${adjustmentYear}&action=approved`,
@@ -132,6 +134,8 @@ export default function YearEndPage() {
       toast(`${data.length}件を確定しました`, "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "ステータス更新に失敗しました", "error");
+    } finally {
+      setBatchLoading(false);
     }
   };
 
@@ -203,7 +207,7 @@ export default function YearEndPage() {
             disabled={calculating || !companyId}
             className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
-            <Calculator className="h-4 w-4" />
+            {calculating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
             {calculating ? "計算中..." : "年末調整計算実行"}
           </button>
         )}
@@ -333,9 +337,10 @@ export default function YearEndPage() {
               <span className="text-sm font-medium">一括操作:</span>
               <button
                 onClick={handleBatchApprove}
-                className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+                disabled={batchLoading}
+                className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
               >
-                <CheckCircle className="h-4 w-4" />
+                {batchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
                 全件確定
               </button>
             </div>

@@ -7,7 +7,7 @@ import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { SkeletonTable } from "@/components/skeleton";
-import { Clock, LogIn, LogOut, Calendar, Search, Plus, X } from "lucide-react";
+import { Clock, LogIn, LogOut, Calendar, Search, Plus, X, RefreshCw, Loader2 } from "lucide-react";
 
 interface AttendanceRecord {
   attendance_id: string;
@@ -82,6 +82,7 @@ export default function AttendancePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [clockLoading, setClockLoading] = useState(false);
   const [formData, setFormData] = useState({
     employee_id: "",
     work_date: new Date().toISOString().split("T")[0],
@@ -163,6 +164,7 @@ export default function AttendancePage() {
       toast("従業員を選択してください", "warning");
       return;
     }
+    setClockLoading(true);
     try {
       await apiPost("/attendance/clock-in", {
         company_id: companyId,
@@ -172,6 +174,8 @@ export default function AttendancePage() {
       fetchRecords();
     } catch (err) {
       toast(err instanceof Error ? err.message : "打刻に失敗しました", "error");
+    } finally {
+      setClockLoading(false);
     }
   };
 
@@ -180,6 +184,7 @@ export default function AttendancePage() {
       toast("従業員を選択してください", "warning");
       return;
     }
+    setClockLoading(true);
     try {
       await apiPost("/attendance/clock-out", {
         company_id: companyId,
@@ -189,6 +194,8 @@ export default function AttendancePage() {
       fetchRecords();
     } catch (err) {
       toast(err instanceof Error ? err.message : "打刻に失敗しました", "error");
+    } finally {
+      setClockLoading(false);
     }
   };
 
@@ -286,18 +293,18 @@ export default function AttendancePage() {
           <div className="flex items-center gap-2">
             <button
               onClick={handleClockIn}
-              disabled={!companyId || !selectedEmployee}
+              disabled={!companyId || !selectedEmployee || clockLoading}
               className="flex items-center gap-1 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
-              <LogIn className="h-4 w-4" />
+              {clockLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
               出勤打刻
             </button>
             <button
               onClick={handleClockOut}
-              disabled={!companyId || !selectedEmployee}
+              disabled={!companyId || !selectedEmployee || clockLoading}
               className="flex items-center gap-1 rounded-md bg-orange-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
-              <LogOut className="h-4 w-4" />
+              {clockLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
               退勤打刻
             </button>
             <button
@@ -306,6 +313,14 @@ export default function AttendancePage() {
             >
               <Plus className="h-4 w-4" />
               手動登録
+            </button>
+            <button
+              onClick={() => tab === "records" ? fetchRecords() : fetchSummary()}
+              disabled={loading || !companyId}
+              className="flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              更新
             </button>
           </div>
         )}
