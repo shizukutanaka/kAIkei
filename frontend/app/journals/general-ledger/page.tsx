@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
@@ -73,11 +73,14 @@ export default function GeneralLedgerPage() {
       toast("総勘定元帳を取得しました", "success");
     } catch (err) {
       setError(err instanceof Error ? err.message : "取得に失敗しました");
-      toast("総勘定元帳の取得に失敗しました", "error");
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (companyId) handleFetch();
+  }, [companyId]);
 
   const handleExportCSV = async () => {
     if (!companyId) return;

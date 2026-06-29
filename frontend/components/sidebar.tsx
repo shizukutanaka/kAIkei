@@ -15,26 +15,56 @@ type NavItem = {
   permissions?: string[];
 };
 
-const navItems: NavItem[] = [
-  { label: "ダッシュボード", href: "/dashboard", icon: LayoutDashboard },
-  { label: "仕訳入力", href: "/journals/new", icon: Receipt, permissions: ["journal:create"] },
-  { label: "仕訳一覧", href: "/journals", icon: List, permissions: ["journal:read"] },
-  { label: "AI仕訳推論", href: "/ai-inference", icon: Sparkles, permissions: ["ai:infer", "ai:review"] },
-  { label: "承認ワークフロー", href: "/approvals", icon: FileCheck, permissions: ["journal:approve", "journal:post", "journal:create"] },
-  { label: "ナレッジ検索", href: "/knowledge", icon: Globe, permissions: ["knowledge:search"] },
-  { label: "マスタ", href: "/masters", icon: BookOpen, permissions: ["master:read", "master:create"] },
-  { label: "取引先", href: "/partners", icon: Handshake, permissions: ["master:read", "master:create"] },
-  { label: "帳票", href: "/reports", icon: FileText, permissions: ["report:read"] },
-  { label: "固定資産", href: "/assets", icon: Calculator },
-  { label: "給与", href: "/payroll", icon: Users },
-  { label: "賞与", href: "/bonus", icon: Gift },
-  { label: "年末調整", href: "/year-end", icon: CalendarClock },
-  { label: "勤怠管理", href: "/attendance", icon: Clock },
-  { label: "経費精算", href: "/expenses", icon: Wallet },
-  { label: "請求書", href: "/invoices", icon: FilePlus },
-  { label: "消費税申告", href: "/tax-returns", icon: Landmark },
-  { label: "操作証跡ログ", href: "/audit", icon: ScrollText, permissions: ["report:read"] },
-  { label: "設定", href: "/settings", icon: Settings },
+type NavSection = {
+  title: string;
+  items: NavItem[];
+};
+
+const navSections: NavSection[] = [
+  {
+    title: "メイン",
+    items: [
+      { label: "ダッシュボード", href: "/dashboard", icon: LayoutDashboard },
+    ],
+  },
+  {
+    title: "会計",
+    items: [
+      { label: "仕訳入力", href: "/journals/new", icon: Receipt, permissions: ["journal:create"] },
+      { label: "仕訳一覧", href: "/journals", icon: List, permissions: ["journal:read"] },
+      { label: "AI仕訳推論", href: "/ai-inference", icon: Sparkles, permissions: ["ai:infer", "ai:review"] },
+      { label: "承認ワークフロー", href: "/approvals", icon: FileCheck, permissions: ["journal:approve", "journal:post", "journal:create"] },
+      { label: "マスタ", href: "/masters", icon: BookOpen, permissions: ["master:read", "master:create"] },
+      { label: "取引先", href: "/partners", icon: Handshake, permissions: ["master:read", "master:create"] },
+      { label: "帳票", href: "/reports", icon: FileText, permissions: ["report:read"] },
+      { label: "固定資産", href: "/assets", icon: Calculator },
+    ],
+  },
+  {
+    title: "人事・給与",
+    items: [
+      { label: "給与", href: "/payroll", icon: Users },
+      { label: "賞与", href: "/bonus", icon: Gift },
+      { label: "年末調整", href: "/year-end", icon: CalendarClock },
+      { label: "勤怠管理", href: "/attendance", icon: Clock },
+    ],
+  },
+  {
+    title: "取引・税務",
+    items: [
+      { label: "経費精算", href: "/expenses", icon: Wallet },
+      { label: "請求書", href: "/invoices", icon: FilePlus },
+      { label: "消費税申告", href: "/tax-returns", icon: Landmark },
+    ],
+  },
+  {
+    title: "システム",
+    items: [
+      { label: "ナレッジ検索", href: "/knowledge", icon: Globe, permissions: ["knowledge:search"] },
+      { label: "操作証跡ログ", href: "/audit", icon: ScrollText, permissions: ["report:read"] },
+      { label: "設定", href: "/settings", icon: Settings },
+    ],
+  },
 ];
 
 function hasAnyPermission(userPerms: string[], required?: string[]): boolean {
@@ -48,27 +78,41 @@ export default function Sidebar() {
   const { user } = useUser();
   const userPerms = user?.permissions ?? [];
 
-  const visibleItems = navItems.filter((item) => hasAnyPermission(userPerms, item.permissions));
+  const visibleSections = navSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => hasAnyPermission(userPerms, item.permissions)),
+    }))
+    .filter((section) => section.items.length > 0);
 
   const navContent = (
-    <nav className="flex-1 space-y-1 p-3">
-      {visibleItems.map((item) => {
-        const Icon = item.icon;
-        const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={() => setOpen(false)}
-            className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground ${
-              isActive ? "bg-accent text-accent-foreground" : ""
-            }`}
-          >
-            <Icon className="h-4 w-4" />
-            {item.label}
-          </Link>
-        );
-      })}
+    <nav className="flex-1 overflow-y-auto p-3">
+      {visibleSections.map((section) => (
+        <div key={section.title} className="mb-4">
+          <p className="mb-1 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+            {section.title}
+          </p>
+          <div className="space-y-1">
+            {section.items.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground ${
+                    isActive ? "bg-accent text-accent-foreground" : ""
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </nav>
   );
 
