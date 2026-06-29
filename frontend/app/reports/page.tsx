@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import PageLayout from "@/components/page-layout";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/components/toast";
-import { FileText, Search, Users, Gift, Clock, Wallet, TrendingUp, Scale } from "lucide-react";
+import { FileText, Search, Users, Gift, Clock, Wallet, TrendingUp, Scale, Download, Lock, LockOpen } from "lucide-react";
 import { SkeletonTable } from "@/components/skeleton";
 
 interface TrialBalanceAccount {
@@ -106,6 +106,8 @@ export default function ReportsPage() {
   const [bonusTerm, setBonusTerm] = useState("summer");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [periodCloses, setPeriodCloses] = useState<Array<{ close_id: string; year: number; month: number; status: string; closed_at: string | null }>>([]);
+  const [closeLoading, setCloseLoading] = useState<string | null>(null);
 
   const handleFetch = async () => {
     if (!companyId) {
@@ -189,6 +191,61 @@ export default function ReportsPage() {
       toast("レポートの取得に失敗しました", "error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleExportCSV = async () => {
+    if (!companyId) return;
+    const exportPath = reportType === "trial-balance" ? "/reports/trial-balance/export"
+      : reportType === "income-statement" ? "/reports/income-statement/export"
+      : "/reports/balance-sheet/export";
+    try {
+      const csv = await apiGet<string>(exportPath, {
+        company_id: companyId,
+        as_of: asOf,
+      });
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${reportType}_${asOf}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("CSVを出力しました", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "CSV出力に失敗しました", "error");
+    }
+  };
+
+  const fetchPeriodCloses = async () => {
+    if (!companyId) return;
+    try {
+      const result = await apiGet<Array<{ close_id: string; year: number; month: number; status: string; closed_at: string | null }>>("/reports/period-closes", {
+        company_id: companyId,
+        year: new Date().getFullYear().toString(),
+      });
+      setPeriodCloses(result);
+    } catch {
+      // API not running
+    }
+  };
+
+  const handlePeriodClose = async (month: number, action: "close" | "reopen") => {
+    if (!companyId) return;
+    setCloseLoading(`${month}-${action}`);
+    try {
+      await apiPost("/reports/period-closes", null, {
+        company_id: companyId,
+        year: new Date().getFullYear().toString(),
+        month: month.toString(),
+        action,
+      });
+      toast(`${month}月を${action === "close" ? "締切" : "再開"}しました`, "success");
+      await fetchPeriodCloses();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "操作に失敗しました", "error");
+    } finally {
+      setCloseLoading(null);
     }
   };
 
@@ -345,6 +402,17 @@ export default function ReportsPage() {
             <Search className="h-4 w-4" />
             {loading ? "取得中..." : "帳票取得"}
           </button>
+
+          {(reportType === "trial-balance" || reportType === "income-statement" || reportType === "balance-sheet") && (
+            <button
+              onClick={() => handleExportCSV()}
+              disabled={!companyId}
+              className="mt-4 ml-2 flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50"
+            >
+              <Download className="h-4 w-4" />
+              CSV出力
+            </button>
+          )}
         </div>
 
         {error && (
@@ -776,6 +844,51 @@ export default function ReportsPage() {
             </table>
           </div>
         )}
+
+        <div className="mt-8 rounded-lg border bg-card p-6">
+          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+            <Lock className="h-5 w-5 text-orange-600" />
+            月次締切（{new Date().getFullYear()}年）
+          </h2>
+          <button
+            onClick={fetchPeriodCloses}
+            disabled={!companyId}
+            className="mb-4 rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+          >
+            締切状態を取得
+          </button>
+          {periodCloses.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+                const close = periodCloses.find((c) => c.month === m);
+                const isClosed = close?.status === "closed";
+                return (
+                  <div
+                    key={m}
+                    className={`rounded-md border p-3 text-center ${isClosed ? "border-green-500/50 bg-green-50" : "border-muted bg-muted/30"}`}
+                  >
+                    <p className="mb-2 text-sm font-bold">{m}月</p>
+                    <p className={`mb-2 text-xs ${isClosed ? "text-green-700" : "text-muted-foreground"}`}>
+                      {isClosed ? "締切済" : "未締切"}
+                    </p>
+                    <button
+                      onClick={() => handlePeriodClose(m, isClosed ? "reopen" : "close")}
+                      disabled={closeLoading === `${m}-${isClosed ? "reopen" : "close"}`}
+                      className={`flex items-center justify-center gap-1 rounded px-2 py-1 text-xs font-medium disabled:opacity-50 ${
+                        isClosed ? "bg-yellow-100 text-yellow-700 hover:bg-yellow-200" : "bg-primary/10 text-primary hover:bg-primary/20"
+                      }`}
+                    >
+                      {isClosed ? <LockOpen className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+                      {isClosed ? "再開" : "締切"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">「締切状態を取得」ボタンを押して月次締切状態を確認してください。</p>
+          )}
+        </div>
     </PageLayout>
   );
 }

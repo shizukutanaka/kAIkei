@@ -1,15 +1,16 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import PlainTextResponse
 from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
-from app.models.models import Account, JournalHeader, JournalLine, MonthlyBalance
+from app.models.models import Account, JournalHeader, JournalLine, MonthlyBalance, PeriodClose
 
 router = APIRouter()
 
@@ -336,4 +337,236 @@ async def get_balance_sheet(
         "equity": equity,
         "total_equity": str(total_equity),
         "is_balanced": total_assets == (total_liabilities + total_equity),
+    }
+
+
+# ---------------------------------------------------------------------------
+# CSV export endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("/trial-balance/export", response_class=PlainTextResponse)
+async def export_trial_balance_csv(
+    company_id: UUID,
+    as_of: date = Query(..., description="基準日"),
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+    db: AsyncSession = Depends(get_db),
+) -> str:
+    """試算表をCSV形式で出力する。"""
+    result = await db.execute(
+        select(
+            Account.account_code,
+            Account.account_name,
+            Account.account_type,
+            Account.debit_credit,
+            func.coalesce(
+                func.sum(
+                    case(
+                        (JournalLine.debit_credit == "debit", JournalLine.amount),
+                        else_=Decimal("0"),
+                    )
+                ), 0
+            ).label("debit_sum"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (JournalLine.debit_credit == "credit", JournalLine.amount),
+                        else_=Decimal("0"),
+                    )
+                ), 0
+            ).label("credit_sum"),
+        )
+        .outerjoin(
+            JournalLine,
+            (JournalLine.account_id == Account.account_id) & (JournalLine.is_deleted == False),  # noqa: E712
+        )
+        .outerjoin(
+            JournalHeader,
+            (JournalHeader.journal_header_id == JournalLine.journal_header_id)
+            & (JournalHeader.company_id == company_id)
+            & (JournalHeader.transaction_date <= as_of)
+            & (JournalHeader.is_deleted == False)  # noqa: E712
+            & (JournalHeader.is_voided == False),  # noqa: E712
+        )
+        .where(
+            Account.company_id == company_id,
+            Account.is_deleted == False,  # noqa: E712
+            Account.is_active == True,  # noqa: E712
+        )
+        .group_by(Account.account_id, Account.account_code, Account.account_name, Account.account_type, Account.debit_credit)
+        .order_by(Account.account_code)
+    )
+    rows = result.all()
+
+    lines = ["科目コード,科目名,区分,借方合計,貸方合計,残高"]
+    total_debit = Decimal("0")
+    total_credit = Decimal("0")
+    for row in rows:
+        ds = Decimal(row.debit_sum) if row.debit_sum else Decimal("0")
+        cs = Decimal(row.credit_sum) if row.credit_sum else Decimal("0")
+        bal = ds - cs
+        total_debit += ds
+        total_credit += cs
+        lines.append(f"{row.account_code},{row.account_name},{row.account_type},{ds},{cs},{bal}")
+    lines.append(f",合計,,{total_debit},{total_credit},{total_debit - total_credit}")
+    return "\n".join(lines)
+
+
+@router.get("/income-statement/export", response_class=PlainTextResponse)
+async def export_income_statement_csv(
+    company_id: UUID,
+    as_of: date = Query(..., description="期末日"),
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+    db: AsyncSession = Depends(get_db),
+) -> str:
+    """損益計算書をCSV形式で出力する。"""
+    rows = await _get_account_balances(db, company_id, as_of, PL_ACCOUNT_TYPES)
+
+    lines = ["区分,科目コード,科目名,金額"]
+    total_rev = Decimal("0")
+    total_exp = Decimal("0")
+    for row in rows:
+        ds = Decimal(row.debit_sum) if row.debit_sum else Decimal("0")
+        cs = Decimal(row.credit_sum) if row.credit_sum else Decimal("0")
+        if row.account_type == "revenue":
+            amt = cs - ds
+            total_rev += amt
+            lines.append(f"収益,{row.account_code},{row.account_name},{amt}")
+        elif row.account_type == "expense":
+            amt = ds - cs
+            total_exp += amt
+            lines.append(f"費用,{row.account_code},{row.account_name},{amt}")
+    lines.append(f",,収益合計,{total_rev}")
+    lines.append(f",,費用合計,{total_exp}")
+    lines.append(f",,当期純利益,{total_rev - total_exp}")
+    return "\n".join(lines)
+
+
+@router.get("/balance-sheet/export", response_class=PlainTextResponse)
+async def export_balance_sheet_csv(
+    company_id: UUID,
+    as_of: date = Query(..., description="基準日"),
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+    db: AsyncSession = Depends(get_db),
+) -> str:
+    """貸借対照表をCSV形式で出力する。"""
+    rows = await _get_account_balances(db, company_id, as_of, BS_ACCOUNT_TYPES)
+
+    lines = ["区分,科目コード,科目名,金額"]
+    total_a = Decimal("0")
+    total_l = Decimal("0")
+    total_e = Decimal("0")
+    for row in rows:
+        ds = Decimal(row.debit_sum) if row.debit_sum else Decimal("0")
+        cs = Decimal(row.credit_sum) if row.credit_sum else Decimal("0")
+        if row.account_type == "asset":
+            amt = ds - cs
+            total_a += amt
+            lines.append(f"資産,{row.account_code},{row.account_name},{amt}")
+        elif row.account_type == "liability":
+            amt = cs - ds
+            total_l += amt
+            lines.append(f"負債,{row.account_code},{row.account_name},{amt}")
+        elif row.account_type == "equity":
+            amt = cs - ds
+            total_e += amt
+            lines.append(f"純資産,{row.account_code},{row.account_name},{amt}")
+    lines.append(f",,資産合計,{total_a}")
+    lines.append(f",,負債合計,{total_l}")
+    lines.append(f",,純資産合計,{total_e}")
+    lines.append(f",,負債純資産合計,{total_l + total_e}")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Period close (月次締切)
+# ---------------------------------------------------------------------------
+
+VALID_CLOSE_ACTIONS = {"close", "reopen"}
+
+
+@router.get("/period-closes")
+async def list_period_closes(
+    company_id: UUID = Query(...),
+    year: int = Query(...),
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """指定期間の月次締切状態を取得する。"""
+    result = await db.execute(
+        select(PeriodClose).where(
+            PeriodClose.company_id == company_id,
+            PeriodClose.year == year,
+        ).order_by(PeriodClose.month)
+    )
+    rows = result.scalars().all()
+    return [
+        {
+            "close_id": str(r.close_id),
+            "company_id": str(r.company_id),
+            "year": r.year,
+            "month": r.month,
+            "status": r.status,
+            "closed_by": str(r.closed_by) if r.closed_by else None,
+            "closed_at": r.closed_at.isoformat() if r.closed_at else None,
+            "note": r.note,
+        }
+        for r in rows
+    ]
+
+
+@router.post("/period-closes")
+async def transition_period_close(
+    company_id: UUID = Query(...),
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    action: str = Query(..., description="close or reopen"),
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_APPROVE)),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """月次締切状態を変更する（close / reopen）。"""
+    if action not in VALID_CLOSE_ACTIONS:
+        raise HTTPException(status_code=400, detail=f"action は {VALID_CLOSE_ACTIONS} のいずれかです")
+
+    result = await db.execute(
+        select(PeriodClose).where(
+            PeriodClose.company_id == company_id,
+            PeriodClose.year == year,
+            PeriodClose.month == month,
+        )
+    )
+    record = result.scalar_one_or_none()
+
+    if not record:
+        record = PeriodClose(
+            company_id=company_id,
+            year=year,
+            month=month,
+            status="open",
+        )
+        db.add(record)
+        await db.flush()
+
+    if action == "close":
+        if record.status == "closed":
+            raise HTTPException(status_code=409, detail=f"{year}年{month}月は既に締切済みです")
+        record.status = "closed"
+        record.closed_by = current_user.user_id
+        record.closed_at = datetime.utcnow()
+    else:  # reopen
+        if record.status != "closed":
+            raise HTTPException(status_code=409, detail=f"{year}年{month}月は締切済みではありません")
+        record.status = "open"
+        record.closed_by = None
+        record.closed_at = None
+
+    await db.commit()
+    await db.refresh(record)
+    return {
+        "close_id": str(record.close_id),
+        "company_id": str(record.company_id),
+        "year": record.year,
+        "month": record.month,
+        "status": record.status,
+        "closed_by": str(record.closed_by) if record.closed_by else None,
+        "closed_at": record.closed_at.isoformat() if record.closed_at else None,
     }

@@ -5,7 +5,7 @@ import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
-import { Receipt, Clock, Sparkles, AlertCircle, TrendingUp, BookOpen, Calculator, FileCheck, Users, Handshake, Gift, CalendarClock, Wallet, FilePlus, Landmark } from "lucide-react";
+import { Receipt, Clock, Sparkles, AlertCircle, TrendingUp, BookOpen, Calculator, FileCheck, Users, Handshake, Gift, CalendarClock, Wallet, FilePlus, Landmark, TrendingDown } from "lucide-react";
 import { SkeletonCard } from "@/components/skeleton";
 
 interface JournalList {
@@ -79,6 +79,12 @@ interface TaxReturnSummary {
   latestStatus: string | null;
 }
 
+interface PLQuickSummary {
+  totalRevenue: number;
+  totalExpense: number;
+  netIncome: number;
+}
+
 export default function DashboardPage() {
   const { companyId } = useCompany();
   const { user, loading: userLoading } = useUser();
@@ -100,6 +106,7 @@ export default function DashboardPage() {
   const [expenseSummary, setExpenseSummary] = useState<ExpenseSummary | null>(null);
   const [invoiceSummary, setInvoiceSummary] = useState<InvoiceSummary | null>(null);
   const [taxReturnSummary, setTaxReturnSummary] = useState<TaxReturnSummary | null>(null);
+  const [plSummary, setPlSummary] = useState<PLQuickSummary | null>(null);
 
   useEffect(() => {
     if (!companyId) {
@@ -110,7 +117,7 @@ export default function DashboardPage() {
 
     const fetchDashboard = async () => {
       try {
-        const [journals, accounts, assets, employees, partners, payrollRecs, bonusRecs, yearEndRecs, attendanceRecs, expenseRecs, invoiceStats, taxRecs] = await Promise.allSettled([
+        const [journals, accounts, assets, employees, partners, payrollRecs, bonusRecs, yearEndRecs, attendanceRecs, expenseRecs, invoiceStats, taxRecs, plData] = await Promise.allSettled([
           apiGet<JournalList>("/journals", { company_id: companyId, page: "1", page_size: "200" }),
           apiGet<unknown[]>("/masters", { company_id: companyId }),
           apiGet<unknown[]>("/fixed-assets", { company_id: companyId }),
@@ -144,6 +151,10 @@ export default function DashboardPage() {
           }),
           apiGet<Array<{ tax_year: number; tax_payable: string; status: string }>>("/tax-returns/records", {
             company_id: companyId,
+          }),
+          apiGet<{ total_revenue: string; total_expense: string; net_income: string }>("/reports/income-statement", {
+            company_id: companyId,
+            as_of: new Date().toISOString().split("T")[0],
           }),
         ]);
 
@@ -251,6 +262,15 @@ export default function DashboardPage() {
           });
         } else {
           setTaxReturnSummary(null);
+        }
+        if (plData.status === "fulfilled" && plData.value) {
+          setPlSummary({
+            totalRevenue: parseFloat(plData.value.total_revenue),
+            totalExpense: parseFloat(plData.value.total_expense),
+            netIncome: parseFloat(plData.value.net_income),
+          });
+        } else {
+          setPlSummary(null);
         }
 
         setData(next);
@@ -629,6 +649,36 @@ export default function DashboardPage() {
               <p className="text-sm text-muted-foreground">消費税申告データがありません。</p>
             )}
           </div>
+        </div>
+
+        <div className="mt-8 rounded-lg border bg-card p-6">
+          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+            {plSummary && plSummary.netIncome >= 0 ? <TrendingUp className="h-5 w-5 text-green-600" /> : <TrendingDown className="h-5 w-5 text-red-600" />}
+            損益計算書クイックサマリー（{new Date().toISOString().split("T")[0]}時点）
+          </h2>
+          {plSummary ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="rounded-md border bg-blue-50/50 p-4">
+                <p className="mb-1 text-sm font-medium text-muted-foreground">収益合計</p>
+                <p className="text-2xl font-bold text-blue-600">¥{plSummary.totalRevenue.toLocaleString()}</p>
+              </div>
+              <div className="rounded-md border bg-red-50/50 p-4">
+                <p className="mb-1 text-sm font-medium text-muted-foreground">費用合計</p>
+                <p className="text-2xl font-bold text-red-600">¥{plSummary.totalExpense.toLocaleString()}</p>
+              </div>
+              <div className={`rounded-md border p-4 ${plSummary.netIncome >= 0 ? "bg-green-50/50" : "bg-red-50/50"}`}>
+                <p className="mb-1 text-sm font-medium text-muted-foreground">当期純利益</p>
+                <p className={`text-2xl font-bold ${plSummary.netIncome >= 0 ? "text-green-700" : "text-red-700"}`}>
+                  ¥{plSummary.netIncome.toLocaleString()}
+                </p>
+                <p className={`mt-1 text-xs ${plSummary.netIncome >= 0 ? "text-green-600" : "text-red-600"}`}>
+                  {plSummary.netIncome >= 0 ? "黒字" : "赤字"}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">損益計算書データがありません。仕訳を入力してください。</p>
+          )}
         </div>
     </PageLayout>
   );
