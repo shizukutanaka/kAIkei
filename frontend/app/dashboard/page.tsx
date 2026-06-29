@@ -122,8 +122,8 @@ export default function DashboardPage() {
           apiGet<unknown[]>("/masters", { company_id: companyId }),
           apiGet<unknown[]>("/fixed-assets", { company_id: companyId }),
           apiGet<unknown[]>("/payroll/employees", { company_id: companyId }),
-          apiGet<unknown[]>("/partners", { company_id: companyId }),
-          apiGet<Array<{ total_gross: string; net_pay: string; status: string }>>("/payroll/records", {
+          apiGet<{ items: unknown[]; total: number }>("/partners", { company_id: companyId }),
+          apiGet<{ items: Array<{ total_gross: string; net_pay: string; status: string }>; total: number }>("/payroll/records", {
             company_id: companyId,
             payroll_year: new Date().getFullYear().toString(),
             payroll_month: (new Date().getMonth() + 1).toString(),
@@ -142,7 +142,7 @@ export default function DashboardPage() {
             year: new Date().getFullYear().toString(),
             month: (new Date().getMonth() + 1).toString(),
           }),
-          apiGet<Array<{ total_amount: string; status: string }>>("/expenses/reports", {
+          apiGet<{ items: Array<{ total_amount: string; status: string }>; total: number }>("/expenses/reports", {
             company_id: companyId,
           }),
           apiGet<{ count: number; total_subtotal: string; total_tax: string; total_amount: string; draft_count: number; issued_count: number; paid_count: number; cancelled_count: number }>("/invoices/stats", {
@@ -184,15 +184,16 @@ export default function DashboardPage() {
         if (employees.status === "fulfilled" && Array.isArray(employees.value)) {
           next.employeeCount = employees.value.length;
         }
-        if (partners.status === "fulfilled" && Array.isArray(partners.value)) {
-          next.partnerCount = partners.value.length;
+        if (partners.status === "fulfilled" && partners.value?.items) {
+          next.partnerCount = partners.value.items.length;
         }
-        if (payrollRecs.status === "fulfilled" && Array.isArray(payrollRecs.value) && payrollRecs.value.length > 0) {
+        if (payrollRecs.status === "fulfilled" && payrollRecs.value?.items && payrollRecs.value.items.length > 0) {
+          const items = payrollRecs.value.items;
           setPayrollSummary({
-            count: payrollRecs.value.length,
-            totalGross: payrollRecs.value.reduce((s, r) => s + parseFloat(r.total_gross), 0),
-            totalNet: payrollRecs.value.reduce((s, r) => s + parseFloat(r.net_pay), 0),
-            status: payrollRecs.value[0].status,
+            count: items.length,
+            totalGross: items.reduce((s, r) => s + parseFloat(r.total_gross), 0),
+            totalNet: items.reduce((s, r) => s + parseFloat(r.net_pay), 0),
+            status: items[0].status,
           });
         } else {
           setPayrollSummary(null);
@@ -228,12 +229,13 @@ export default function DashboardPage() {
         } else {
           setAttendanceSummary(null);
         }
-        if (expenseRecs.status === "fulfilled" && Array.isArray(expenseRecs.value) && expenseRecs.value.length > 0) {
+        if (expenseRecs.status === "fulfilled" && expenseRecs.value?.items && expenseRecs.value.items.length > 0) {
+          const items = expenseRecs.value.items;
           setExpenseSummary({
-            count: expenseRecs.value.length,
-            totalAmount: expenseRecs.value.reduce((s, r) => s + parseFloat(r.total_amount), 0),
-            pendingCount: expenseRecs.value.filter((r) => r.status === "submitted").length,
-            approvedCount: expenseRecs.value.filter((r) => r.status === "approved").length,
+            count: items.length,
+            totalAmount: items.reduce((s, r) => s + parseFloat(r.total_amount), 0),
+            pendingCount: items.filter((r) => r.status === "submitted").length,
+            approvedCount: items.filter((r) => r.status === "approved").length,
           });
         } else {
           setExpenseSummary(null);

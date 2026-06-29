@@ -16,6 +16,7 @@ from app.schemas.schemas import (
     InvoiceCreate,
     InvoiceResponse,
     InvoiceLineResponse,
+    InvoiceListResponse,
 )
 from app.services.auto_journal import (
     generate_invoice_issue_journal,
@@ -133,30 +134,48 @@ async def create_invoice(
     return _to_response(inv, partner_name)
 
 
-@router.get("/invoices", response_model=list[InvoiceResponse])
+@router.get("/invoices", response_model=InvoiceListResponse)
 async def list_invoices(
     company_id: UUID = Query(...),
     status: str | None = Query(None),
     partner_id: UUID | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
-) -> list[InvoiceResponse]:
-    """請求書一覧を取得する。"""
-    query = (
+) -> InvoiceListResponse:
+    """請求書一覧を取得する（ページネーション対応）。"""
+    base_query = (
         select(Invoice, Partner.partner_name)
         .outerjoin(Partner, Invoice.partner_id == Partner.partner_id)
         .where(Invoice.company_id == company_id)
         .options(selectinload(Invoice.lines))
-        .order_by(Invoice.invoice_date.desc(), Invoice.invoice_number)
     )
     if status:
-        query = query.where(Invoice.status == status)
+        base_query = base_query.where(Invoice.status == status)
     if partner_id:
-        query = query.where(Invoice.partner_id == partner_id)
+        base_query = base_query.where(Invoice.partner_id == partner_id)
 
+    # Count total
+    count_query = (
+        select(func.count())
+        .select_from(Invoice)
+        .where(Invoice.company_id == company_id)
+    )
+    if status:
+        count_query = count_query.where(Invoice.status == status)
+    if partner_id:
+        count_query = count_query.where(Invoice.partner_id == partner_id)
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    # Paginated query
+    query = base_query.order_by(Invoice.invoice_date.desc(), Invoice.invoice_number).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(query)
     rows = result.all()
-    return [_to_response(inv, name) for inv, name in rows]
+    items = [_to_response(inv, name) for inv, name in rows]
+
+    return InvoiceListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
 @router.get("/invoices/{invoice_id}", response_model=InvoiceResponse)

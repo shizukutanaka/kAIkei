@@ -152,12 +152,12 @@ export default function ReportsPage() {
         setMonthlyData(result);
         toast("月次残高を取得しました", "success");
       } else if (reportType === "payroll") {
-        const result = await apiGet<PayrollSummaryItem[]>("/payroll/records", {
+        const result = await apiGet<{ items: PayrollSummaryItem[]; total: number }>("/payroll/records", {
           company_id: companyId,
           payroll_year: year,
           payroll_month: month,
         });
-        setPayrollData(result);
+        setPayrollData(result.items);
         toast("給与サマリーを取得しました", "success");
       } else if (reportType === "attendance") {
         const result = await apiGet<Array<{ employee_id: string; employee_name: string; employee_code: string; days: number; total_work_minutes: number; total_overtime_minutes: number; paid_leave_days: number; absent_days: number }>>("/attendance/summary", {
@@ -168,10 +168,10 @@ export default function ReportsPage() {
         setAttendanceData(result);
         toast("勤怠集計を取得しました", "success");
       } else if (reportType === "expenses") {
-        const result = await apiGet<Array<{ report_id: string; title: string; employee_name: string | null; total_amount: string; status: string; report_date: string }>>("/expenses/reports", {
+        const result = await apiGet<{ items: Array<{ report_id: string; title: string; employee_name: string | null; total_amount: string; status: string; report_date: string }>; total: number }>("/expenses/reports", {
           company_id: companyId,
         });
-        setExpenseData(result);
+        setExpenseData(result.items);
         toast("経費集計を取得しました", "success");
       } else if (reportType === "income-statement") {
         const result = await apiGet<IncomeStatement>("/reports/income-statement", {

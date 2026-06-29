@@ -1,14 +1,14 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.models.models import Partner
-from app.schemas.schemas import PartnerCreate, PartnerUpdate, PartnerResponse
+from app.schemas.schemas import PartnerCreate, PartnerUpdate, PartnerResponse, PartnerListResponse
 
 router = APIRouter()
 
@@ -30,23 +30,40 @@ def _to_response(p: Partner) -> PartnerResponse:
     )
 
 
-@router.get("", response_model=list[PartnerResponse])
+@router.get("", response_model=PartnerListResponse)
 async def list_partners(
     company_id: UUID = Query(...),
     partner_type: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
     db: AsyncSession = Depends(get_db),
-) -> list[PartnerResponse]:
-    stmt = select(Partner).where(
+) -> PartnerListResponse:
+    """取引先一覧を取得する（ページネーション対応）。"""
+    base_query = select(Partner).where(
         Partner.company_id == company_id,
         Partner.is_deleted == False,  # noqa: E712
     )
     if partner_type:
-        stmt = stmt.where(Partner.partner_type == partner_type)
-    stmt = stmt.order_by(Partner.partner_code)
-    result = await db.execute(stmt)
+        base_query = base_query.where(Partner.partner_type == partner_type)
+
+    # Count total
+    count_query = select(func.count()).select_from(Partner).where(
+        Partner.company_id == company_id,
+        Partner.is_deleted == False,  # noqa: E712
+    )
+    if partner_type:
+        count_query = count_query.where(Partner.partner_type == partner_type)
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    # Paginated query
+    query = base_query.order_by(Partner.partner_code).offset((page - 1) * page_size).limit(page_size)
+    result = await db.execute(query)
     partners = result.scalars().all()
-    return [_to_response(p) for p in partners]
+    items = [_to_response(p) for p in partners]
+
+    return PartnerListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
 @router.post("", response_model=PartnerResponse, status_code=status.HTTP_201_CREATED)

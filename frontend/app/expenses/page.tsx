@@ -93,8 +93,8 @@ export default function ExpensesPage() {
     try {
       const params: Record<string, string> = { company_id: companyId };
       if (statusFilter) params.status = statusFilter;
-      const data = await apiGet<ExpenseReport[]>("/expenses/reports", params);
-      setReports(data);
+      const data = await apiGet<{ items: ExpenseReport[]; total: number; page: number; page_size: number }>("/expenses/reports", params);
+      setReports(data.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : "取得に失敗しました");
     } finally {

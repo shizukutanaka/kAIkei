@@ -16,6 +16,7 @@ from app.schemas.schemas import (
     ExpenseReportCreate,
     ExpenseReportResponse,
     ExpenseItemResponse,
+    ExpenseListResponse,
 )
 from app.services.auto_journal import generate_expense_payment_journal
 
@@ -102,30 +103,48 @@ async def create_expense_report(
     return _to_response(rep)
 
 
-@router.get("/reports", response_model=list[ExpenseReportResponse])
+@router.get("/reports", response_model=ExpenseListResponse)
 async def list_expense_reports(
     company_id: UUID = Query(...),
     employee_id: UUID | None = Query(None),
     status: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
-) -> list[ExpenseReportResponse]:
-    """経費精算一覧を取得する。"""
-    query = (
+) -> ExpenseListResponse:
+    """経費精算一覧を取得する（ページネーション対応）。"""
+    base_query = (
         select(ExpenseReport, Employee.employee_name)
         .join(Employee, ExpenseReport.employee_id == Employee.employee_id)
         .where(ExpenseReport.company_id == company_id)
         .options(selectinload(ExpenseReport.items))
-        .order_by(ExpenseReport.report_date.desc())
     )
     if employee_id:
-        query = query.where(ExpenseReport.employee_id == employee_id)
+        base_query = base_query.where(ExpenseReport.employee_id == employee_id)
     if status:
-        query = query.where(ExpenseReport.status == status)
+        base_query = base_query.where(ExpenseReport.status == status)
 
+    # Count total
+    count_query = (
+        select(func.count())
+        .select_from(ExpenseReport)
+        .where(ExpenseReport.company_id == company_id)
+    )
+    if employee_id:
+        count_query = count_query.where(ExpenseReport.employee_id == employee_id)
+    if status:
+        count_query = count_query.where(ExpenseReport.status == status)
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    # Paginated query
+    query = base_query.order_by(ExpenseReport.report_date.desc()).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(query)
     rows = result.all()
-    return [_to_response(rep, name) for rep, name in rows]
+    items = [_to_response(rep, name) for rep, name in rows]
+
+    return ExpenseListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
 @router.get("/reports/{report_id}", response_model=ExpenseReportResponse)

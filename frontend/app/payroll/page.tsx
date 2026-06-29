@@ -116,12 +116,12 @@ export default function PayrollPage() {
     setLoading(true);
     setError("");
     try {
-      const data = await apiGet<PayrollRecord[]>("/payroll/records", {
+      const data = await apiGet<{ items: PayrollRecord[]; total: number; page: number; page_size: number }>("/payroll/records", {
         company_id: companyId,
         payroll_year: payrollYear,
         payroll_month: payrollMonth,
       });
-      setPayrollRecords(data);
+      setPayrollRecords(data.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : "取得に失敗しました");
     } finally {

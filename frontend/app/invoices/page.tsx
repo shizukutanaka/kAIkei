@@ -41,6 +41,20 @@ interface Partner {
   partner_code: string;
 }
 
+interface InvoiceList {
+  items: Invoice[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+interface PartnerList {
+  items: Partner[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 const STATUS_LABELS: Record<string, string> = {
   draft: "下書き",
   issued: "発行済",
@@ -90,8 +104,8 @@ export default function InvoicesPage() {
     try {
       const params: Record<string, string> = { company_id: companyId };
       if (statusFilter) params.status = statusFilter;
-      const data = await apiGet<Invoice[]>("/invoices/invoices", params);
-      setInvoices(data);
+      const data = await apiGet<InvoiceList>("/invoices/invoices", params);
+      setInvoices(data.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : "取得に失敗しました");
     } finally {
@@ -102,8 +116,8 @@ export default function InvoicesPage() {
   const fetchPartners = async () => {
     if (!companyId) return;
     try {
-      const data = await apiGet<Partner[]>("/partners", { company_id: companyId });
-      setPartners(data);
+      const data = await apiGet<PartnerList>("/partners", { company_id: companyId });
+      setPartners(data.items);
     } catch {
       // silent
     }

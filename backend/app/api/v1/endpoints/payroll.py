@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import PlainTextResponse
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -16,6 +16,7 @@ from app.schemas.schemas import (
     EmployeeResponse,
     PayrollCalculateRequest,
     PayrollRecordResponse,
+    PayrollListResponse,
 )
 from app.services.auto_journal import generate_payroll_journal
 
@@ -212,15 +213,18 @@ async def calculate_payroll(
     return [_to_payroll_response(r) for r in records]
 
 
-@router.get("/records", response_model=list[PayrollRecordResponse])
+@router.get("/records", response_model=PayrollListResponse)
 async def list_payroll_records(
     company_id: UUID = Query(...),
     payroll_year: int = Query(...),
     payroll_month: int = Query(...),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
-) -> list[PayrollRecordResponse]:
-    result = await db.execute(
+) -> PayrollListResponse:
+    """給与記録一覧を取得する（ページネーション対応）。"""
+    base_query = (
         select(PayrollRecord, Employee.employee_name)
         .join(Employee, PayrollRecord.employee_id == Employee.employee_id)
         .where(
@@ -228,10 +232,28 @@ async def list_payroll_records(
             PayrollRecord.payroll_year == payroll_year,
             PayrollRecord.payroll_month == payroll_month,
         )
-        .order_by(Employee.employee_code)
     )
+
+    # Count total
+    count_query = (
+        select(func.count())
+        .select_from(PayrollRecord)
+        .where(
+            PayrollRecord.company_id == company_id,
+            PayrollRecord.payroll_year == payroll_year,
+            PayrollRecord.payroll_month == payroll_month,
+        )
+    )
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    # Paginated query
+    query = base_query.order_by(Employee.employee_code).offset((page - 1) * page_size).limit(page_size)
+    result = await db.execute(query)
     rows = result.all()
-    return [_to_payroll_response(rec, name) for rec, name in rows]
+    items = [_to_payroll_response(rec, name) for rec, name in rows]
+
+    return PayrollListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
 @router.get("/payslip/{payroll_id}", response_class=PlainTextResponse)

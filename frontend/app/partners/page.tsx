@@ -66,8 +66,8 @@ export default function PartnersPage() {
     setLoading(true);
     setError("");
     try {
-      const data = await apiGet<Partner[]>("/partners", { company_id: companyId });
-      setPartners(data);
+      const data = await apiGet<{ items: Partner[]; total: number; page: number; page_size: number }>("/partners", { company_id: companyId });
+      setPartners(data.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : "取得に失敗しました");
     } finally {

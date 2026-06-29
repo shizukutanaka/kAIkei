@@ -488,3 +488,35 @@ class TaxReturnResponse(BaseModel):
     note: str | None = None
 
     model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# Paginated Response Types (ページネーション統一)
+# ---------------------------------------------------------------------------
+
+class InvoiceListResponse(BaseModel):
+    items: list[InvoiceResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class ExpenseListResponse(BaseModel):
+    items: list[ExpenseReportResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class PayrollListResponse(BaseModel):
+    items: list[PayrollRecordResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class PartnerListResponse(BaseModel):
+    items: list[PartnerResponse]
+    total: int
+    page: int
+    page_size: int
