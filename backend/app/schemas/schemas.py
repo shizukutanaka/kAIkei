@@ -412,3 +412,50 @@ class ExpenseReportResponse(BaseModel):
     items: list[ExpenseItemResponse] = []
 
     model_config = {"from_attributes": True}
+
+
+class InvoiceLineCreate(BaseModel):
+    description: str
+    quantity: Decimal = Field(default=Decimal("1"), ge=0)
+    unit_price: Decimal = Field(ge=0)
+
+
+class InvoiceCreate(BaseModel):
+    company_id: UUID
+    partner_id: UUID | None = None
+    invoice_number: str
+    invoice_date: date
+    due_date: date
+    tax_rate: Decimal = Field(default=Decimal("10.00"), ge=0, le=100)
+    note: str | None = None
+    lines: list[InvoiceLineCreate]
+
+
+class InvoiceLineResponse(BaseModel):
+    line_id: UUID
+    line_number: int
+    description: str
+    quantity: Decimal
+    unit_price: Decimal
+    line_total: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class InvoiceResponse(BaseModel):
+    invoice_id: UUID
+    company_id: UUID
+    partner_id: UUID | None = None
+    invoice_number: str
+    invoice_date: date
+    due_date: date
+    subtotal: Decimal
+    tax_rate: Decimal
+    tax_amount: Decimal
+    total_amount: Decimal
+    status: str
+    note: str | None = None
+    partner_name: str | None = None
+    lines: list[InvoiceLineResponse] = []
+
+    model_config = {"from_attributes": True}
