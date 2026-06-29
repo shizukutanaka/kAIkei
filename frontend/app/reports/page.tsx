@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/components/toast";
+import { useConfirm } from "@/components/confirm-dialog";
 import { FileText, Search, Users, Gift, Clock, Wallet, TrendingUp, Scale, Download, Lock, LockOpen } from "lucide-react";
 import { SkeletonTable } from "@/components/skeleton";
 
@@ -99,6 +100,7 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
 export default function ReportsPage() {
   const { companyId } = useCompany();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [asOf, setAsOf] = useState(new Date().toISOString().split("T")[0]);
   const [reportType, setReportType] = useState<"trial-balance" | "monthly" | "payroll" | "bonus" | "attendance" | "expenses" | "income-statement" | "balance-sheet" | "cash-flow">("trial-balance");
   const [year, setYear] = useState(new Date().getFullYear().toString());
@@ -250,6 +252,13 @@ export default function ReportsPage() {
 
   const handlePeriodClose = async (month: number, action: "close" | "reopen") => {
     if (!companyId) return;
+    const ok = await confirm({
+      title: action === "close" ? "月次締切" : "月次締切再開",
+      message: `${month}月を${action === "close" ? "締切" : "再開"}しますか？`,
+      confirmText: action === "close" ? "締切" : "再開",
+      variant: "default",
+    });
+    if (!ok) return;
     setCloseLoading(`${month}-${action}`);
     try {
       await apiPost("/reports/period-closes", null, {
@@ -266,6 +275,10 @@ export default function ReportsPage() {
       setCloseLoading(null);
     }
   };
+
+  useEffect(() => {
+    if (companyId) fetchPeriodCloses();
+  }, [companyId]);
 
   return (
     <PageLayout>
@@ -941,7 +954,7 @@ export default function ReportsPage() {
             disabled={!companyId}
             className="mb-4 rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
           >
-            締切状態を取得
+            更新
           </button>
           {periodCloses.length > 0 ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
@@ -972,7 +985,7 @@ export default function ReportsPage() {
               })}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">「締切状態を取得」ボタンを押して月次締切状態を確認してください。</p>
+            <p className="text-sm text-muted-foreground">締切データがありません。「更新」ボタンで再取得できます。</p>
           )}
         </div>
     </PageLayout>
