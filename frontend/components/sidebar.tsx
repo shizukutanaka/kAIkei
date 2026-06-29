@@ -5,6 +5,7 @@ import { BookOpen, LayoutDashboard, FileText, Settings, Receipt, Users, Building
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import CompanySelector from "@/components/company-selector";
+import NotificationBell from "@/components/notification-bell";
 import { useUser } from "@/lib/use-user";
 
 type NavItem = {
@@ -78,13 +79,16 @@ export default function Sidebar() {
           <Building2 className="h-6 w-6 text-primary" />
           <span className="text-lg font-bold">kAIkei</span>
         </div>
-        <button
-          onClick={() => setOpen(!open)}
-          className="rounded-md p-2 hover:bg-accent"
-          aria-label="メニュー"
-        >
-          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
+        <div className="flex items-center gap-1">
+          <NotificationBell />
+          <button
+            onClick={() => setOpen(!open)}
+            className="rounded-md p-2 hover:bg-accent"
+            aria-label="メニュー"
+          >
+            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
       </div>
 
       <aside
@@ -92,9 +96,12 @@ export default function Sidebar() {
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex h-14 items-center gap-2 border-b px-6">
-          <Building2 className="h-6 w-6 text-primary" />
-          <span className="text-lg font-bold">kAIkei</span>
+        <div className="flex h-14 items-center justify-between border-b px-6">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-6 w-6 text-primary" />
+            <span className="text-lg font-bold">kAIkei</span>
+          </div>
+          <NotificationBell />
         </div>
         <CompanySelector />
         {navContent}
