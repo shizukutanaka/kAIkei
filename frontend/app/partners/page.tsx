@@ -299,28 +299,31 @@ export default function PartnersPage() {
       )}
 
       <div className="mb-4 flex items-center gap-2">
-        <Search className="h-4 w-4 text-muted-foreground" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="コード・名称で検索"
-          className="flex-1 rounded-md border px-3 py-2 text-sm"
-        />
+        <div className="relative flex-1">
+          <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="コード・名称で検索"
+            className="w-full rounded-md border py-1.5 pl-8 pr-3 text-sm"
+          />
+        </div>
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
-          className="rounded-md border px-3 py-2 text-sm"
+          className="rounded-md border px-2 py-1.5 text-sm"
         >
           <option value="">全区分</option>
           {Object.entries(PARTNER_TYPE_LABELS).map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
+        <span className="text-xs text-muted-foreground">{filtered.length}/{total}件</span>
       </div>
 
       {loading && partners.length === 0 ? (
-        <SkeletonTable rows={6} columns={5} />
+        <SkeletonTable rows={6} columns={7} />
       ) : filtered.length > 0 ? (
         <div className="overflow-hidden rounded-lg border">
           <table className="w-full text-sm">
@@ -331,6 +334,7 @@ export default function PartnersPage() {
                 <th className="px-4 py-3 text-left font-medium">区分</th>
                 <th className="px-4 py-3 text-left font-medium">担当者</th>
                 <th className="px-4 py-3 text-left font-medium">連絡先</th>
+                <th className="px-4 py-3 text-center font-medium">状態</th>
                 <th className="px-4 py-3 text-center font-medium">操作</th>
               </tr>
             </thead>
@@ -352,6 +356,11 @@ export default function PartnersPage() {
                   <td className="px-4 py-3">{p.contact_person || "-"}</td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {p.phone || p.email || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`rounded px-2 py-0.5 text-xs ${p.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                      {p.is_active ? "有効" : "無効"}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-2">

@@ -7,6 +7,7 @@ import { apiGet, apiPut } from "@/lib/api";
 import { useToast } from "@/components/toast";
 import { Settings, User, Shield, LogOut, Bell } from "lucide-react";
 import { SkeletonCard } from "@/components/skeleton";
+import { useConfirm } from "@/components/confirm-dialog";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "管理者",
@@ -63,6 +64,7 @@ interface NotificationPreference {
 export default function SettingsPage() {
   const { user, loading } = useUser();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [prefs, setPrefs] = useState<NotificationPreference[]>([]);
   const [prefsLoading, setPrefsLoading] = useState(false);
   const [updatingCat, setUpdatingCat] = useState<string | null>(null);
@@ -107,7 +109,14 @@ export default function SettingsPage() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const ok = await confirm({
+      title: "ログアウト",
+      message: "ログアウトしますか？",
+      confirmText: "ログアウト",
+      variant: "danger",
+    });
+    if (!ok) return;
     localStorage.removeItem("token");
     localStorage.removeItem("refresh_token");
     window.location.href = "/login";

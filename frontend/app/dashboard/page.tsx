@@ -107,6 +107,7 @@ export default function DashboardPage() {
   const [invoiceSummary, setInvoiceSummary] = useState<InvoiceSummary | null>(null);
   const [taxReturnSummary, setTaxReturnSummary] = useState<TaxReturnSummary | null>(null);
   const [plSummary, setPlSummary] = useState<PLQuickSummary | null>(null);
+  const [apiStatus, setApiStatus] = useState<"ok" | "error" | "checking">("checking");
 
   useEffect(() => {
     if (!companyId) {
@@ -289,6 +290,18 @@ export default function DashboardPage() {
     fetchDashboard();
   }, [companyId]);
 
+  useEffect(() => {
+    const checkApiHealth = async () => {
+      try {
+        await apiGet<unknown>("/health");
+        setApiStatus("ok");
+      } catch {
+        setApiStatus("error");
+      }
+    };
+    checkApiHealth();
+  }, []);
+
   const cards = [
     { label: "仕訳数", value: data.journalCount, icon: Receipt, color: "text-blue-600" },
     { label: "未承認", value: data.pendingApprovals, icon: Clock, color: "text-yellow-600" },
@@ -391,16 +404,16 @@ export default function DashboardPage() {
             <div className="space-y-3">
               <div className="flex items-center justify-between border-b pb-3">
                 <span className="text-sm">API サーバー</span>
-                <span className="flex items-center gap-1 text-xs text-green-600">
-                  <span className="h-2 w-2 rounded-full bg-green-500" />
-                  稼働中
+                <span className={`flex items-center gap-1 text-xs ${apiStatus === "ok" ? "text-green-600" : apiStatus === "error" ? "text-red-600" : "text-yellow-600"}`}>
+                  <span className={`h-2 w-2 rounded-full ${apiStatus === "ok" ? "bg-green-500" : apiStatus === "error" ? "bg-red-500" : "bg-yellow-500 animate-pulse"}`} />
+                  {apiStatus === "ok" ? "稼働中" : apiStatus === "error" ? "接続エラー" : "確認中..."}
                 </span>
               </div>
               <div className="flex items-center justify-between border-b pb-3">
                 <span className="text-sm">データベース</span>
-                <span className="flex items-center gap-1 text-xs text-green-600">
-                  <span className="h-2 w-2 rounded-full bg-green-500" />
-                  接続済
+                <span className={`flex items-center gap-1 text-xs ${apiStatus === "ok" ? "text-green-600" : "text-gray-500"}`}>
+                  <span className={`h-2 w-2 rounded-full ${apiStatus === "ok" ? "bg-green-500" : "bg-gray-400"}`} />
+                  {apiStatus === "ok" ? "接続済" : "不明"}
                 </span>
               </div>
               <div className="flex items-center justify-between border-b pb-3">
