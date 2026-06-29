@@ -8,6 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { SkeletonTable } from "@/components/skeleton";
 import { Receipt, Plus, X, Search, Download, CheckCircle, XCircle, Banknote } from "lucide-react";
+import { Pagination } from "@/components/pagination";
 
 interface ExpenseItem {
   item_id: string;
@@ -76,6 +77,9 @@ export default function ExpensesPage() {
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 50;
   const [showForm, setShowForm] = useState(false);
   const [selectedReport, setSelectedReport] = useState<ExpenseReport | null>(null);
   const [formData, setFormData] = useState({
@@ -91,10 +95,11 @@ export default function ExpensesPage() {
     setLoading(true);
     setError("");
     try {
-      const params: Record<string, string> = { company_id: companyId };
+      const params: Record<string, string> = { company_id: companyId, page: String(page), page_size: String(pageSize) };
       if (statusFilter) params.status = statusFilter;
       const data = await apiGet<{ items: ExpenseReport[]; total: number; page: number; page_size: number }>("/expenses/reports", params);
       setReports(data.items);
+      setTotal(data.total);
     } catch (err) {
       setError(err instanceof Error ? err.message : "取得に失敗しました");
     } finally {
@@ -117,7 +122,7 @@ export default function ExpensesPage() {
       fetchReports();
       fetchEmployees();
     }
-  }, [companyId, statusFilter]);
+  }, [companyId, statusFilter, page]);
 
   const filteredReports = reports.filter((r) => {
     if (!searchQuery) return true;
@@ -476,6 +481,8 @@ export default function ExpensesPage() {
           </p>
         </div>
       )}
+
+      <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} />
     </PageLayout>
   );
 }

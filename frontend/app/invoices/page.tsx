@@ -8,6 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { SkeletonTable } from "@/components/skeleton";
 import { FileText, Plus, X, Search, Download, Send, CheckCircle, XCircle } from "lucide-react";
+import { Pagination } from "@/components/pagination";
 
 interface InvoiceLine {
   line_id: string;
@@ -85,6 +86,9 @@ export default function InvoicesPage() {
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 50;
   const [showForm, setShowForm] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [formData, setFormData] = useState({
@@ -102,10 +106,11 @@ export default function InvoicesPage() {
     setLoading(true);
     setError("");
     try {
-      const params: Record<string, string> = { company_id: companyId };
+      const params: Record<string, string> = { company_id: companyId, page: String(page), page_size: String(pageSize) };
       if (statusFilter) params.status = statusFilter;
       const data = await apiGet<InvoiceList>("/invoices/invoices", params);
       setInvoices(data.items);
+      setTotal(data.total);
     } catch (err) {
       setError(err instanceof Error ? err.message : "取得に失敗しました");
     } finally {
@@ -128,7 +133,7 @@ export default function InvoicesPage() {
       fetchInvoices();
       fetchPartners();
     }
-  }, [companyId, statusFilter]);
+  }, [companyId, statusFilter, page]);
 
   const filteredInvoices = invoices.filter((inv) => {
     if (!searchQuery) return true;
@@ -270,7 +275,7 @@ export default function InvoicesPage() {
             <option value="paid">入金済</option>
             <option value="cancelled">キャンセル</option>
           </select>
-          <span className="text-xs text-muted-foreground">{filteredInvoices.length}/{invoices.length}件</span>
+          <span className="text-xs text-muted-foreground">{filteredInvoices.length}/{total}件</span>
         </div>
         {canCreate && (
           <button
@@ -505,6 +510,8 @@ export default function InvoicesPage() {
           </p>
         </div>
       )}
+
+      <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} />
     </PageLayout>
   );
 }

@@ -8,6 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { SkeletonTable } from "@/components/skeleton";
 import { Handshake, Plus, Search, Trash2, Pencil, X } from "lucide-react";
+import { Pagination } from "@/components/pagination";
 
 interface Partner {
   partner_id: string;
@@ -57,6 +58,9 @@ export default function PartnersPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 50;
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState(emptyForm);
@@ -66,8 +70,9 @@ export default function PartnersPage() {
     setLoading(true);
     setError("");
     try {
-      const data = await apiGet<{ items: Partner[]; total: number; page: number; page_size: number }>("/partners", { company_id: companyId });
+      const data = await apiGet<{ items: Partner[]; total: number; page: number; page_size: number }>("/partners", { company_id: companyId, page: String(page), page_size: String(pageSize) });
       setPartners(data.items);
+      setTotal(data.total);
     } catch (err) {
       setError(err instanceof Error ? err.message : "取得に失敗しました");
     } finally {
@@ -77,7 +82,7 @@ export default function PartnersPage() {
 
   useEffect(() => {
     if (companyId) fetchPartners();
-  }, [companyId]);
+  }, [companyId, page]);
 
   const filtered = partners.filter((p) => {
     const matchesSearch =
@@ -380,6 +385,8 @@ export default function PartnersPage() {
           {companyId ? "取引先データがありません" : "会社を選択してください"}
         </p>
       )}
+
+      <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} />
     </PageLayout>
   );
 }

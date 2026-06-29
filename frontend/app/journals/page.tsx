@@ -4,10 +4,11 @@ import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPostMultipart } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
-import { Receipt, ChevronLeft, ChevronRight, Filter, Search, Download, Upload, BookOpen } from "lucide-react";
+import { Receipt, Filter, Search, Download, Upload, BookOpen } from "lucide-react";
 import Link from "next/link";
 import { SkeletonTable } from "@/components/skeleton";
 import { useToast } from "@/components/toast";
+import { Pagination } from "@/components/pagination";
 
 interface Journal {
   journal_header_id: string;
@@ -275,30 +276,7 @@ export default function JournalsListPage() {
               </table>
             </div>
 
-            <div className="mt-4 flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                {data.total}件中 {((data.page - 1) * data.page_size) + 1}-{Math.min(data.page * data.page_size, data.total)}件
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPage(Math.max(1, page - 1))}
-                  disabled={page === 1}
-                  className="flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm disabled:opacity-50"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  前へ
-                </button>
-                <span className="text-sm">{page} / {totalPages || 1}</span>
-                <button
-                  onClick={() => setPage(Math.min(totalPages, page + 1))}
-                  disabled={page >= totalPages}
-                  className="flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm disabled:opacity-50"
-                >
-                  次へ
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
+            <Pagination page={page} pageSize={data.page_size} total={data.total} onPageChange={setPage} />
           </>
         )}
     </PageLayout>
