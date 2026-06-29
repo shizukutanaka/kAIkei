@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Bell, Check, CheckCheck, X, BellOff, Loader2 } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
+import Link from "next/link";
 
 interface Notification {
   notification_id: string;
@@ -197,13 +198,13 @@ export default function NotificationBell() {
                       <p className="text-sm font-medium">{n.title}</p>
                       <p className="mt-0.5 text-xs text-muted-foreground">{n.body}</p>
                       {n.action_url && (
-                        <a
+                        <Link
                           href={n.action_url}
                           onClick={() => setOpen(false)}
                           className="mt-1 inline-block text-xs text-primary hover:underline"
                         >
                           詳細を見る →
-                        </a>
+                        </Link>
                       )}
                     </div>
                     {!n.is_read && (
@@ -228,13 +229,13 @@ export default function NotificationBell() {
 
           {notifications.length > 0 && (
             <div className="border-t px-4 py-2 text-center">
-              <a
+              <Link
                 href="/notifications"
                 onClick={() => setOpen(false)}
                 className="text-xs text-primary hover:underline"
               >
                 すべての通知を見る →
-              </a>
+              </Link>
             </div>
           )}
         </div>
