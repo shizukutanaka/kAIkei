@@ -459,3 +459,32 @@ class InvoiceResponse(BaseModel):
     lines: list[InvoiceLineResponse] = []
 
     model_config = {"from_attributes": True}
+
+
+class TaxReturnCalculateRequest(BaseModel):
+    company_id: UUID
+    tax_year: int
+    filing_type: str = Field(default="general", description="general or simplified")
+    tax_adjustment: Decimal = Field(default=Decimal("0"))
+
+
+class TaxReturnResponse(BaseModel):
+    return_id: UUID
+    company_id: UUID
+    tax_year: int
+    filing_type: str
+    taxable_sales: Decimal
+    non_taxable_sales: Decimal
+    export_taxable_sales: Decimal
+    total_sales: Decimal
+    purchases_subject_to_tax: Decimal
+    purchases_not_subject_to_tax: Decimal
+    total_purchases: Decimal
+    output_tax: Decimal
+    input_tax: Decimal
+    tax_adjustment: Decimal
+    tax_payable: Decimal
+    status: str
+    note: str | None = None
+
+    model_config = {"from_attributes": True}

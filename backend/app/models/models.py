@@ -479,3 +479,30 @@ class InvoiceLine(Base):
     line_total: Mapped[Decimal] = mapped_column(Numeric(15, 4), nullable=False)
 
     invoice = relationship("Invoice", back_populates="lines")
+
+
+class TaxReturn(Base):
+    """消費税申告（年次）。"""
+    __tablename__ = "tax_returns"
+
+    return_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    tax_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    filing_type: Mapped[str] = mapped_column(String(20), default="general", nullable=False)
+    taxable_sales: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    non_taxable_sales: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    export_taxable_sales: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    total_sales: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    purchases_subject_to_tax: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    purchases_not_subject_to_tax: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    total_purchases: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    output_tax: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    input_tax: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    tax_adjustment: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    tax_payable: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="calculated", nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    company = relationship("Company")
