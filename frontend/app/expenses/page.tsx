@@ -178,7 +178,7 @@ export default function ExpensesPage() {
   const handleTransition = async (reportId: string, action: "approved" | "rejected" | "paid") => {
     try {
       const data = await apiPost<ExpenseReport>(
-        `/expenses/reports/${reportId}/transition?action=${action}`,
+        `/expenses/reports/${reportId}/transition?action=${action}&company_id=${companyId}`,
         {}
       );
       setReports(reports.map((r) => (r.report_id === reportId ? data : r)));

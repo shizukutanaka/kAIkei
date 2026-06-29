@@ -150,6 +150,7 @@ async def list_expense_reports(
 @router.get("/reports/{report_id}", response_model=ExpenseReportResponse)
 async def get_expense_report(
     report_id: UUID,
+    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> ExpenseReportResponse:
@@ -157,7 +158,7 @@ async def get_expense_report(
     result = await db.execute(
         select(ExpenseReport, Employee.employee_name)
         .join(Employee, ExpenseReport.employee_id == Employee.employee_id)
-        .where(ExpenseReport.report_id == report_id)
+        .where(ExpenseReport.report_id == report_id, ExpenseReport.company_id == company_id)
         .options(selectinload(ExpenseReport.items))
     )
     row = result.first()
@@ -171,6 +172,7 @@ async def get_expense_report(
 async def transition_expense_report(
     report_id: UUID,
     action: str = Query(..., description="approved, rejected, paid"),
+    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),
     current_user: CurrentUser = Depends(require_permission(Permission.PAYROLL_APPROVE)),
     db: AsyncSession = Depends(get_db),
 ) -> ExpenseReportResponse:
@@ -178,7 +180,7 @@ async def transition_expense_report(
     result = await db.execute(
         select(ExpenseReport, Employee.employee_name)
         .join(Employee, ExpenseReport.employee_id == Employee.employee_id)
-        .where(ExpenseReport.report_id == report_id)
+        .where(ExpenseReport.report_id == report_id, ExpenseReport.company_id == company_id)
         .options(selectinload(ExpenseReport.items))
     )
     row = result.first()

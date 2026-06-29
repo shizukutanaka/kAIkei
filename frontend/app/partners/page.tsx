@@ -106,7 +106,7 @@ export default function PartnersPage() {
         payment_terms: formData.payment_terms || null,
       };
       if (editingId) {
-        await apiPut(`/partners/${editingId}`, payload);
+        await apiPut(`/partners/${editingId}?company_id=${companyId}`, payload);
         toast("取引先を更新しました", "success");
       } else {
         await apiPost("/partners", payload);
@@ -142,7 +142,7 @@ export default function PartnersPage() {
   const handleDelete = async (partnerId: string) => {
     if (!confirm("この取引先を削除しますか？")) return;
     try {
-      await apiDelete(`/partners/${partnerId}`);
+      await apiDelete(`/partners/${partnerId}?company_id=${companyId}`);
       toast("取引先を削除しました", "success");
       await fetchPartners();
     } catch (err) {

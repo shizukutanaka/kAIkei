@@ -195,7 +195,7 @@ export default function InvoicesPage() {
   const handleTransition = async (invoiceId: string, action: "issued" | "paid" | "cancelled") => {
     try {
       const data = await apiPost<Invoice>(
-        `/invoices/invoices/${invoiceId}/transition?action=${action}`,
+        `/invoices/invoices/${invoiceId}/transition?action=${action}&company_id=${companyId}`,
         {}
       );
       setInvoices(invoices.map((i) => (i.invoice_id === invoiceId ? data : i)));

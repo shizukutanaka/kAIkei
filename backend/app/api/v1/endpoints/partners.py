@@ -104,12 +104,14 @@ async def create_partner(
 async def update_partner(
     partner_id: UUID,
     payload: PartnerUpdate,
+    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_UPDATE)),
     db: AsyncSession = Depends(get_db),
 ) -> PartnerResponse:
     result = await db.execute(
         select(Partner).where(
             Partner.partner_id == partner_id,
+            Partner.company_id == company_id,
             Partner.is_deleted == False,  # noqa: E712
         )
     )
@@ -128,12 +130,14 @@ async def update_partner(
 @router.delete("/{partner_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_partner(
     partner_id: UUID,
+    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_DELETE)),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     result = await db.execute(
         select(Partner).where(
             Partner.partner_id == partner_id,
+            Partner.company_id == company_id,
             Partner.is_deleted == False,  # noqa: E712
         )
     )

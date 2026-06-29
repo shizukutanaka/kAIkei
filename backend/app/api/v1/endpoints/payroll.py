@@ -313,6 +313,7 @@ VALID_PAYROLL_TRANSITIONS: dict[str, set[str]] = {
 async def transition_payroll_status(
     payroll_id: UUID,
     action: str = Query(..., description="approved, rejected, or paid"),
+    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),
     current_user: CurrentUser = Depends(require_permission(Permission.PAYROLL_APPROVE)),
     db: AsyncSession = Depends(get_db),
 ) -> PayrollRecordResponse:
@@ -324,7 +325,7 @@ async def transition_payroll_status(
     result = await db.execute(
         select(PayrollRecord, Employee.employee_name)
         .join(Employee, PayrollRecord.employee_id == Employee.employee_id)
-        .where(PayrollRecord.payroll_id == payroll_id)
+        .where(PayrollRecord.payroll_id == payroll_id, PayrollRecord.company_id == company_id)
     )
     row = result.first()
     if not row:

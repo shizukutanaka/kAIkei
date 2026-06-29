@@ -181,6 +181,7 @@ async def list_invoices(
 @router.get("/invoices/{invoice_id}", response_model=InvoiceResponse)
 async def get_invoice(
     invoice_id: UUID,
+    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> InvoiceResponse:
@@ -188,7 +189,7 @@ async def get_invoice(
     result = await db.execute(
         select(Invoice, Partner.partner_name)
         .outerjoin(Partner, Invoice.partner_id == Partner.partner_id)
-        .where(Invoice.invoice_id == invoice_id)
+        .where(Invoice.invoice_id == invoice_id, Invoice.company_id == company_id)
         .options(selectinload(Invoice.lines))
     )
     row = result.first()
@@ -202,6 +203,7 @@ async def get_invoice(
 async def transition_invoice(
     invoice_id: UUID,
     action: str = Query(..., description="issued, paid, cancelled"),
+    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),
     current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_POST)),
     db: AsyncSession = Depends(get_db),
 ) -> InvoiceResponse:
@@ -209,7 +211,7 @@ async def transition_invoice(
     result = await db.execute(
         select(Invoice, Partner.partner_name)
         .outerjoin(Partner, Invoice.partner_id == Partner.partner_id)
-        .where(Invoice.invoice_id == invoice_id)
+        .where(Invoice.invoice_id == invoice_id, Invoice.company_id == company_id)
         .options(selectinload(Invoice.lines))
     )
     row = result.first()
