@@ -6,6 +6,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
+import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
 import { Calculator, Search, Download, FileCheck, X } from "lucide-react";
 
@@ -48,6 +49,7 @@ export default function TaxReturnsPage() {
   const { companyId } = useCompany();
   const { user } = useUser();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const perms = user?.permissions ?? [];
   const canCreate = perms.includes("journal:create");
   const canPost = perms.includes("journal:post");
@@ -107,6 +109,13 @@ export default function TaxReturnsPage() {
   };
 
   const handleTransition = async (returnId: string, action: "filed") => {
+    const ok = await confirm({
+      title: "申告完了",
+      message: `${selectedRecord?.tax_year || ""}年度の消費税申告を完了しますか？`,
+      confirmText: "申告完了",
+      variant: "default",
+    });
+    if (!ok) return;
     try {
       const data = await apiPost<TaxReturn>(
         `/tax-returns/records/${returnId}/transition?action=${action}&company_id=${companyId}`,
