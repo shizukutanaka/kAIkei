@@ -1,8 +1,11 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
 import { useUser } from "@/lib/use-user";
-import { Settings, User, Shield, LogOut } from "lucide-react";
+import { apiGet, apiPut } from "@/lib/api";
+import { useToast } from "@/components/toast";
+import { Settings, User, Shield, LogOut, Bell } from "lucide-react";
 import { SkeletonCard } from "@/components/skeleton";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -34,8 +37,75 @@ const PERMISSION_LABELS: Record<string, string> = {
   "user:manage": "ユーザー管理",
 };
 
+const CATEGORY_LABELS: Record<string, string> = {
+  approval: "承認",
+  journal: "仕訳",
+  payroll: "給与・賞与",
+  expense: "経費精算",
+  invoice: "請求書",
+  tax: "税務",
+  audit: "監査",
+  system: "システム",
+  ai: "AI",
+  period_close: "期首期末",
+};
+
+interface NotificationPreference {
+  preference_id: string;
+  user_id: string;
+  category: string;
+  channel_inapp: boolean;
+  channel_email: boolean;
+  channel_push: boolean;
+  channel_webhook: boolean;
+}
+
 export default function SettingsPage() {
   const { user, loading } = useUser();
+  const { toast } = useToast();
+  const [prefs, setPrefs] = useState<NotificationPreference[]>([]);
+  const [prefsLoading, setPrefsLoading] = useState(false);
+  const [updatingCat, setUpdatingCat] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchPrefs = async () => {
+      setPrefsLoading(true);
+      try {
+        const data = await apiGet<NotificationPreference[]>("/notifications/preferences");
+        setPrefs(data);
+      } catch {
+        // API not running or no prefs yet
+      } finally {
+        setPrefsLoading(false);
+      }
+    };
+    fetchPrefs();
+  }, []);
+
+  const handleToggleChannel = async (category: string, channel: "channel_inapp" | "channel_email" | "channel_push" | "channel_webhook") => {
+    const current = prefs.find((p) => p.category === category);
+    const newValue = current ? !current[channel] : true;
+    setUpdatingCat(category);
+    try {
+      const updated = await apiPut<NotificationPreference>(
+        `/notifications/preferences/${category}`,
+        { [channel]: newValue }
+      );
+      setPrefs((prev) => {
+        const idx = prev.findIndex((p) => p.category === category);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = updated;
+          return next;
+        }
+        return [...prev, updated];
+      });
+    } catch {
+      toast("通知設定の更新に失敗しました", "error");
+    } finally {
+      setUpdatingCat(null);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -132,6 +202,61 @@ export default function SettingsPage() {
                 <span className="font-mono text-sm">localhost:3000</span>
               </div>
             </div>
+          </div>
+
+          <div className="rounded-lg border bg-card p-6 lg:col-span-2">
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+              <Bell className="h-5 w-5 text-primary" />
+              通知設定
+            </h2>
+            {prefsLoading ? (
+              <p className="text-sm text-muted-foreground">読み込み中...</p>
+            ) : (
+              <div className="overflow-hidden rounded-lg border">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-medium">カテゴリ</th>
+                      <th className="px-4 py-3 text-center font-medium">アプリ内</th>
+                      <th className="px-4 py-3 text-center font-medium">メール</th>
+                      <th className="px-4 py-3 text-center font-medium">プッシュ</th>
+                      <th className="px-4 py-3 text-center font-medium">Webhook</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(CATEGORY_LABELS).map(([cat, label]) => {
+                      const pref = prefs.find((p) => p.category === cat);
+                      const isUpdating = updatingCat === cat;
+                      return (
+                        <tr key={cat} className="border-t hover:bg-muted/30">
+                          <td className="px-4 py-3 font-medium">{label}</td>
+                          {(["channel_inapp", "channel_email", "channel_push", "channel_webhook"] as const).map((ch) => (
+                            <td key={ch} className="px-4 py-3 text-center">
+                              <button
+                                onClick={() => handleToggleChannel(cat, ch)}
+                                disabled={isUpdating}
+                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${
+                                  pref?.[ch] ? "bg-primary" : "bg-muted"
+                                }`}
+                              >
+                                <span
+                                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                    pref?.[ch] ? "translate-x-4" : "translate-x-1"
+                                  }`}
+                                />
+                              </button>
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p className="mt-2 text-xs text-muted-foreground">
+              各カテゴリの通知チャネルを個別に有効/無効できます。
+            </p>
           </div>
 
           <div className="rounded-lg border bg-card p-6">
