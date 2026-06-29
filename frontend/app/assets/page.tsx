@@ -6,7 +6,8 @@ import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
-import { Calculator, Plus, TrendingDown, Trash2, Search } from "lucide-react";
+import { Calculator, Plus, TrendingDown, Trash2, RefreshCw } from "lucide-react";
+import { SkeletonTable } from "@/components/skeleton";
 
 interface FixedAsset {
   asset_id: string;
@@ -155,17 +156,13 @@ export default function FixedAssetsPage() {
           </button>
         </div>
 
-        <div className="mb-4 flex items-center justify-between rounded-lg border bg-card p-4">
-          <div>
-            <p className="text-sm font-medium">会社ID</p>
-            <p className="text-sm text-muted-foreground">{companyId || "未設定"}</p>
-          </div>
+        <div className="mb-4 flex items-center justify-end">
           <button
             onClick={fetchAssets}
             disabled={loading || !companyId}
-            className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+            className="flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
-            <Search className="h-4 w-4" />
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             {loading ? "取得中..." : "更新"}
           </button>
         </div>
@@ -224,11 +221,19 @@ export default function FixedAssetsPage() {
           </div>
         )}
 
+        {!companyId && (
+          <div className="mb-6 rounded-md border border-yellow-500/50 bg-yellow-50 p-4 text-sm text-yellow-700">
+            サイドバーで会社を選択してください。
+          </div>
+        )}
+
         {error && (
           <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
             {error}
           </div>
         )}
+
+        {loading && <SkeletonTable rows={5} columns={8} />}
 
         {assets.length > 0 && (
           <div className="overflow-hidden rounded-lg border">
@@ -278,12 +283,24 @@ export default function FixedAssetsPage() {
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr className="border-t-2 bg-muted/30 font-bold">
+                  <td colSpan={3} className="px-4 py-3">合計</td>
+                  <td className="px-4 py-3 text-right">¥{assets.reduce((s, a) => s + parseInt(a.acquisition_cost), 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right">¥{assets.reduce((s, a) => s + parseInt(a.accumulated_depreciation), 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right">¥{assets.reduce((s, a) => s + parseInt(a.net_book_value), 0).toLocaleString()}</td>
+                  <td colSpan={2} />
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}
 
         {assets.length === 0 && !loading && companyId && !error && (
-          <p className="text-center text-sm text-muted-foreground">資産データがありません</p>
+          <div className="flex flex-col items-center justify-center rounded-lg border bg-card p-12">
+            <Calculator className="mb-3 h-10 w-10 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">資産データがありません。新規登録から登録してください。</p>
+          </div>
         )}
     </PageLayout>
   );
