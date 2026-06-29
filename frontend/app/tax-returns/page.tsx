@@ -67,8 +67,8 @@ export default function TaxReturnsPage() {
     setLoading(true);
     setError("");
     try {
-      const data = await apiGet<TaxReturn[]>("/tax-returns/records", { company_id: companyId });
-      setRecords(data);
+      const data = await apiGet<{ items: TaxReturn[]; total: number; page: number; page_size: number }>("/tax-returns/records", { company_id: companyId });
+      setRecords(data.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : "取得に失敗しました");
     } finally {
@@ -109,7 +109,7 @@ export default function TaxReturnsPage() {
   const handleTransition = async (returnId: string, action: "filed") => {
     try {
       const data = await apiPost<TaxReturn>(
-        `/tax-returns/records/${returnId}/transition?action=${action}`,
+        `/tax-returns/records/${returnId}/transition?action=${action}&company_id=${companyId}`,
         {}
       );
       setRecords(records.map((r) => (r.return_id === returnId ? data : r)));

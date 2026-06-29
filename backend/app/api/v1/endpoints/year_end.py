@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.models.models import Employee, PayrollRecord, BonusRecord, YearEndAdjustment
-from app.schemas.schemas import YearEndAdjustmentRequest, YearEndAdjustmentResponse
+from app.schemas.schemas import YearEndAdjustmentRequest, YearEndAdjustmentResponse, YearEndListResponse
 
 router = APIRouter()
 
@@ -165,24 +165,38 @@ async def calculate_year_end_adjustment(
     return [_to_response(r, name_map.get(r.employee_id)) for r in records]
 
 
-@router.get("/records", response_model=list[YearEndAdjustmentResponse])
+@router.get("/records", response_model=YearEndListResponse)
 async def list_year_end_adjustments(
     company_id: UUID = Query(...),
     adjustment_year: int = Query(...),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
-) -> list[YearEndAdjustmentResponse]:
-    result = await db.execute(
+) -> YearEndListResponse:
+    base_query = (
         select(YearEndAdjustment, Employee.employee_name)
         .join(Employee, YearEndAdjustment.employee_id == Employee.employee_id)
         .where(
             YearEndAdjustment.company_id == company_id,
             YearEndAdjustment.adjustment_year == adjustment_year,
         )
-        .order_by(Employee.employee_code)
+    )
+    count_result = await db.execute(
+        select(func.count()).select_from(YearEndAdjustment).where(
+            YearEndAdjustment.company_id == company_id,
+            YearEndAdjustment.adjustment_year == adjustment_year,
+        )
+    )
+    total = count_result.scalar() or 0
+    result = await db.execute(
+        base_query.order_by(Employee.employee_code)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
     rows = result.all()
-    return [_to_response(rec, name) for rec, name in rows]
+    items = [_to_response(rec, name) for rec, name in rows]
+    return YearEndListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
 VALID_YE_TRANSITIONS: dict[str, set[str]] = {

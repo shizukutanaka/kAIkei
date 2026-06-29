@@ -14,6 +14,7 @@ from app.models.models import Employee, PayrollRecord
 from app.schemas.schemas import (
     EmployeeCreate,
     EmployeeResponse,
+    EmployeeListResponse,
     PayrollCalculateRequest,
     PayrollRecordResponse,
     PayrollListResponse,
@@ -78,20 +79,32 @@ def _calc_social_insurance(gross: Decimal) -> Decimal:
 
 # --- Employee endpoints ---
 
-@router.get("/employees", response_model=list[EmployeeResponse])
+@router.get("/employees", response_model=EmployeeListResponse)
 async def list_employees(
     company_id: UUID = Query(...),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
     db: AsyncSession = Depends(get_db),
-) -> list[EmployeeResponse]:
+) -> EmployeeListResponse:
+    count_result = await db.execute(
+        select(func.count()).select_from(Employee).where(
+            Employee.company_id == company_id,
+            Employee.is_deleted == False,  # noqa: E712
+        )
+    )
+    total = count_result.scalar() or 0
     result = await db.execute(
         select(Employee).where(
             Employee.company_id == company_id,
             Employee.is_deleted == False,  # noqa: E712
         ).order_by(Employee.employee_code)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
     employees = result.scalars().all()
-    return [_to_employee_response(e) for e in employees]
+    items = [_to_employee_response(e) for e in employees]
+    return EmployeeListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
 @router.post("/employees", response_model=EmployeeResponse, status_code=status.HTTP_201_CREATED)

@@ -99,8 +99,8 @@ export default function AttendancePage() {
   const fetchEmployees = async () => {
     if (!companyId) return;
     try {
-      const data = await apiGet<Employee[]>("/payroll/employees", { company_id: companyId });
-      setEmployees(data);
+      const data = await apiGet<{ items: Employee[]; total: number; page: number; page_size: number }>("/payroll/employees", { company_id: companyId });
+      setEmployees(data.items);
     } catch {
       // silent
     }
@@ -120,8 +120,8 @@ export default function AttendancePage() {
         end_date: endDate,
       };
       if (selectedEmployee) params.employee_id = selectedEmployee;
-      const data = await apiGet<AttendanceRecord[]>("/attendance/records", params);
-      setRecords(data);
+      const data = await apiGet<{ items: AttendanceRecord[]; total: number; page: number; page_size: number }>("/attendance/records", params);
+      setRecords(data.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : "取得に失敗しました");
     } finally {

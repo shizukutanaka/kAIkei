@@ -110,8 +110,8 @@ export default function ExpensesPage() {
   const fetchEmployees = async () => {
     if (!companyId) return;
     try {
-      const data = await apiGet<Employee[]>("/payroll/employees", { company_id: companyId });
-      setEmployees(data);
+      const data = await apiGet<{ items: Employee[]; total: number; page: number; page_size: number }>("/payroll/employees", { company_id: companyId });
+      setEmployees(data.items);
     } catch {
       // silent
     }

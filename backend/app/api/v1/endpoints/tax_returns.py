@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.models.models import JournalEntry, JournalLine, TaxReturn, Account
-from app.schemas.schemas import TaxReturnCalculateRequest, TaxReturnResponse
+from app.schemas.schemas import TaxReturnCalculateRequest, TaxReturnResponse, TaxReturnListResponse
 
 router = APIRouter()
 
@@ -148,29 +148,39 @@ async def calculate_tax_return(
     return _to_response(tr)
 
 
-@router.get("/records", response_model=list[TaxReturnResponse])
+@router.get("/records", response_model=TaxReturnListResponse)
 async def list_tax_returns(
     company_id: UUID = Query(...),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
-) -> list[TaxReturnResponse]:
+) -> TaxReturnListResponse:
     """消費税申告一覧を取得する。"""
+    count_result = await db.execute(
+        select(func.count()).select_from(TaxReturn).where(TaxReturn.company_id == company_id)
+    )
+    total = count_result.scalar() or 0
     result = await db.execute(
         select(TaxReturn)
         .where(TaxReturn.company_id == company_id)
         .order_by(TaxReturn.tax_year.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
-    return [_to_response(tr) for tr in result.scalars().all()]
+    items = [_to_response(tr) for tr in result.scalars().all()]
+    return TaxReturnListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
 @router.get("/records/{return_id}", response_model=TaxReturnResponse)
 async def get_tax_return(
     return_id: UUID,
+    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> TaxReturnResponse:
     """消費税申告詳細を取得する。"""
-    result = await db.execute(select(TaxReturn).where(TaxReturn.return_id == return_id))
+    result = await db.execute(select(TaxReturn).where(TaxReturn.return_id == return_id, TaxReturn.company_id == company_id))
     tr = result.scalar_one_or_none()
     if not tr:
         raise HTTPException(status_code=404, detail="消費税申告が見つかりません")
@@ -181,11 +191,12 @@ async def get_tax_return(
 async def transition_tax_return(
     return_id: UUID,
     action: str = Query(..., description="filed"),
+    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),
     current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_POST)),
     db: AsyncSession = Depends(get_db),
 ) -> TaxReturnResponse:
     """消費税申告のステータスを変更する。"""
-    result = await db.execute(select(TaxReturn).where(TaxReturn.return_id == return_id))
+    result = await db.execute(select(TaxReturn).where(TaxReturn.return_id == return_id, TaxReturn.company_id == company_id))
     tr = result.scalar_one_or_none()
     if not tr:
         raise HTTPException(status_code=404, detail="消費税申告が見つかりません")

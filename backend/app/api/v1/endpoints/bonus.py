@@ -3,14 +3,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import PlainTextResponse
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.models.models import Employee, BonusRecord
-from app.schemas.schemas import BonusCalculateRequest, BonusRecordResponse
+from app.schemas.schemas import BonusCalculateRequest, BonusRecordResponse, BonusListResponse
 from app.services.auto_journal import generate_bonus_journal
 
 BONUS_TERM_LABELS = {
@@ -132,14 +132,24 @@ async def calculate_bonus(
     return [_to_bonus_response(r) for r in records]
 
 
-@router.get("/records", response_model=list[BonusRecordResponse])
+@router.get("/records", response_model=BonusListResponse)
 async def list_bonus_records(
     company_id: UUID = Query(...),
     bonus_year: int = Query(...),
     bonus_term: str = Query(...),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
-) -> list[BonusRecordResponse]:
+) -> BonusListResponse:
+    count_result = await db.execute(
+        select(func.count()).select_from(BonusRecord).where(
+            BonusRecord.company_id == company_id,
+            BonusRecord.bonus_year == bonus_year,
+            BonusRecord.bonus_term == bonus_term,
+        )
+    )
+    total = count_result.scalar() or 0
     result = await db.execute(
         select(BonusRecord, Employee.employee_name)
         .join(Employee, BonusRecord.employee_id == Employee.employee_id)
@@ -149,9 +159,12 @@ async def list_bonus_records(
             BonusRecord.bonus_term == bonus_term,
         )
         .order_by(Employee.employee_code)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
     rows = result.all()
-    return [_to_bonus_response(rec, name) for rec, name in rows]
+    items = [_to_bonus_response(rec, name) for rec, name in rows]
+    return BonusListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
 VALID_BONUS_TRANSITIONS: dict[str, set[str]] = {

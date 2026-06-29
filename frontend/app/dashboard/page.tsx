@@ -121,19 +121,19 @@ export default function DashboardPage() {
           apiGet<JournalList>("/journals", { company_id: companyId, page: "1", page_size: "200" }),
           apiGet<unknown[]>("/masters", { company_id: companyId }),
           apiGet<unknown[]>("/fixed-assets", { company_id: companyId }),
-          apiGet<unknown[]>("/payroll/employees", { company_id: companyId }),
+          apiGet<{ items: unknown[]; total: number; page: number; page_size: number }>("/payroll/employees", { company_id: companyId }),
           apiGet<{ items: unknown[]; total: number }>("/partners", { company_id: companyId }),
           apiGet<{ items: Array<{ total_gross: string; net_pay: string; status: string }>; total: number }>("/payroll/records", {
             company_id: companyId,
             payroll_year: new Date().getFullYear().toString(),
             payroll_month: (new Date().getMonth() + 1).toString(),
           }),
-          apiGet<Array<{ bonus_amount: string; net_pay: string; status: string }>>("/bonus/records", {
+          apiGet<{ items: Array<{ bonus_amount: string; net_pay: string; status: string }>; total: number; page: number; page_size: number }>("/bonus/records", {
             company_id: companyId,
             bonus_year: new Date().getFullYear().toString(),
             bonus_term: "summer",
           }),
-          apiGet<Array<{ total_gross: string; adjustment_amount: string; status: string }>>("/year-end/records", {
+          apiGet<{ items: Array<{ total_gross: string; adjustment_amount: string; status: string }>; total: number; page: number; page_size: number }>("/year-end/records", {
             company_id: companyId,
             adjustment_year: new Date().getFullYear().toString(),
           }),
@@ -149,7 +149,7 @@ export default function DashboardPage() {
             company_id: companyId,
             year: new Date().getFullYear().toString(),
           }),
-          apiGet<Array<{ tax_year: number; tax_payable: string; status: string }>>("/tax-returns/records", {
+          apiGet<{ items: Array<{ tax_year: number; tax_payable: string; status: string }>; total: number; page: number; page_size: number }>("/tax-returns/records", {
             company_id: companyId,
           }),
           apiGet<{ total_revenue: string; total_expense: string; net_income: string }>("/reports/income-statement", {
@@ -181,8 +181,8 @@ export default function DashboardPage() {
         if (assets.status === "fulfilled" && Array.isArray(assets.value)) {
           next.assetCount = assets.value.length;
         }
-        if (employees.status === "fulfilled" && Array.isArray(employees.value)) {
-          next.employeeCount = employees.value.length;
+        if (employees.status === "fulfilled" && employees.value?.items) {
+          next.employeeCount = employees.value.items.length;
         }
         if (partners.status === "fulfilled" && partners.value?.items) {
           next.partnerCount = partners.value.items.length;
@@ -198,22 +198,24 @@ export default function DashboardPage() {
         } else {
           setPayrollSummary(null);
         }
-        if (bonusRecs.status === "fulfilled" && Array.isArray(bonusRecs.value) && bonusRecs.value.length > 0) {
+        if (bonusRecs.status === "fulfilled" && bonusRecs.value?.items && bonusRecs.value.items.length > 0) {
+          const items = bonusRecs.value.items;
           setBonusSummary({
-            count: bonusRecs.value.length,
-            totalGross: bonusRecs.value.reduce((s, r) => s + parseFloat(r.bonus_amount), 0),
-            totalNet: bonusRecs.value.reduce((s, r) => s + parseFloat(r.net_pay), 0),
-            status: bonusRecs.value[0].status,
+            count: items.length,
+            totalGross: items.reduce((s, r) => s + parseFloat(r.bonus_amount), 0),
+            totalNet: items.reduce((s, r) => s + parseFloat(r.net_pay), 0),
+            status: items[0].status,
           });
         } else {
           setBonusSummary(null);
         }
-        if (yearEndRecs.status === "fulfilled" && Array.isArray(yearEndRecs.value) && yearEndRecs.value.length > 0) {
+        if (yearEndRecs.status === "fulfilled" && yearEndRecs.value?.items && yearEndRecs.value.items.length > 0) {
+          const items = yearEndRecs.value.items;
           setYearEndSummary({
-            count: yearEndRecs.value.length,
-            totalGross: yearEndRecs.value.reduce((s, r) => s + parseFloat(r.total_gross), 0),
-            totalAdjustment: yearEndRecs.value.reduce((s, r) => s + parseFloat(r.adjustment_amount), 0),
-            status: yearEndRecs.value[0].status,
+            count: items.length,
+            totalGross: items.reduce((s, r) => s + parseFloat(r.total_gross), 0),
+            totalAdjustment: items.reduce((s, r) => s + parseFloat(r.adjustment_amount), 0),
+            status: items[0].status,
           });
         } else {
           setYearEndSummary(null);
@@ -254,11 +256,12 @@ export default function DashboardPage() {
         } else {
           setInvoiceSummary(null);
         }
-        if (taxRecs.status === "fulfilled" && Array.isArray(taxRecs.value) && taxRecs.value.length > 0) {
-          const latest = taxRecs.value[0];
+        if (taxRecs.status === "fulfilled" && taxRecs.value?.items && taxRecs.value.items.length > 0) {
+          const items = taxRecs.value.items;
+          const latest = items[0];
           setTaxReturnSummary({
-            count: taxRecs.value.length,
-            totalPayable: taxRecs.value.reduce((s, r) => s + parseFloat(r.tax_payable), 0),
+            count: items.length,
+            totalPayable: items.reduce((s, r) => s + parseFloat(r.tax_payable), 0),
             latestYear: latest.tax_year,
             latestStatus: latest.status,
           });

@@ -14,6 +14,7 @@ from app.schemas.schemas import (
     AttendanceClockOutRequest,
     AttendanceManualRequest,
     AttendanceResponse,
+    AttendanceListResponse,
 )
 
 router = APIRouter()
@@ -150,31 +151,40 @@ async def create_manual_attendance(
     return _to_response(rec)
 
 
-@router.get("/records", response_model=list[AttendanceResponse])
+@router.get("/records", response_model=AttendanceListResponse)
 async def list_attendance(
     company_id: UUID = Query(...),
     start_date: date = Query(...),
     end_date: date = Query(...),
     employee_id: UUID | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
-) -> list[AttendanceResponse]:
+) -> AttendanceListResponse:
     """指定期間の勤怠記録を取得する。"""
-    query = (
+    conditions = [
+        AttendanceRecord.company_id == company_id,
+        AttendanceRecord.work_date >= start_date,
+        AttendanceRecord.work_date <= end_date,
+    ]
+    if employee_id:
+        conditions.append(AttendanceRecord.employee_id == employee_id)
+    count_result = await db.execute(
+        select(func.count()).select_from(AttendanceRecord).where(*conditions)
+    )
+    total = count_result.scalar() or 0
+    result = await db.execute(
         select(AttendanceRecord, Employee.employee_name)
         .join(Employee, AttendanceRecord.employee_id == Employee.employee_id)
-        .where(
-            AttendanceRecord.company_id == company_id,
-            AttendanceRecord.work_date >= start_date,
-            AttendanceRecord.work_date <= end_date,
-        )
+        .where(*conditions)
         .order_by(AttendanceRecord.work_date, Employee.employee_code)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
-    if employee_id:
-        query = query.where(AttendanceRecord.employee_id == employee_id)
-    result = await db.execute(query)
     rows = result.all()
-    return [_to_response(rec, name) for rec, name in rows]
+    items = [_to_response(rec, name) for rec, name in rows]
+    return AttendanceListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
 @router.get("/summary", response_model=list[dict])

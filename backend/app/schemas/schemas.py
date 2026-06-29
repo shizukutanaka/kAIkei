@@ -541,3 +541,38 @@ class AuditLogListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class YearEndListResponse(BaseModel):
+    items: list[YearEndAdjustmentResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class BonusListResponse(BaseModel):
+    items: list[BonusRecordResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class TaxReturnListResponse(BaseModel):
+    items: list[TaxReturnResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class EmployeeListResponse(BaseModel):
+    items: list[EmployeeResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class AttendanceListResponse(BaseModel):
+    items: list[AttendanceResponse]
+    total: int
+    page: int
+    page_size: int

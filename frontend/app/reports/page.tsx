@@ -195,12 +195,12 @@ export default function ReportsPage() {
         setCashFlowData(result);
         toast("キャッシュフロー計算書を取得しました", "success");
       } else {
-        const result = await apiGet<BonusSummaryItem[]>("/bonus/records", {
+        const result = await apiGet<{ items: BonusSummaryItem[]; total: number; page: number; page_size: number }>("/bonus/records", {
           company_id: companyId,
           bonus_year: year,
           bonus_term: bonusTerm,
         });
-        setBonusData(result);
+        setBonusData(result.items);
         toast("賞与サマリーを取得しました", "success");
       }
     } catch (err) {

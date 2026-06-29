@@ -102,8 +102,8 @@ export default function PayrollPage() {
     setLoading(true);
     setError("");
     try {
-      const data = await apiGet<Employee[]>("/payroll/employees", { company_id: companyId });
-      setEmployees(data);
+      const data = await apiGet<{ items: Employee[]; total: number; page: number; page_size: number }>("/payroll/employees", { company_id: companyId });
+      setEmployees(data.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : "取得に失敗しました");
     } finally {
