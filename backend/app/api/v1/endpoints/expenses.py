@@ -17,6 +17,7 @@ from app.schemas.schemas import (
     ExpenseReportResponse,
     ExpenseItemResponse,
 )
+from app.services.auto_journal import generate_expense_payment_journal
 
 router = APIRouter()
 
@@ -177,6 +178,18 @@ async def transition_expense_report(
     if action == "approved":
         rep.approved_by = current_user.user_id
         rep.approved_at = datetime.now()
+    elif action == "paid":
+        try:
+            await generate_expense_payment_journal(
+                db,
+                company_id=rep.company_id,
+                report_title=rep.title,
+                payment_date=rep.report_date,
+                total_amount=rep.total_amount,
+                created_by=current_user.user_id,
+            )
+        except ValueError:
+            pass  # Account not found — skip auto-journal
 
     await db.commit()
     await db.refresh(rep, attribute_names=["items"])

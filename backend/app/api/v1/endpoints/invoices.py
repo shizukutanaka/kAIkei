@@ -17,6 +17,10 @@ from app.schemas.schemas import (
     InvoiceResponse,
     InvoiceLineResponse,
 )
+from app.services.auto_journal import (
+    generate_invoice_issue_journal,
+    generate_invoice_payment_journal,
+)
 
 router = APIRouter()
 
@@ -202,6 +206,35 @@ async def transition_invoice(
         )
 
     inv.status = action
+
+    # Auto-generate journal entries on status transitions
+    if action == "issued":
+        try:
+            await generate_invoice_issue_journal(
+                db,
+                company_id=inv.company_id,
+                invoice_number=inv.invoice_number,
+                invoice_date=inv.invoice_date,
+                subtotal=inv.subtotal,
+                tax_amount=inv.tax_amount,
+                total_amount=inv.total_amount,
+                created_by=current_user.user_id,
+            )
+        except ValueError:
+            pass  # Account not found — skip auto-journal
+    elif action == "paid":
+        try:
+            await generate_invoice_payment_journal(
+                db,
+                company_id=inv.company_id,
+                invoice_number=inv.invoice_number,
+                payment_date=inv.invoice_date,
+                total_amount=inv.total_amount,
+                created_by=current_user.user_id,
+            )
+        except ValueError:
+            pass
+
     await db.commit()
     await db.refresh(inv, attribute_names=["lines"])
     return _to_response(inv, name)
