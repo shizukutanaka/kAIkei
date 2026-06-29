@@ -6,6 +6,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { useToast } from "@/components/toast";
 import { Pagination } from "@/components/pagination";
 import { Bell, Check, CheckCheck, BellOff, RefreshCw } from "lucide-react";
+import Link from "next/link";
 
 interface Notification {
   notification_id: string;
@@ -188,12 +189,12 @@ export default function NotificationsPage() {
                   <p className="font-medium">{n.title}</p>
                   <p className="mt-1 text-sm text-muted-foreground">{n.body}</p>
                   {n.action_url && (
-                    <a
+                    <Link
                       href={n.action_url}
                       className="mt-2 inline-block text-sm text-primary hover:underline"
                     >
                       詳細を見る →
-                    </a>
+                    </Link>
                   )}
                 </div>
                 {!n.is_read && (

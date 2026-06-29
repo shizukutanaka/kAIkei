@@ -30,7 +30,7 @@ export function Pagination({ page, pageSize, total, onPageChange }: PaginationPr
   }
 
   return (
-    <div className="mt-4 flex items-center justify-between">
+    <div className="mt-4 flex flex-col items-center justify-between gap-2 sm:flex-row">
       <p className="text-sm text-muted-foreground">
         {total}件中 {start}-{end}件
       </p>
@@ -48,18 +48,21 @@ export function Pagination({ page, pageSize, total, onPageChange }: PaginationPr
             <button
               key={i}
               onClick={() => onPageChange(p)}
-              className={`min-w-8 rounded-md px-2 py-1.5 text-sm ${
+              className={`hidden min-w-8 rounded-md px-2 py-1.5 text-sm sm:block ${
                 p === page ? "bg-primary text-primary-foreground" : "border hover:bg-accent"
               }`}
             >
               {p}
             </button>
           ) : (
-            <span key={i} className="px-1 text-sm text-muted-foreground">
+            <span key={i} className="hidden px-1 text-sm text-muted-foreground sm:block">
               {p}
             </span>
           )
         )}
+        <span className="px-2 text-sm text-muted-foreground sm:hidden">
+          {page} / {totalPages}
+        </span>
         <button
           onClick={() => onPageChange(Math.min(totalPages, page + 1))}
           disabled={page >= totalPages}

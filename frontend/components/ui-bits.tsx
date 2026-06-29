@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode } from "react";
-import { LucideIcon } from "lucide-react";
+import { LucideIcon, Loader2, X } from "lucide-react";
 
 interface EmptyStateProps {
   icon: LucideIcon;
@@ -37,7 +37,7 @@ export function ErrorBanner({ message, onDismiss }: ErrorBannerProps) {
           onClick={onDismiss}
           className="ml-2 shrink-0 opacity-60 hover:opacity-100"
         >
-          ✕
+          <X className="h-4 w-4" />
         </button>
       )}
     </div>
@@ -69,7 +69,7 @@ export function LoadingButton({
       className={`flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50 ${className}`}
     >
       {loading && (
-        <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+        <Loader2 className="h-4 w-4 animate-spin" />
       )}
       {children}
     </button>
