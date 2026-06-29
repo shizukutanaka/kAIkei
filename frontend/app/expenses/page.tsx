@@ -84,6 +84,7 @@ export default function ExpensesPage() {
   const pageSize = 50;
   const [showForm, setShowForm] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [downloadLoading, setDownloadLoading] = useState<string | null>(null);
   const [selectedReport, setSelectedReport] = useState<ExpenseReport | null>(null);
   const [formData, setFormData] = useState({
     employee_id: "",
@@ -214,6 +215,7 @@ export default function ExpensesPage() {
   };
 
   const handleDownload = async (reportId: string, title: string) => {
+    setDownloadLoading(reportId);
     try {
       const token = localStorage.getItem("token");
       const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
@@ -232,6 +234,8 @@ export default function ExpensesPage() {
       toast("CSVをダウンロードしました", "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "ダウンロードに失敗しました", "error");
+    } finally {
+      setDownloadLoading(null);
     }
   };
 
@@ -502,10 +506,11 @@ export default function ExpensesPage() {
                       </button>
                       <button
                         onClick={() => handleDownload(r.report_id, r.title)}
-                        className="inline-flex items-center justify-center rounded p-1 hover:bg-accent"
+                        disabled={downloadLoading === r.report_id}
+                        className="inline-flex items-center justify-center rounded p-1 hover:bg-accent disabled:opacity-50"
                         title="CSV出力"
                       >
-                        <Download className="h-4 w-4 text-muted-foreground" />
+                        {downloadLoading === r.report_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-muted-foreground" />}
                       </button>
                     </div>
                   </td>

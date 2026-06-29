@@ -103,6 +103,7 @@ export default function InvoicesPage() {
   });
   const [lines, setLines] = useState([{ ...emptyLine }]);
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [downloadLoading, setDownloadLoading] = useState<string | null>(null);
 
   const fetchInvoices = async () => {
     if (!companyId) return;
@@ -231,6 +232,7 @@ export default function InvoicesPage() {
   };
 
   const handleDownload = async (invoiceId: string, number: string) => {
+    setDownloadLoading(invoiceId);
     try {
       const token = localStorage.getItem("token");
       const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
@@ -249,6 +251,8 @@ export default function InvoicesPage() {
       toast("CSVをダウンロードしました", "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "ダウンロードに失敗しました", "error");
+    } finally {
+      setDownloadLoading(null);
     }
   };
 
@@ -533,8 +537,8 @@ export default function InvoicesPage() {
                   <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1">
                       <button onClick={() => setSelectedInvoice(inv)} className="rounded px-2 py-1 text-xs hover:bg-accent">詳細</button>
-                      <button onClick={() => handleDownload(inv.invoice_id, inv.invoice_number)} className="inline-flex items-center justify-center rounded p-1 hover:bg-accent" title="CSV出力">
-                        <Download className="h-4 w-4 text-muted-foreground" />
+                      <button onClick={() => handleDownload(inv.invoice_id, inv.invoice_number)} disabled={downloadLoading === inv.invoice_id} className="inline-flex items-center justify-center rounded p-1 hover:bg-accent disabled:opacity-50" title="CSV出力">
+                        {downloadLoading === inv.invoice_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-muted-foreground" />}
                       </button>
                     </div>
                   </td>

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPostMultipart } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
-import { Receipt, Filter, Search, Download, Upload, BookOpen, Plus, RefreshCw, X } from "lucide-react";
+import { Receipt, Filter, Search, Download, Upload, BookOpen, Plus, RefreshCw, X, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { SkeletonTable } from "@/components/skeleton";
 import { useToast } from "@/components/toast";
@@ -54,6 +54,7 @@ export default function JournalsListPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [importLoading, setImportLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
 
   const fetchJournals = async () => {
     if (!companyId) {
@@ -102,6 +103,7 @@ export default function JournalsListPage() {
 
   const handleExportCSV = async () => {
     if (!companyId) return;
+    setExportLoading(true);
     const today = new Date().toISOString().split("T")[0];
     const startDate = `${new Date().getFullYear()}-01-01`;
     try {
@@ -120,6 +122,8 @@ export default function JournalsListPage() {
       toast("仕訳CSVを出力しました", "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "CSV出力に失敗しました", "error");
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -215,11 +219,11 @@ export default function JournalsListPage() {
           </Link>
           <button
             onClick={handleExportCSV}
-            disabled={!companyId}
+            disabled={!companyId || exportLoading}
             className="flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
-            <Download className="h-4 w-4" />
-            仕訳CSV出力
+            {exportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {exportLoading ? "出力中..." : "仕訳CSV出力"}
           </button>
           <label className={`flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium ${importLoading || !companyId ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}>
             <Upload className="h-4 w-4" />
