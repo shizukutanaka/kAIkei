@@ -11,6 +11,7 @@ from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.models.models import Employee, BonusRecord
 from app.schemas.schemas import BonusCalculateRequest, BonusRecordResponse
+from app.services.auto_journal import generate_bonus_journal
 
 BONUS_TERM_LABELS = {
     "summer": "夏季賞与",
@@ -197,9 +198,31 @@ async def batch_transition_bonus(
         )
 
     updated: list[BonusRecordResponse] = []
+    total_gross_sum = Decimal("0")
+    total_deductions_sum = Decimal("0")
+    net_pay_sum = Decimal("0")
     for rec, emp_name in rows:
         rec.status = action
+        total_gross_sum += rec.bonus_amount
+        total_deductions_sum += rec.total_deductions
+        net_pay_sum += rec.net_pay
         updated.append(_to_bonus_response(rec, emp_name))
+
+    # Auto-generate bonus journal on batch "paid" transition
+    if action == "paid":
+        try:
+            await generate_bonus_journal(
+                db,
+                company_id=company_id,
+                bonus_year=bonus_year,
+                bonus_term=bonus_term,
+                total_gross=total_gross_sum,
+                total_deductions=total_deductions_sum,
+                net_pay=net_pay_sum,
+                created_by=current_user.user_id,
+            )
+        except ValueError:
+            pass  # Account not found — skip auto-journal
 
     await db.commit()
     return updated

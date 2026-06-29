@@ -341,6 +341,107 @@ async def get_balance_sheet(
 
 
 # ---------------------------------------------------------------------------
+# Cash Flow Statement (キャッシュフロー計算書)
+# ---------------------------------------------------------------------------
+
+@router.get("/cash-flow")
+async def get_cash_flow_statement(
+    company_id: UUID,
+    as_of: date = Query(..., description="期末日"),
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """キャッシュフロー計算書を取得する（簡易版・間接法）。
+
+    営業CF = 当期純利益 + 減価償却 - 売上債権増減 + 買掛債務増減
+    投資CF = 固定資産取得・除却
+    財務CF = 借入・返済・配当
+    """
+    # Get P/L data
+    pl_rows = await _get_account_balances(db, company_id, as_of, {"revenue", "expense"})
+    total_revenue = Decimal("0")
+    total_expense = Decimal("0")
+    for row in pl_rows:
+        ds = Decimal(row.debit_sum) if row.debit_sum else Decimal("0")
+        cs = Decimal(row.credit_sum) if row.credit_sum else Decimal("0")
+        if row.account_type == "revenue":
+            total_revenue += cs - ds
+        elif row.account_type == "expense":
+            total_expense += ds - cs
+    net_income = total_revenue - total_expense
+
+    # Get B/S data for working capital changes
+    bs_rows = await _get_account_balances(db, company_id, as_of, BS_ACCOUNT_TYPES)
+
+    operating_items: list[dict] = []
+    investing_items: list[dict] = []
+    financing_items: list[dict] = []
+
+    # Operating CF: indirect method
+    operating_items.append({"item": "当期純利益", "amount": str(net_income)})
+
+    # Classify accounts into CF categories
+    operating_total = net_income
+    investing_total = Decimal("0")
+    financing_total = Decimal("0")
+
+    for row in bs_rows:
+        ds = Decimal(row.debit_sum) if row.debit_sum else Decimal("0")
+        cs = Decimal(row.credit_sum) if row.credit_sum else Decimal("0")
+
+        if row.account_type == "asset":
+            code = row.account_code or ""
+            if code.startswith("11"):  # Accounts receivable
+                change = ds - cs
+                operating_items.append({"item": f"売上債権増減 ({row.account_name})", "amount": str(-change)})
+                operating_total -= change
+            elif code.startswith("10"):  # Cash — skip, this is the target
+                pass
+            elif code.startswith("17"):  # Accumulated depreciation
+                dep = cs - ds
+                operating_items.append({"item": f"減価償却 ({row.account_name})", "amount": str(dep)})
+                operating_total += dep
+            elif code.startswith("1"):  # Other assets = investing
+                change = ds - cs
+                investing_items.append({"item": f"固定資産等増減 ({row.account_name})", "amount": str(-change)})
+                investing_total -= change
+        elif row.account_type == "liability":
+            code = row.account_code or ""
+            if code.startswith("20") or code.startswith("21"):  # Accounts payable / tax
+                change = cs - ds
+                operating_items.append({"item": f"買掛債務等増減 ({row.account_name})", "amount": str(change)})
+                operating_total += change
+            elif code.startswith("2"):  # Other liabilities = financing
+                change = cs - ds
+                financing_items.append({"item": f"借入金等増減 ({row.account_name})", "amount": str(change)})
+                financing_total += change
+        elif row.account_type == "equity":
+            change = cs - ds
+            if change != 0:
+                financing_items.append({"item": f"資本増減 ({row.account_name})", "amount": str(change)})
+                financing_total += change
+
+    net_cf = operating_total + investing_total + financing_total
+
+    return {
+        "as_of": str(as_of),
+        "operating": {
+            "items": operating_items,
+            "subtotal": str(operating_total),
+        },
+        "investing": {
+            "items": investing_items,
+            "subtotal": str(investing_total),
+        },
+        "financing": {
+            "items": financing_items,
+            "subtotal": str(financing_total),
+        },
+        "net_cash_flow": str(net_cf),
+    }
+
+
+# ---------------------------------------------------------------------------
 # CSV export endpoints
 # ---------------------------------------------------------------------------
 
@@ -474,6 +575,78 @@ async def export_balance_sheet_csv(
     lines.append(f",,負債合計,{total_l}")
     lines.append(f",,純資産合計,{total_e}")
     lines.append(f",,負債純資産合計,{total_l + total_e}")
+    return "\n".join(lines)
+
+
+@router.get("/cash-flow/export", response_class=PlainTextResponse)
+async def export_cash_flow_csv(
+    company_id: UUID,
+    as_of: date = Query(..., description="期末日"),
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+    db: AsyncSession = Depends(get_db),
+) -> str:
+    """キャッシュフロー計算書をCSV形式で出力する。"""
+    # Reuse the cash flow logic
+    pl_rows = await _get_account_balances(db, company_id, as_of, {"revenue", "expense"})
+    total_revenue = Decimal("0")
+    total_expense = Decimal("0")
+    for row in pl_rows:
+        ds = Decimal(row.debit_sum) if row.debit_sum else Decimal("0")
+        cs = Decimal(row.credit_sum) if row.credit_sum else Decimal("0")
+        if row.account_type == "revenue":
+            total_revenue += cs - ds
+        elif row.account_type == "expense":
+            total_expense += ds - cs
+    net_income = total_revenue - total_expense
+
+    bs_rows = await _get_account_balances(db, company_id, as_of, BS_ACCOUNT_TYPES)
+
+    lines = ["区分,項目,金額"]
+    operating_total = net_income
+    investing_total = Decimal("0")
+    financing_total = Decimal("0")
+
+    lines.append(f"営業CF,当期純利益,{net_income}")
+
+    for row in bs_rows:
+        ds = Decimal(row.debit_sum) if row.debit_sum else Decimal("0")
+        cs = Decimal(row.credit_sum) if row.credit_sum else Decimal("0")
+        code = row.account_code or ""
+
+        if row.account_type == "asset":
+            if code.startswith("11"):
+                change = ds - cs
+                lines.append(f"営業CF,売上債権増減 ({row.account_name}),{-change}")
+                operating_total -= change
+            elif code.startswith("10"):
+                pass
+            elif code.startswith("17"):
+                dep = cs - ds
+                lines.append(f"営業CF,減価償却 ({row.account_name}),{dep}")
+                operating_total += dep
+            elif code.startswith("1"):
+                change = ds - cs
+                lines.append(f"投資CF,固定資産等増減 ({row.account_name}),{-change}")
+                investing_total -= change
+        elif row.account_type == "liability":
+            if code.startswith("20") or code.startswith("21"):
+                change = cs - ds
+                lines.append(f"営業CF,買掛債務等増減 ({row.account_name}),{change}")
+                operating_total += change
+            elif code.startswith("2"):
+                change = cs - ds
+                lines.append(f"財務CF,借入金等増減 ({row.account_name}),{change}")
+                financing_total += change
+        elif row.account_type == "equity":
+            change = cs - ds
+            if change != 0:
+                lines.append(f"財務CF,資本増減 ({row.account_name}),{change}")
+                financing_total += change
+
+    lines.append(f",営業CF小計,{operating_total}")
+    lines.append(f",投資CF小計,{investing_total}")
+    lines.append(f",財務CF小計,{financing_total}")
+    lines.append(f",現金純増減,{operating_total + investing_total + financing_total}")
     return "\n".join(lines)
 
 

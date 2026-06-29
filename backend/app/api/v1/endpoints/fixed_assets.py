@@ -9,8 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
-from app.models.models import FixedAsset
+from app.models.models import FixedAsset, DepreciationRecord
 from app.schemas.schemas import FixedAssetCreate, FixedAssetResponse
+from app.services.auto_journal import generate_depreciation_journal
 
 router = APIRouter()
 
@@ -131,6 +132,33 @@ async def run_depreciation(
         new_accumulated = depreciable_base
 
     asset.accumulated_depreciation = new_accumulated
+    await db.flush()
+
+    # Create depreciation record
+    dep_record = DepreciationRecord(
+        asset_id=asset.asset_id,
+        fiscal_year=fiscal_year,
+        month=month,
+        depreciation_amount=monthly_depreciation,
+        accumulated_amount=new_accumulated,
+    )
+    db.add(dep_record)
+
+    # Auto-generate depreciation journal
+    try:
+        await generate_depreciation_journal(
+            db,
+            company_id=asset.company_id,
+            asset_name=asset.asset_name,
+            asset_code=asset.asset_code,
+            fiscal_year=fiscal_year,
+            month=month,
+            depreciation_amount=monthly_depreciation,
+            created_by=current_user.user_id,
+        )
+    except ValueError:
+        pass  # Account not found — skip auto-journal
+
     await db.flush()
     await db.refresh(asset)
     return _to_response(asset)

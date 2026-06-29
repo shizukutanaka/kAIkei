@@ -64,6 +64,14 @@ interface BalanceSheet {
   is_balanced: boolean;
 }
 
+interface CashFlowStatement {
+  as_of: string;
+  operating: { items: Array<{ item: string; amount: string }>; subtotal: string };
+  investing: { items: Array<{ item: string; amount: string }>; subtotal: string };
+  financing: { items: Array<{ item: string; amount: string }>; subtotal: string };
+  net_cash_flow: string;
+}
+
 interface BonusSummaryItem {
   bonus_id: string;
   employee_id: string;
@@ -92,7 +100,7 @@ export default function ReportsPage() {
   const { companyId } = useCompany();
   const { toast } = useToast();
   const [asOf, setAsOf] = useState(new Date().toISOString().split("T")[0]);
-  const [reportType, setReportType] = useState<"trial-balance" | "monthly" | "payroll" | "bonus" | "attendance" | "expenses" | "income-statement" | "balance-sheet">("trial-balance");
+  const [reportType, setReportType] = useState<"trial-balance" | "monthly" | "payroll" | "bonus" | "attendance" | "expenses" | "income-statement" | "balance-sheet" | "cash-flow">("trial-balance");
   const [year, setYear] = useState(new Date().getFullYear().toString());
   const [month, setMonth] = useState((new Date().getMonth() + 1).toString());
   const [data, setData] = useState<TrialBalance | null>(null);
@@ -103,6 +111,7 @@ export default function ReportsPage() {
   const [expenseData, setExpenseData] = useState<Array<{ report_id: string; title: string; employee_name: string | null; total_amount: string; status: string; report_date: string }> | null>(null);
   const [incomeData, setIncomeData] = useState<IncomeStatement | null>(null);
   const [balanceData, setBalanceData] = useState<BalanceSheet | null>(null);
+  const [cashFlowData, setCashFlowData] = useState<CashFlowStatement | null>(null);
   const [bonusTerm, setBonusTerm] = useState("summer");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -124,6 +133,7 @@ export default function ReportsPage() {
     setExpenseData(null);
     setIncomeData(null);
     setBalanceData(null);
+    setCashFlowData(null);
 
     try {
       if (reportType === "trial-balance") {
@@ -177,6 +187,13 @@ export default function ReportsPage() {
         });
         setBalanceData(result);
         toast("貸借対照表を取得しました", "success");
+      } else if (reportType === "cash-flow") {
+        const result = await apiGet<CashFlowStatement>("/reports/cash-flow", {
+          company_id: companyId,
+          as_of: asOf,
+        });
+        setCashFlowData(result);
+        toast("キャッシュフロー計算書を取得しました", "success");
       } else {
         const result = await apiGet<BonusSummaryItem[]>("/bonus/records", {
           company_id: companyId,
@@ -198,7 +215,8 @@ export default function ReportsPage() {
     if (!companyId) return;
     const exportPath = reportType === "trial-balance" ? "/reports/trial-balance/export"
       : reportType === "income-statement" ? "/reports/income-statement/export"
-      : "/reports/balance-sheet/export";
+      : reportType === "balance-sheet" ? "/reports/balance-sheet/export"
+      : "/reports/cash-flow/export";
     try {
       const csv = await apiGet<string>(exportPath, {
         company_id: companyId,
@@ -328,6 +346,15 @@ export default function ReportsPage() {
               <Scale className="h-4 w-4" />
               貸借対照表
             </button>
+            <button
+              onClick={() => setReportType("cash-flow")}
+              className={`flex items-center gap-1 rounded-md px-4 py-2 text-sm font-medium ${
+                reportType === "cash-flow" ? "bg-primary text-primary-foreground" : "border"
+              }`}
+            >
+              <Wallet className="h-4 w-4" />
+              キャッシュフロー
+            </button>
           </div>
 
           <div className="grid grid-cols-3 gap-4">
@@ -337,7 +364,7 @@ export default function ReportsPage() {
                 {companyId || "未設定"}
               </div>
             </div>
-            {reportType === "trial-balance" || reportType === "income-statement" || reportType === "balance-sheet" ? (
+            {reportType === "trial-balance" || reportType === "income-statement" || reportType === "balance-sheet" || reportType === "cash-flow" ? (
               <div>
                 <label className="mb-1 block text-sm font-medium">基準日</label>
                 <input
@@ -403,7 +430,7 @@ export default function ReportsPage() {
             {loading ? "取得中..." : "帳票取得"}
           </button>
 
-          {(reportType === "trial-balance" || reportType === "income-statement" || reportType === "balance-sheet") && (
+          {(reportType === "trial-balance" || reportType === "income-statement" || reportType === "balance-sheet" || reportType === "cash-flow") && (
             <button
               onClick={() => handleExportCSV()}
               disabled={!companyId}
@@ -839,6 +866,65 @@ export default function ReportsPage() {
                   <td className="px-4 py-3">負債 + 純資産</td>
                   <td className="px-4 py-3 text-right text-muted-foreground">合計</td>
                   <td className="px-4 py-3 text-right">¥{(parseInt(balanceData.total_liabilities) + parseInt(balanceData.total_equity)).toLocaleString()}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {cashFlowData && (
+          <div className="mt-6 overflow-hidden rounded-lg border">
+            <table className="w-full text-sm">
+              <thead className="bg-primary/10">
+                <tr>
+                  <th className="px-4 py-3 text-left">区分</th>
+                  <th className="px-4 py-3 text-left">項目</th>
+                  <th className="px-4 py-3 text-right">金額</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-t-2 bg-blue-50/50">
+                  <td className="px-4 py-2 font-bold text-blue-700" rowSpan={cashFlowData.operating.items.length + 1}>営業CF</td>
+                </tr>
+                {cashFlowData.operating.items.map((item: { item: string; amount: string }, i: number) => (
+                  <tr key={`op-${i}`} className="border-t">
+                    <td className="px-4 py-2" colSpan={1}>{item.item}</td>
+                    <td className="px-4 py-2 text-right">¥{parseInt(item.amount).toLocaleString()}</td>
+                  </tr>
+                ))}
+                <tr className="border-t bg-blue-100/50 font-bold">
+                  <td className="px-4 py-2">営業CF小計</td>
+                  <td className="px-4 py-2 text-right text-blue-700">¥{parseInt(cashFlowData.operating.subtotal).toLocaleString()}</td>
+                </tr>
+                <tr className="border-t-2 bg-green-50/50">
+                  <td className="px-4 py-2 font-bold text-green-700" rowSpan={cashFlowData.investing.items.length + 1}>投資CF</td>
+                </tr>
+                {cashFlowData.investing.items.map((item: { item: string; amount: string }, i: number) => (
+                  <tr key={`inv-${i}`} className="border-t">
+                    <td className="px-4 py-2">{item.item}</td>
+                    <td className="px-4 py-2 text-right">¥{parseInt(item.amount).toLocaleString()}</td>
+                  </tr>
+                ))}
+                <tr className="border-t bg-green-100/50 font-bold">
+                  <td className="px-4 py-2">投資CF小計</td>
+                  <td className="px-4 py-2 text-right text-green-700">¥{parseInt(cashFlowData.investing.subtotal).toLocaleString()}</td>
+                </tr>
+                <tr className="border-t-2 bg-orange-50/50">
+                  <td className="px-4 py-2 font-bold text-orange-700" rowSpan={cashFlowData.financing.items.length + 1}>財務CF</td>
+                </tr>
+                {cashFlowData.financing.items.map((item: { item: string; amount: string }, i: number) => (
+                  <tr key={`fin-${i}`} className="border-t">
+                    <td className="px-4 py-2">{item.item}</td>
+                    <td className="px-4 py-2 text-right">¥{parseInt(item.amount).toLocaleString()}</td>
+                  </tr>
+                ))}
+                <tr className="border-t bg-orange-100/50 font-bold">
+                  <td className="px-4 py-2">財務CF小計</td>
+                  <td className="px-4 py-2 text-right text-orange-700">¥{parseInt(cashFlowData.financing.subtotal).toLocaleString()}</td>
+                </tr>
+                <tr className="border-t-2 bg-primary/10 font-bold text-base">
+                  <td className="px-4 py-3" colSpan={2}>現金及び現金同等物の純増減</td>
+                  <td className="px-4 py-3 text-right">¥{parseInt(cashFlowData.net_cash_flow).toLocaleString()}</td>
                 </tr>
               </tbody>
             </table>
