@@ -76,6 +76,7 @@ export default function PayrollPage() {
   });
   const [payrollYear, setPayrollYear] = useState(new Date().getFullYear().toString());
   const [payrollMonth, setPayrollMonth] = useState((new Date().getMonth() + 1).toString());
+  const [overtimeMap, setOvertimeMap] = useState<Record<string, string>>({});
   const [calculating, setCalculating] = useState(false);
 
   const fetchEmployees = async () => {
@@ -112,7 +113,10 @@ export default function PayrollPage() {
 
   useEffect(() => {
     if (tab === "employees" && companyId) fetchEmployees();
-    if (tab === "payroll" && companyId) fetchPayrollRecords();
+    if (tab === "payroll" && companyId) {
+      if (employees.length === 0) fetchEmployees();
+      fetchPayrollRecords();
+    }
   }, [companyId, tab, payrollYear, payrollMonth]);
 
   const handleCreateEmployee = async () => {
@@ -163,11 +167,17 @@ export default function PayrollPage() {
     setCalculating(true);
     setError("");
     try {
+      const otMap: Record<string, number> = {};
+      for (const [empId, hours] of Object.entries(overtimeMap)) {
+        if (hours && parseFloat(hours) > 0) {
+          otMap[empId] = parseFloat(hours);
+        }
+      }
       const data = await apiPost<PayrollRecord[]>("/payroll/calculate", {
         company_id: companyId,
         payroll_year: parseInt(payrollYear),
         payroll_month: parseInt(payrollMonth),
-        overtime_hours: {},
+        overtime_hours: otMap,
       });
       setPayrollRecords(data);
       toast(`${data.length}件の給与を計算しました`, "success");
@@ -356,6 +366,29 @@ export default function PayrollPage() {
               </button>
             )}
           </div>
+
+          {canCalculate && employees.length > 0 && (
+            <div className="mb-4 rounded-lg border bg-card p-4">
+              <h3 className="mb-3 text-sm font-semibold">残業時間入力</h3>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+                {employees.map((e) => (
+                  <div key={e.employee_id} className="flex items-center gap-2">
+                    <label className="text-xs text-muted-foreground whitespace-nowrap">{e.employee_name}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      placeholder="0"
+                      value={overtimeMap[e.employee_id] || ""}
+                      onChange={(ev) => setOvertimeMap({ ...overtimeMap, [e.employee_id]: ev.target.value })}
+                      className="w-20 rounded-md border px-2 py-1 text-sm"
+                    />
+                    <span className="text-xs text-muted-foreground">h</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {loading ? (
             <SkeletonTable rows={5} columns={8} />
