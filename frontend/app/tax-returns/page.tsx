@@ -64,6 +64,7 @@ export default function TaxReturnsPage() {
   const [taxAdjustment, setTaxAdjustment] = useState("0");
   const [calculating, setCalculating] = useState(false);
   const [transitionLoading, setTransitionLoading] = useState(false);
+  const [downloadLoading, setDownloadLoading] = useState<string | null>(null);
 
   const fetchRecords = async () => {
     if (!companyId) return;
@@ -134,6 +135,7 @@ export default function TaxReturnsPage() {
   };
 
   const handleDownload = async (returnId: string, year: string) => {
+    setDownloadLoading(returnId);
     try {
       const token = localStorage.getItem("token");
       const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
@@ -152,6 +154,8 @@ export default function TaxReturnsPage() {
       toast("CSVをダウンロードしました", "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "ダウンロードに失敗しました", "error");
+    } finally {
+      setDownloadLoading(null);
     }
   };
 
@@ -362,8 +366,8 @@ export default function TaxReturnsPage() {
                   <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1">
                       <button onClick={() => setSelectedRecord(r)} className="rounded px-2 py-1 text-xs hover:bg-accent">詳細</button>
-                      <button onClick={() => handleDownload(r.return_id, r.tax_year.toString())} className="inline-flex items-center justify-center rounded p-1 hover:bg-accent" title="CSV出力">
-                        <Download className="h-4 w-4 text-muted-foreground" />
+                      <button onClick={() => handleDownload(r.return_id, r.tax_year.toString())} disabled={downloadLoading === r.return_id} className="inline-flex items-center justify-center rounded p-1 hover:bg-accent disabled:opacity-50" title="CSV出力">
+                        {downloadLoading === r.return_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-muted-foreground" />}
                       </button>
                     </div>
                   </td>

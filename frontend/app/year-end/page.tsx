@@ -8,7 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
-import { CalendarClock, Calculator, CheckCircle, FileText, Download, Search, Loader2, X } from "lucide-react";
+import { CalendarClock, Calculator, CheckCircle, FileText, Download, Search, Loader2, X, RefreshCw } from "lucide-react";
 
 interface YearEndAdjustment {
   adjustment_id: string;
@@ -61,6 +61,7 @@ export default function YearEndPage() {
   const [adjustmentYear, setAdjustmentYear] = useState(new Date().getFullYear().toString());
   const [dependentsMap, setDependentsMap] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
+  const [downloadLoading, setDownloadLoading] = useState<string | null>(null);
 
   const fetchRecords = async () => {
     if (!companyId) return;
@@ -140,6 +141,7 @@ export default function YearEndPage() {
   };
 
   const handleDownload = async (adjustmentId: string, empName: string) => {
+    setDownloadLoading(adjustmentId);
     try {
       const token = localStorage.getItem("token");
       const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
@@ -158,6 +160,8 @@ export default function YearEndPage() {
       toast("CSVをダウンロードしました", "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "ダウンロードに失敗しました", "error");
+    } finally {
+      setDownloadLoading(null);
     }
   };
 
@@ -260,6 +264,14 @@ export default function YearEndPage() {
               )}
             </div>
             <span className="text-xs text-muted-foreground">{filteredRecords.length}/{records.length}件</span>
+            <button
+              onClick={() => { fetchRecords(); fetchEmployees(); }}
+              disabled={loading || !companyId}
+              className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              更新
+            </button>
           </div>
           <div className="overflow-x-auto rounded-lg border">
             <table className="w-full text-sm">
@@ -298,10 +310,11 @@ export default function YearEndPage() {
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => handleDownload(r.adjustment_id, r.employee_name || r.employee_id.slice(0, 8))}
-                        className="inline-flex items-center justify-center rounded p-1 hover:bg-accent"
+                        disabled={downloadLoading === r.adjustment_id}
+                        className="inline-flex items-center justify-center rounded p-1 hover:bg-accent disabled:opacity-50"
                         title="CSV出力"
                       >
-                        <Download className="h-4 w-4 text-muted-foreground" />
+                        {downloadLoading === r.adjustment_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-muted-foreground" />}
                       </button>
                     </td>
                   </tr>
