@@ -119,6 +119,7 @@ export default function ReportsPage() {
   const [error, setError] = useState("");
   const [periodCloses, setPeriodCloses] = useState<Array<{ close_id: string; year: number; month: number; status: string; closed_at: string | null }>>([]);
   const [closeLoading, setCloseLoading] = useState<string | null>(null);
+  const [periodLoading, setPeriodLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
 
   const handleFetch = async () => {
@@ -243,6 +244,7 @@ export default function ReportsPage() {
 
   const fetchPeriodCloses = async () => {
     if (!companyId) return;
+    setPeriodLoading(true);
     try {
       const result = await apiGet<Array<{ close_id: string; year: number; month: number; status: string; closed_at: string | null }>>("/reports/period-closes", {
         company_id: companyId,
@@ -251,6 +253,8 @@ export default function ReportsPage() {
       setPeriodCloses(result);
     } catch {
       // API not running
+    } finally {
+      setPeriodLoading(false);
     }
   };
 
@@ -955,10 +959,10 @@ export default function ReportsPage() {
           </h2>
           <button
             onClick={fetchPeriodCloses}
-            disabled={!companyId}
+            disabled={!companyId || periodLoading}
             className="mb-4 flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
           >
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className={`h-4 w-4 ${periodLoading ? "animate-spin" : ""}`} />
             更新
           </button>
           {periodCloses.length > 0 ? (
