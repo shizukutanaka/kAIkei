@@ -7,7 +7,7 @@ import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { SkeletonTable } from "@/components/skeleton";
-import { Users, Plus, Calculator, Trash2, FileText, Download } from "lucide-react";
+import { Users, Plus, Calculator, Trash2, FileText, Download, CheckCircle, XCircle, Banknote } from "lucide-react";
 
 interface Employee {
   employee_id: string;
@@ -49,6 +49,20 @@ const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
   dispatch: "派遣",
 };
 
+const PAYROLL_STATUS_LABELS: Record<string, string> = {
+  calculated: "計算済",
+  approved: "承認済",
+  rejected: "差戻し",
+  paid: "支払済",
+};
+
+const PAYROLL_STATUS_COLORS: Record<string, string> = {
+  calculated: "bg-blue-100 text-blue-700",
+  approved: "bg-green-100 text-green-700",
+  rejected: "bg-red-100 text-red-700",
+  paid: "bg-gray-100 text-gray-700",
+};
+
 export default function PayrollPage() {
   const { companyId } = useCompany();
   const { user } = useUser();
@@ -57,6 +71,8 @@ export default function PayrollPage() {
   const canCreate = perms.includes("master:create");
   const canDelete = perms.includes("master:delete");
   const canCalculate = perms.includes("journal:create");
+  const canApprove = perms.includes("payroll:approve");
+  const canPost = perms.includes("payroll:post");
 
   const [tab, setTab] = useState<"employees" | "payroll">("employees");
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -215,6 +231,29 @@ export default function PayrollPage() {
       toast(err instanceof Error ? err.message : "ダウンロードに失敗しました", "error");
     }
   };
+
+  const handleBatchTransition = async (action: "approved" | "rejected" | "paid") => {
+    if (!companyId) return;
+    const actionLabels: Record<string, string> = {
+      approved: "承認",
+      rejected: "差戻し",
+      paid: "支払完了",
+    };
+    if (!confirm(`全件${actionLabels[action]}しますか？`)) return;
+    try {
+      const data = await apiPost<PayrollRecord[]>(
+        `/payroll/records/batch-transition?company_id=${companyId}&payroll_year=${payrollYear}&payroll_month=${payrollMonth}&action=${action}`,
+        {}
+      );
+      setPayrollRecords(data);
+      toast(`${data.length}件を${actionLabels[action]}しました`, "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "ステータス更新に失敗しました", "error");
+    }
+  };
+
+  const allSameStatus = payrollRecords.length > 0 && payrollRecords.every((r) => r.status === payrollRecords[0].status);
+  const currentStatus = payrollRecords[0]?.status;
 
   return (
     <PageLayout>
@@ -444,8 +483,8 @@ export default function PayrollPage() {
                         <td className="px-4 py-3 text-right text-red-600">¥{parseInt(r.social_insurance).toLocaleString()}</td>
                         <td className="px-4 py-3 text-right font-bold">¥{parseInt(r.net_pay).toLocaleString()}</td>
                         <td className="px-4 py-3 text-center">
-                          <span className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
-                            {r.status === "calculated" ? "計算済" : r.status}
+                          <span className={`rounded px-2 py-0.5 text-xs ${PAYROLL_STATUS_COLORS[r.status] || "bg-gray-100 text-gray-700"}`}>
+                            {PAYROLL_STATUS_LABELS[r.status] || r.status}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center">
@@ -489,6 +528,51 @@ export default function PayrollPage() {
                   <p className="text-xl font-bold text-green-600">¥{totalNet.toLocaleString()}</p>
                 </div>
               </div>
+
+              {canApprove && allSameStatus && currentStatus && (
+                <div className="mt-4 flex items-center gap-2 rounded-lg border bg-card p-4">
+                  <span className="text-sm font-medium">一括操作:</span>
+                  {currentStatus === "calculated" && (
+                    <>
+                      <button
+                        onClick={() => handleBatchTransition("approved")}
+                        className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+                      >
+                        <CheckCircle className="h-4 w-4" />
+                        全件承認
+                      </button>
+                      <button
+                        onClick={() => handleBatchTransition("rejected")}
+                        className="flex items-center gap-1 rounded-md border border-red-500 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
+                      >
+                        <XCircle className="h-4 w-4" />
+                        全件差戻し
+                      </button>
+                    </>
+                  )}
+                  {currentStatus === "approved" && canPost && (
+                    <button
+                      onClick={() => handleBatchTransition("paid")}
+                      className="flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                    >
+                      <Banknote className="h-4 w-4" />
+                      全件支払完了
+                    </button>
+                  )}
+                  {currentStatus === "rejected" && (
+                    <button
+                      onClick={() => handleBatchTransition("approved")}
+                      className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      再承認
+                    </button>
+                  )}
+                  {currentStatus === "paid" && (
+                    <span className="text-sm text-muted-foreground">支払済みのため操作不可</span>
+                  )}
+                </div>
+              )}
             </>
           ) : (
             <div className="flex flex-col items-center justify-center rounded-lg border bg-card p-12">

@@ -274,3 +274,99 @@ async def export_payslip(
     ]
 
     return "\n".join(lines)
+
+
+# --- Payroll approval workflow ---
+
+VALID_PAYROLL_TRANSITIONS: dict[str, set[str]] = {
+    "calculated": {"approved", "rejected"},
+    "approved": {"paid"},
+    "rejected": {"calculated"},
+    "paid": set(),
+}
+
+
+@router.post("/records/{payroll_id}/transition", response_model=PayrollRecordResponse)
+async def transition_payroll_status(
+    payroll_id: UUID,
+    action: str = Query(..., description="approved, rejected, or paid"),
+    current_user: CurrentUser = Depends(require_permission(Permission.PAYROLL_APPROVE)),
+    db: AsyncSession = Depends(get_db),
+) -> PayrollRecordResponse:
+    """給与レコードのステータスを遷移させる。"""
+    valid_actions = {"approved", "rejected", "paid"}
+    if action not in valid_actions:
+        raise HTTPException(status_code=400, detail=f"無効なアクション: {action}")
+
+    result = await db.execute(
+        select(PayrollRecord, Employee.employee_name)
+        .join(Employee, PayrollRecord.employee_id == Employee.employee_id)
+        .where(PayrollRecord.payroll_id == payroll_id)
+    )
+    row = result.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="給与レコードが見つかりません")
+
+    rec, emp_name = row
+    current_status = rec.status
+    allowed = VALID_PAYROLL_TRANSITIONS.get(current_status, set())
+    if action not in allowed:
+        raise HTTPException(
+            status_code=409,
+            detail=f"ステータス「{current_status}」から「{action}」への遷移は許可されていません",
+        )
+
+    if action == "paid":
+        rec.status = "paid"
+    elif action == "approved":
+        rec.status = "approved"
+    elif action == "rejected":
+        rec.status = "rejected"
+
+    await db.commit()
+    await db.refresh(rec)
+    return _to_payroll_response(rec, emp_name)
+
+
+@router.post("/records/batch-transition", response_model=list[PayrollRecordResponse])
+async def batch_transition_payroll(
+    company_id: UUID = Query(...),
+    payroll_year: int = Query(...),
+    payroll_month: int = Query(...),
+    action: str = Query(..., description="approved, rejected, or paid"),
+    current_user: CurrentUser = Depends(require_permission(Permission.PAYROLL_APPROVE)),
+    db: AsyncSession = Depends(get_db),
+) -> list[PayrollRecordResponse]:
+    """指定月の全給与レコードのステータスを一括遷移させる。"""
+    valid_actions = {"approved", "rejected", "paid"}
+    if action not in valid_actions:
+        raise HTTPException(status_code=400, detail=f"無効なアクション: {action}")
+
+    result = await db.execute(
+        select(PayrollRecord, Employee.employee_name)
+        .join(Employee, PayrollRecord.employee_id == Employee.employee_id)
+        .where(
+            PayrollRecord.company_id == company_id,
+            PayrollRecord.payroll_year == payroll_year,
+            PayrollRecord.payroll_month == payroll_month,
+        )
+        .order_by(Employee.employee_code)
+    )
+    rows = result.all()
+    if not rows:
+        raise HTTPException(status_code=404, detail="該当月の給与レコードがありません")
+
+    allowed = VALID_PAYROLL_TRANSITIONS.get(rows[0][0].status, set())
+    if action not in allowed:
+        raise HTTPException(
+            status_code=409,
+            detail=f"現在のステータス「{rows[0][0].status}」から「{action}」への遷移は許可されていません",
+        )
+
+    updated: list[PayrollRecordResponse] = []
+    for rec, emp_name in rows:
+        rec.status = action
+        updated.append(_to_payroll_response(rec, emp_name))
+
+    await db.commit()
+    return updated

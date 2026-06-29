@@ -38,6 +38,9 @@ class Permission(str, Enum):
     KNOWLEDGE_SEARCH = "knowledge:search"
     # User
     USER_MANAGE = "user:manage"
+    # Payroll
+    PAYROLL_APPROVE = "payroll:approve"
+    PAYROLL_POST = "payroll:post"
 
 
 ROLE_PERMISSIONS: dict[Role, set[Permission]] = {
@@ -63,6 +66,8 @@ ROLE_PERMISSIONS: dict[Role, set[Permission]] = {
         Permission.REPORT_READ,
         Permission.AI_REVIEW,
         Permission.KNOWLEDGE_SEARCH,
+        Permission.PAYROLL_APPROVE,
+        Permission.PAYROLL_POST,
     },
     Role.VIEWER: {
         Permission.JOURNAL_READ,
