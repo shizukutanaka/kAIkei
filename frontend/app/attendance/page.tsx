@@ -83,6 +83,7 @@ export default function AttendancePage() {
   const [selectedEmployee, setSelectedEmployee] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [clockLoading, setClockLoading] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
   const [formData, setFormData] = useState({
     employee_id: "",
     work_date: new Date().toISOString().split("T")[0],
@@ -204,6 +205,7 @@ export default function AttendancePage() {
       toast("従業員と日付は必須です", "warning");
       return;
     }
+    setFormLoading(true);
     try {
       await apiPost("/attendance/manual", {
         company_id: companyId,
@@ -220,6 +222,8 @@ export default function AttendancePage() {
       fetchRecords();
     } catch (err) {
       toast(err instanceof Error ? err.message : "登録に失敗しました", "error");
+    } finally {
+      setFormLoading(false);
     }
   };
 
@@ -375,8 +379,9 @@ export default function AttendancePage() {
             </div>
           </div>
           <div className="mt-4 flex gap-2">
-            <button onClick={handleManualCreate} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
-              登録
+            <button onClick={handleManualCreate} disabled={formLoading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+              {formLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {formLoading ? "登録中..." : "登録"}
             </button>
             <button onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
               キャンセル
@@ -395,8 +400,16 @@ export default function AttendancePage() {
                 placeholder="従業員名で検索..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-48 rounded-md border py-1.5 pl-8 pr-3 text-sm"
+                className="w-48 rounded-md border py-1.5 pl-8 pr-7 text-sm"
               />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
+                >
+                  <X className="h-3 w-3 text-muted-foreground" />
+                </button>
+              )}
             </div>
             <span className="text-xs text-muted-foreground">{filteredRecords.length}/{records.length}件</span>
           </div>

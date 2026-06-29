@@ -8,7 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
-import { Users, Plus, Calculator, Trash2, FileText, Download, CheckCircle, XCircle, Banknote, Search, Loader2 } from "lucide-react";
+import { Users, Plus, Calculator, Trash2, FileText, Download, CheckCircle, XCircle, Banknote, Search, Loader2, X, RefreshCw } from "lucide-react";
 
 interface Employee {
   employee_id: string;
@@ -322,8 +322,16 @@ export default function PayrollPage() {
                     placeholder="検索..."
                     value={empSearch}
                     onChange={(e) => setEmpSearch(e.target.value)}
-                    className="w-40 rounded-md border py-1.5 pl-8 pr-3 text-sm"
+                    className="w-40 rounded-md border py-1.5 pl-8 pr-7 text-sm"
                   />
+                  {empSearch && (
+                    <button
+                      onClick={() => setEmpSearch("")}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
+                    >
+                      <X className="h-3 w-3 text-muted-foreground" />
+                    </button>
+                  )}
                 </div>
                 {departments.length > 0 && (
                   <select
@@ -346,6 +354,14 @@ export default function PayrollPage() {
                   <option value="active">在籍中</option>
                   <option value="inactive">退職</option>
                 </select>
+                <button
+                  onClick={() => { tab === "employees" ? fetchEmployees() : fetchPayrollRecords(); }}
+                  disabled={loading || !companyId}
+                  className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                  更新
+                </button>
               </div>
             </div>
             {canCreate && (
@@ -401,7 +417,8 @@ export default function PayrollPage() {
                 </div>
               </div>
               <div className="mt-4 flex gap-2">
-                <button onClick={handleCreateEmployee} disabled={loading} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+                <button onClick={handleCreateEmployee} disabled={loading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   {loading ? "登録中..." : "登録"}
                 </button>
                 <button onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">

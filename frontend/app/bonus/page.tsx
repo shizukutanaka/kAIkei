@@ -8,7 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
-import { Gift, Calculator, CheckCircle, XCircle, Banknote, FileText, Download, Search, Loader2 } from "lucide-react";
+import { Gift, Calculator, CheckCircle, XCircle, Banknote, FileText, Download, Search, Loader2, X } from "lucide-react";
 
 interface BonusRecord {
   bonus_id: string;
@@ -277,8 +277,16 @@ export default function BonusPage() {
                 placeholder="従業員名で検索..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-48 rounded-md border py-1.5 pl-8 pr-3 text-sm"
+                className="w-48 rounded-md border py-1.5 pl-8 pr-7 text-sm"
               />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
+                >
+                  <X className="h-3 w-3 text-muted-foreground" />
+                </button>
+              )}
             </div>
             <span className="text-xs text-muted-foreground">{filteredRecords.length}/{bonusRecords.length}件</span>
           </div>
