@@ -331,7 +331,7 @@ export default function DashboardPage() {
 
   return (
     <PageLayout>
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold">ダッシュボード</h1>
             {lastUpdated && (

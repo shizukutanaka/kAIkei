@@ -165,7 +165,7 @@ export default function PartnersPage() {
 
   return (
     <PageLayout>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Handshake className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold">取引先マスタ</h1>

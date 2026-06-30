@@ -130,13 +130,13 @@ export default function MastersPage() {
 
   return (
     <PageLayout>
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <BookOpen className="h-6 w-6 text-primary" />
             <h1 className="text-2xl font-bold">マスタ管理</h1>
           </div>
           {canCreate && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={handleInitStandard}
                 disabled={initLoading || !companyId}
@@ -234,8 +234,8 @@ export default function MastersPage() {
           </div>
         )}
 
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
