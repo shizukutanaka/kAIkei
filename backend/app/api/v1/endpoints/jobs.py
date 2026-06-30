@@ -104,6 +104,54 @@ async def run_scheduled_job(
     return JobExecutionResponse.model_validate(execution)
 
 
+@router.post("/dispatch", response_model=list[JobExecutionResponse], status_code=status.HTTP_201_CREATED)
+async def dispatch_due_jobs(
+    company_id: UUID = Query(...),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> list[JobExecutionResponse]:
+    now = datetime.now(UTC)
+    jobs_result = await db.execute(
+        select(ScheduledJob).where(
+            ScheduledJob.company_id == company_id,
+            ScheduledJob.is_active == True,  # noqa: E712
+        )
+    )
+    due_jobs = JobSchedulerService.select_due_jobs(list(jobs_result.scalars().all()), now=now)
+
+    created: list[JobExecution] = []
+    for job in due_jobs:
+        running_result = await db.execute(
+            select(func.count()).select_from(JobExecution).where(
+                JobExecution.scheduled_job_id == job.scheduled_job_id,
+                JobExecution.status == "running",
+            )
+        )
+        if not JobSchedulerService.can_claim(running_result.scalar() or 0):
+            continue
+        execution = JobExecution(
+            scheduled_job_id=job.scheduled_job_id,
+            company_id=job.company_id,
+            job_type=job.job_type,
+            status="pending",
+            priority=job.priority,
+            scheduled_for=now,
+        )
+        db.add(execution)
+        created.append(execution)
+        job.last_run_at = now
+        job.next_run_at = JobSchedulerService.compute_next_run(
+            frequency=job.frequency,
+            run_hour=job.run_hour,
+            run_day=job.run_day,
+            after=now,
+        )
+    await db.commit()
+    for execution in created:
+        await db.refresh(execution)
+    return [JobExecutionResponse.model_validate(execution) for execution in created]
+
+
 @router.get("/executions", response_model=list[JobExecutionResponse])
 async def list_job_executions(
     company_id: UUID = Query(...),  # noqa: B008

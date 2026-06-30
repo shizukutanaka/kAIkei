@@ -107,3 +107,14 @@ class JobSchedulerService:
     @staticmethod
     def can_claim(job_type_running_count: int) -> bool:
         return job_type_running_count == 0
+
+    @staticmethod
+    def select_due_jobs(jobs: list[Any], *, now: datetime) -> list[Any]:
+        """実行時刻を過ぎたアクティブなスケジュールジョブを優先度順に返す。"""
+        due = [
+            job
+            for job in jobs
+            if getattr(job, "is_active", True)
+            and JobSchedulerService.is_due(next_run_at=getattr(job, "next_run_at", None), now=now)
+        ]
+        return sorted(due, key=lambda job: getattr(job, "priority", 100))

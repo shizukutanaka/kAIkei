@@ -86,3 +86,15 @@ class TestJobSchedulerService:
     def test_can_claim_predicate(self):
         assert JobSchedulerService.can_claim(0) is True
         assert JobSchedulerService.can_claim(1) is False
+
+    def test_select_due_jobs_filters_inactive_and_future(self):
+        now = datetime(2026, 6, 30, 10, 0, tzinfo=UTC)
+        jobs = [
+            SimpleNamespace(name="due_low", priority=50, is_active=True, next_run_at=datetime(2026, 6, 30, 9, 0, tzinfo=UTC)),
+            SimpleNamespace(name="due_high", priority=10, is_active=True, next_run_at=datetime(2026, 6, 30, 8, 0, tzinfo=UTC)),
+            SimpleNamespace(name="future", priority=1, is_active=True, next_run_at=datetime(2026, 6, 30, 23, 0, tzinfo=UTC)),
+            SimpleNamespace(name="inactive", priority=1, is_active=False, next_run_at=datetime(2026, 6, 30, 1, 0, tzinfo=UTC)),
+            SimpleNamespace(name="unscheduled", priority=1, is_active=True, next_run_at=None),
+        ]
+        due = JobSchedulerService.select_due_jobs(jobs, now=now)
+        assert [job.name for job in due] == ["due_high", "due_low"]
