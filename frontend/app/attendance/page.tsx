@@ -421,6 +421,7 @@ export default function AttendancePage() {
           ) : filteredRecords.length > 0 ? (
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
+                <caption className="sr-only">勤怠記録</caption>
                 <thead className="bg-muted/50">
                   <tr>
                     <th scope="col" className="px-4 py-3 text-left font-medium">日付</th>
@@ -473,6 +474,7 @@ export default function AttendancePage() {
             <p className="mb-2 text-xs text-muted-foreground">{summary.length}人</p>
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
+                <caption className="sr-only">勤怠集計</caption>
                 <thead className="bg-muted/50">
                   <tr>
                     <th scope="col" className="px-4 py-3 text-left font-medium">従業員コード</th>

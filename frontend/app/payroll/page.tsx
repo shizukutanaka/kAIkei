@@ -439,6 +439,7 @@ export default function PayrollPage() {
           ) : filteredEmployees.length > 0 ? (
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
+                <caption className="sr-only">従業員一覧</caption>
                 <thead className="bg-muted/50">
                   <tr>
                     <th scope="col" className="px-4 py-3 text-left font-medium">従業員コード</th>
@@ -548,6 +549,7 @@ export default function PayrollPage() {
             <>
               <div className="overflow-x-auto rounded-lg border">
                 <table className="w-full text-sm">
+                  <caption className="sr-only">給与計算結果</caption>
                   <thead className="bg-muted/50">
                     <tr>
                       <th scope="col" className="px-4 py-3 text-left font-medium">従業員</th>

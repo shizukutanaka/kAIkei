@@ -479,6 +479,7 @@ export default function ExpensesPage() {
       ) : filteredReports.length > 0 ? (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
+            <caption className="sr-only">経費精算一覧</caption>
             <thead className="bg-muted/50">
               <tr>
                 <th scope="col" className="px-4 py-3 text-left font-medium">精算日</th>

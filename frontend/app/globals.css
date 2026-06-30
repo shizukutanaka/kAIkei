@@ -49,6 +49,10 @@
   border-color: hsl(var(--border));
 }
 
+html {
+  scroll-padding-top: 4rem;
+}
+
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));

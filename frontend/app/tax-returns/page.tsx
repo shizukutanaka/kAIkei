@@ -341,6 +341,7 @@ export default function TaxReturnsPage() {
       ) : filteredRecords.length > 0 ? (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
+            <caption className="sr-only">消費税申告一覧</caption>
             <thead className="bg-muted/50">
               <tr>
                 <th scope="col" className="px-4 py-3 text-left font-medium">年度</th>

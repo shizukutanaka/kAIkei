@@ -301,7 +301,8 @@ export default function MastersPage() {
         ) : (
           <div className="overflow-x-auto rounded-lg border">
             <table className="w-full text-sm">
-              <thead className="bg-muted/50">
+            <caption className="sr-only">勘定科目一覧</caption>
+            <thead className="bg-muted/50">
                 <tr>
                   <th scope="col" className="px-4 py-3 text-left font-medium">科目コード</th>
                   <th scope="col" className="px-4 py-3 text-left font-medium">科目名</th>
