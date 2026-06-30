@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.models.models import Account, JournalHeader, JournalLine, MonthlyBalance, PeriodClose
+from app.services.financial_kpi import FinancialKpiService
 
 router = APIRouter()
 
@@ -337,6 +338,57 @@ async def get_balance_sheet(
         "equity": equity,
         "total_equity": str(total_equity),
         "is_balanced": total_assets == (total_liabilities + total_equity),
+    }
+
+
+def _sum_by_type(rows: list[tuple]) -> dict[str, Decimal]:
+    """account_type ごとに正味残高を集計（正規残高方向で正となる符号）。"""
+    totals = {"revenue": Decimal("0"), "expense": Decimal("0"), "asset": Decimal("0"),
+              "liability": Decimal("0"), "equity": Decimal("0")}
+    for row in rows:
+        debit_sum = Decimal(row.debit_sum) if row.debit_sum else Decimal("0")
+        credit_sum = Decimal(row.credit_sum) if row.credit_sum else Decimal("0")
+        if row.account_type in ("asset", "expense"):
+            totals[row.account_type] += debit_sum - credit_sum
+        elif row.account_type in ("revenue", "liability", "equity"):
+            totals[row.account_type] += credit_sum - debit_sum
+    return totals
+
+
+def _kpi_str(value: Decimal | None) -> str | None:
+    return None if value is None else str(value)
+
+
+@router.get("/kpi")
+async def get_financial_kpi(
+    company_id: UUID,
+    as_of: date = Query(..., description="基準日"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> dict:
+    """経営ダッシュボード向け財務KPIを取得する。
+
+    勘定科目区分（収益/費用/資産/負債/純資産）の集計値のみから導出できる比率に限定する。
+    分母が0の指標は null（未定義）として返す。
+    """
+    rows = await _get_account_balances(db, company_id, as_of, PL_ACCOUNT_TYPES | BS_ACCOUNT_TYPES)
+    totals = _sum_by_type(rows)
+    kpis = FinancialKpiService.compute(
+        revenue=totals["revenue"],
+        expense=totals["expense"],
+        assets=totals["asset"],
+        liabilities=totals["liability"],
+        equity=totals["equity"],
+    )
+    return {
+        "as_of": as_of.isoformat(),
+        "totals": {key: str(value) for key, value in totals.items()},
+        "net_income": str(kpis.net_income),
+        "net_profit_margin": _kpi_str(kpis.net_profit_margin),
+        "expense_ratio": _kpi_str(kpis.expense_ratio),
+        "equity_ratio": _kpi_str(kpis.equity_ratio),
+        "debt_ratio": _kpi_str(kpis.debt_ratio),
+        "return_on_assets": _kpi_str(kpis.return_on_assets),
     }
 
 
