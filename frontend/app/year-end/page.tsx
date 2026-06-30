@@ -250,6 +250,7 @@ export default function YearEndPage() {
               <input
                 type="text"
                 placeholder="従業員名で検索..."
+                enterKeyHint="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-48 rounded-md border py-1.5 pl-8 pr-7 text-sm"
@@ -278,16 +279,16 @@ export default function YearEndPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium">従業員</th>
-                  <th className="px-4 py-3 text-right font-medium">年間給与</th>
-                  <th className="px-4 py-3 text-right font-medium">年間賞与</th>
-                  <th className="px-4 py-3 text-right font-medium">課税対象額</th>
-                  <th className="px-4 py-3 text-right font-medium">源泉徴収額</th>
-                  <th className="px-4 py-3 text-right font-medium">推定年税</th>
-                  <th className="px-4 py-3 text-right font-medium">調整額</th>
-                  <th className="px-4 py-3 text-center font-medium">扶養</th>
-                  <th className="px-4 py-3 text-center font-medium">ステータス</th>
-                  <th className="px-4 py-3 text-center font-medium">CSV</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">従業員</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">年間給与</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">年間賞与</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">課税対象額</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">源泉徴収額</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">推定年税</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">調整額</th>
+                  <th scope="col" className="px-4 py-3 text-center font-medium">扶養</th>
+                  <th scope="col" className="px-4 py-3 text-center font-medium">ステータス</th>
+                  <th scope="col" className="px-4 py-3 text-center font-medium">CSV</th>
                 </tr>
               </thead>
               <tbody>

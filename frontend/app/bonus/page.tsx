@@ -279,6 +279,7 @@ export default function BonusPage() {
               <input
                 type="text"
                 placeholder="従業員名で検索..."
+                enterKeyHint="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-48 rounded-md border py-1.5 pl-8 pr-7 text-sm"
@@ -299,15 +300,15 @@ export default function BonusPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium">従業員</th>
-                  <th className="px-4 py-3 text-right font-medium">基準月数</th>
-                  <th className="px-4 py-3 text-right font-medium">業績係数</th>
-                  <th className="px-4 py-3 text-right font-medium">賞与額</th>
-                  <th className="px-4 py-3 text-right font-medium">源泉所得税</th>
-                  <th className="px-4 py-3 text-right font-medium">社会保険料</th>
-                  <th className="px-4 py-3 text-right font-medium">差引支給額</th>
-                  <th className="px-4 py-3 text-center font-medium">ステータス</th>
-                  <th className="px-4 py-3 text-center font-medium">CSV</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">従業員</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">基準月数</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">業績係数</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">賞与額</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">源泉所得税</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">社会保険料</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">差引支給額</th>
+                  <th scope="col" className="px-4 py-3 text-center font-medium">ステータス</th>
+                  <th scope="col" className="px-4 py-3 text-center font-medium">CSV</th>
                 </tr>
               </thead>
               <tbody>

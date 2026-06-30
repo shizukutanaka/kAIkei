@@ -269,6 +269,7 @@ export default function ExpensesPage() {
             <input
               type="text"
               placeholder="タイトル・従業員名で検索..."
+              enterKeyHint="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-48 rounded-md border py-1.5 pl-8 pr-7 text-sm"
@@ -426,10 +427,10 @@ export default function ExpensesPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium">日付</th>
-                  <th className="px-4 py-3 text-left font-medium">カテゴリ</th>
-                  <th className="px-4 py-3 text-left font-medium">摘要</th>
-                  <th className="px-4 py-3 text-right font-medium">金額</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">日付</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">カテゴリ</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">摘要</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">金額</th>
                 </tr>
               </thead>
               <tbody>
@@ -480,12 +481,12 @@ export default function ExpensesPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">精算日</th>
-                <th className="px-4 py-3 text-left font-medium">タイトル</th>
-                <th className="px-4 py-3 text-left font-medium">従業員</th>
-                <th className="px-4 py-3 text-right font-medium">合計金額</th>
-                <th className="px-4 py-3 text-center font-medium">ステータス</th>
-                <th className="px-4 py-3 text-center font-medium">操作</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">精算日</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">タイトル</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">従業員</th>
+                <th scope="col" className="px-4 py-3 text-right font-medium">合計金額</th>
+                <th scope="col" className="px-4 py-3 text-center font-medium">ステータス</th>
+                <th scope="col" className="px-4 py-3 text-center font-medium">操作</th>
               </tr>
             </thead>
             <tbody>

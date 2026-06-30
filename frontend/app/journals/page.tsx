@@ -176,6 +176,7 @@ export default function JournalsListPage() {
               <input
                 type="text"
                 placeholder="仕訳番号・摘要で検索..."
+                enterKeyHint="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-48 rounded-md border py-1.5 pl-8 pr-7 text-sm"
@@ -261,11 +262,11 @@ export default function JournalsListPage() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/50">
                   <tr>
-                    <th className="px-4 py-3 text-left font-medium">仕訳番号</th>
-                    <th className="px-4 py-3 text-left font-medium">取引日</th>
-                    <th className="px-4 py-3 text-left font-medium">摘要</th>
-                    <th className="px-4 py-3 text-left font-medium">ステータス</th>
-                    <th className="px-4 py-3 text-left font-medium">無効化</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">仕訳番号</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">取引日</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">摘要</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">ステータス</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">無効化</th>
                   </tr>
                 </thead>
                 <tbody>

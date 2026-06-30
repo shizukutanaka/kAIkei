@@ -210,8 +210,9 @@ export default function PartnersPage() {
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium">取引先コード</label>
+              <label htmlFor="partner_code" className="mb-1 block text-sm font-medium">取引先コード</label>
               <input
+                id="partner_code"
                 type="text"
                 value={formData.partner_code}
                 onChange={(e) => setFormData({ ...formData, partner_code: e.target.value })}
@@ -222,8 +223,9 @@ export default function PartnersPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">取引先名</label>
+              <label htmlFor="partner_name" className="mb-1 block text-sm font-medium">取引先名</label>
               <input
+                id="partner_name"
                 type="text"
                 value={formData.partner_name}
                 onChange={(e) => setFormData({ ...formData, partner_name: e.target.value })}
@@ -233,8 +235,9 @@ export default function PartnersPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">取引先区分</label>
+              <label htmlFor="partner_type" className="mb-1 block text-sm font-medium">取引先区分</label>
               <select
+                id="partner_type"
                 value={formData.partner_type}
                 onChange={(e) => setFormData({ ...formData, partner_type: e.target.value })}
                 className="w-full rounded-md border px-3 py-2 text-sm"
@@ -245,8 +248,9 @@ export default function PartnersPage() {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">担当者</label>
+              <label htmlFor="contact_person" className="mb-1 block text-sm font-medium">担当者</label>
               <input
+                id="contact_person"
                 type="text"
                 value={formData.contact_person}
                 onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
@@ -255,9 +259,11 @@ export default function PartnersPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">郵便番号</label>
+              <label htmlFor="postal_code" className="mb-1 block text-sm font-medium">郵便番号</label>
               <input
+                id="postal_code"
                 type="text"
+                inputMode="numeric"
                 value={formData.postal_code}
                 onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
                 autoComplete="postal-code"
@@ -265,8 +271,9 @@ export default function PartnersPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">電話番号</label>
+              <label htmlFor="phone" className="mb-1 block text-sm font-medium">電話番号</label>
               <input
+                id="phone"
                 type="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
@@ -275,8 +282,9 @@ export default function PartnersPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">メールアドレス</label>
+              <label htmlFor="email" className="mb-1 block text-sm font-medium">メールアドレス</label>
               <input
+                id="email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -285,8 +293,9 @@ export default function PartnersPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">支払条件</label>
+              <label htmlFor="payment_terms" className="mb-1 block text-sm font-medium">支払条件</label>
               <input
+                id="payment_terms"
                 type="text"
                 value={formData.payment_terms}
                 onChange={(e) => setFormData({ ...formData, payment_terms: e.target.value })}
@@ -295,8 +304,9 @@ export default function PartnersPage() {
               />
             </div>
             <div className="col-span-2">
-              <label className="mb-1 block text-sm font-medium">住所</label>
+              <label htmlFor="address" className="mb-1 block text-sm font-medium">住所</label>
               <input
+                id="address"
                 type="text"
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
@@ -328,6 +338,7 @@ export default function PartnersPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="コード・名称で検索"
+            enterKeyHint="search"
             className="w-full rounded-md border py-1.5 pl-8 pr-7 text-sm"
           />
           {search && (
@@ -368,13 +379,13 @@ export default function PartnersPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">コード</th>
-                <th className="px-4 py-3 text-left font-medium">名称</th>
-                <th className="px-4 py-3 text-left font-medium">区分</th>
-                <th className="px-4 py-3 text-left font-medium">担当者</th>
-                <th className="px-4 py-3 text-left font-medium">連絡先</th>
-                <th className="px-4 py-3 text-center font-medium">状態</th>
-                <th className="px-4 py-3 text-center font-medium">操作</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">コード</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">名称</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">区分</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">担当者</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">連絡先</th>
+                <th scope="col" className="px-4 py-3 text-center font-medium">状態</th>
+                <th scope="col" className="px-4 py-3 text-center font-medium">操作</th>
               </tr>
             </thead>
             <tbody>

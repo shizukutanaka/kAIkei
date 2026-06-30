@@ -398,6 +398,7 @@ export default function AttendancePage() {
               <input
                 type="text"
                 placeholder="従業員名で検索..."
+                enterKeyHint="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-48 rounded-md border py-1.5 pl-8 pr-7 text-sm"
@@ -422,13 +423,13 @@ export default function AttendancePage() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/50">
                   <tr>
-                    <th className="px-4 py-3 text-left font-medium">日付</th>
-                    <th className="px-4 py-3 text-left font-medium">従業員</th>
-                    <th className="px-4 py-3 text-center font-medium">出勤</th>
-                    <th className="px-4 py-3 text-center font-medium">退勤</th>
-                    <th className="px-4 py-3 text-right font-medium">勤務時間</th>
-                    <th className="px-4 py-3 text-right font-medium">残業時間</th>
-                    <th className="px-4 py-3 text-center font-medium">区分</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">日付</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">従業員</th>
+                    <th scope="col" className="px-4 py-3 text-center font-medium">出勤</th>
+                    <th scope="col" className="px-4 py-3 text-center font-medium">退勤</th>
+                    <th scope="col" className="px-4 py-3 text-right font-medium">勤務時間</th>
+                    <th scope="col" className="px-4 py-3 text-right font-medium">残業時間</th>
+                    <th scope="col" className="px-4 py-3 text-center font-medium">区分</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -474,13 +475,13 @@ export default function AttendancePage() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/50">
                   <tr>
-                    <th className="px-4 py-3 text-left font-medium">従業員コード</th>
-                    <th className="px-4 py-3 text-left font-medium">氏名</th>
-                    <th className="px-4 py-3 text-right font-medium">出勤日数</th>
-                    <th className="px-4 py-3 text-right font-medium">総勤務時間</th>
-                    <th className="px-4 py-3 text-right font-medium">総残業時間</th>
-                    <th className="px-4 py-3 text-right font-medium">有給日数</th>
-                    <th className="px-4 py-3 text-right font-medium">欠勤日数</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">従業員コード</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">氏名</th>
+                    <th scope="col" className="px-4 py-3 text-right font-medium">出勤日数</th>
+                    <th scope="col" className="px-4 py-3 text-right font-medium">総勤務時間</th>
+                    <th scope="col" className="px-4 py-3 text-right font-medium">総残業時間</th>
+                    <th scope="col" className="px-4 py-3 text-right font-medium">有給日数</th>
+                    <th scope="col" className="px-4 py-3 text-right font-medium">欠勤日数</th>
                   </tr>
                 </thead>
                 <tbody>

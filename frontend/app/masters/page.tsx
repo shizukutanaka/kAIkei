@@ -171,8 +171,9 @@ export default function MastersPage() {
             <h2 className="mb-4 text-lg font-semibold">新規勘定科目</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block text-sm font-medium">科目コード</label>
+                <label htmlFor="account_code" className="mb-1 block text-sm font-medium">科目コード</label>
                 <input
+                  id="account_code"
                   type="text"
                   value={newAccount.account_code}
                   onChange={(e) => setNewAccount({ ...newAccount, account_code: e.target.value })}
@@ -183,8 +184,9 @@ export default function MastersPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">科目名</label>
+                <label htmlFor="account_name" className="mb-1 block text-sm font-medium">科目名</label>
                 <input
+                  id="account_name"
                   type="text"
                   value={newAccount.account_name}
                   onChange={(e) => setNewAccount({ ...newAccount, account_name: e.target.value })}
@@ -195,8 +197,9 @@ export default function MastersPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">科目区分</label>
+                <label htmlFor="account_type" className="mb-1 block text-sm font-medium">科目区分</label>
                 <select
+                  id="account_type"
                   value={newAccount.account_type}
                   onChange={(e) => setNewAccount({ ...newAccount, account_type: e.target.value })}
                   className="w-full rounded-md border px-3 py-2 text-sm"
@@ -258,6 +261,7 @@ export default function MastersPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="科目コード・科目名で検索"
+                enterKeyHint="search"
                 className="w-full rounded-md border px-3 py-2 pl-8 pr-7 text-sm"
               />
               {search && (
@@ -299,12 +303,12 @@ export default function MastersPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium">科目コード</th>
-                  <th className="px-4 py-3 text-left font-medium">科目名</th>
-                  <th className="px-4 py-3 text-left font-medium">区分</th>
-                  <th className="px-4 py-3 text-left font-medium">借方/貸方</th>
-                  <th className="px-4 py-3 text-left font-medium">状態</th>
-                  {canCreate && <th className="px-4 py-3 text-center font-medium">操作</th>}
+                  <th scope="col" className="px-4 py-3 text-left font-medium">科目コード</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">科目名</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">区分</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">借方/貸方</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">状態</th>
+                  {canCreate && <th scope="col" className="px-4 py-3 text-center font-medium">操作</th>}
                 </tr>
               </thead>
               <tbody>

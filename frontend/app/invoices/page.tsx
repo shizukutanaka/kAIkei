@@ -286,6 +286,7 @@ export default function InvoicesPage() {
             <input
               type="text"
               placeholder="請求書番号・取引先名で検索..."
+              enterKeyHint="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-56 rounded-md border py-1.5 pl-8 pr-7 text-sm"
@@ -453,11 +454,11 @@ export default function InvoicesPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="px-4 py-3 text-center font-medium">No</th>
-                  <th className="px-4 py-3 text-left font-medium">内容</th>
-                  <th className="px-4 py-3 text-right font-medium">数量</th>
-                  <th className="px-4 py-3 text-right font-medium">単価</th>
-                  <th className="px-4 py-3 text-right font-medium">金額</th>
+                  <th scope="col" className="px-4 py-3 text-center font-medium">No</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">内容</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">数量</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">単価</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">金額</th>
                 </tr>
               </thead>
               <tbody>
@@ -517,13 +518,13 @@ export default function InvoicesPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">請求書番号</th>
-                <th className="px-4 py-3 text-left font-medium">請求日</th>
-                <th className="px-4 py-3 text-left font-medium">支払期限</th>
-                <th className="px-4 py-3 text-left font-medium">取引先</th>
-                <th className="px-4 py-3 text-right font-medium">合計金額</th>
-                <th className="px-4 py-3 text-center font-medium">ステータス</th>
-                <th className="px-4 py-3 text-center font-medium">操作</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">請求書番号</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">請求日</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">支払期限</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">取引先</th>
+                <th scope="col" className="px-4 py-3 text-right font-medium">合計金額</th>
+                <th scope="col" className="px-4 py-3 text-center font-medium">ステータス</th>
+                <th scope="col" className="px-4 py-3 text-center font-medium">操作</th>
               </tr>
             </thead>
             <tbody>

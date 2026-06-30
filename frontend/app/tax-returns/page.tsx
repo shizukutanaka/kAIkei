@@ -310,6 +310,7 @@ export default function TaxReturnsPage() {
           <input
             type="text"
             placeholder="年度・申告区分で検索..."
+            enterKeyHint="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-48 rounded-md border py-1.5 pl-8 pr-7 text-sm"
@@ -342,13 +343,13 @@ export default function TaxReturnsPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">年度</th>
-                <th className="px-4 py-3 text-left font-medium">申告区分</th>
-                <th className="px-4 py-3 text-right font-medium">売上合計</th>
-                <th className="px-4 py-3 text-right font-medium">仕入合計</th>
-                <th className="px-4 py-3 text-right font-medium">納付税額</th>
-                <th className="px-4 py-3 text-center font-medium">ステータス</th>
-                <th className="px-4 py-3 text-center font-medium">操作</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">年度</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">申告区分</th>
+                <th scope="col" className="px-4 py-3 text-right font-medium">売上合計</th>
+                <th scope="col" className="px-4 py-3 text-right font-medium">仕入合計</th>
+                <th scope="col" className="px-4 py-3 text-right font-medium">納付税額</th>
+                <th scope="col" className="px-4 py-3 text-center font-medium">ステータス</th>
+                <th scope="col" className="px-4 py-3 text-center font-medium">操作</th>
               </tr>
             </thead>
             <tbody>

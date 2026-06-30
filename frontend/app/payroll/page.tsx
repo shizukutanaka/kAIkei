@@ -324,6 +324,7 @@ export default function PayrollPage() {
                   <input
                     type="text"
                     placeholder="検索..."
+                    enterKeyHint="search"
                     value={empSearch}
                     onChange={(e) => setEmpSearch(e.target.value)}
                     className="w-40 rounded-md border py-1.5 pl-8 pr-7 text-sm"
@@ -385,40 +386,40 @@ export default function PayrollPage() {
               <h2 className="mb-4 text-lg font-semibold">新規従業員登録</h2>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-sm font-medium">従業員コード</label>
-                  <input type="text" value={formData.employee_code} onChange={(e) => setFormData({ ...formData, employee_code: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
+                  <label htmlFor="employee_code" className="mb-1 block text-sm font-medium">従業員コード</label>
+                  <input id="employee_code" type="text" value={formData.employee_code} onChange={(e) => setFormData({ ...formData, employee_code: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">氏名</label>
-                  <input type="text" value={formData.employee_name} onChange={(e) => setFormData({ ...formData, employee_name: e.target.value })} required aria-required="true" autoComplete="name" className="w-full rounded-md border px-3 py-2 text-sm" />
+                  <label htmlFor="employee_name" className="mb-1 block text-sm font-medium">氏名</label>
+                  <input id="employee_name" type="text" value={formData.employee_name} onChange={(e) => setFormData({ ...formData, employee_name: e.target.value })} required aria-required="true" autoComplete="name" className="w-full rounded-md border px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">部署</label>
-                  <input type="text" value={formData.department} onChange={(e) => setFormData({ ...formData, department: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+                  <label htmlFor="department" className="mb-1 block text-sm font-medium">部署</label>
+                  <input id="department" type="text" value={formData.department} onChange={(e) => setFormData({ ...formData, department: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">役職</label>
-                  <input type="text" value={formData.position} onChange={(e) => setFormData({ ...formData, position: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+                  <label htmlFor="position" className="mb-1 block text-sm font-medium">役職</label>
+                  <input id="position" type="text" value={formData.position} onChange={(e) => setFormData({ ...formData, position: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">雇用形態</label>
-                  <select value={formData.employment_type} onChange={(e) => setFormData({ ...formData, employment_type: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm">
+                  <label htmlFor="employment_type" className="mb-1 block text-sm font-medium">雇用形態</label>
+                  <select id="employment_type" value={formData.employment_type} onChange={(e) => setFormData({ ...formData, employment_type: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm">
                     {Object.entries(EMPLOYMENT_TYPE_LABELS).map(([k, v]) => (
                       <option key={k} value={k}>{v}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">入社日</label>
-                  <input type="date" value={formData.hire_date} onChange={(e) => setFormData({ ...formData, hire_date: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+                  <label htmlFor="hire_date" className="mb-1 block text-sm font-medium">入社日</label>
+                  <input id="hire_date" type="date" value={formData.hire_date} onChange={(e) => setFormData({ ...formData, hire_date: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">基本給（月額）</label>
-                  <input type="number" value={formData.base_salary} onChange={(e) => setFormData({ ...formData, base_salary: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+                  <label htmlFor="base_salary" className="mb-1 block text-sm font-medium">基本給（月額）</label>
+                  <input id="base_salary" type="number" inputMode="decimal" value={formData.base_salary} onChange={(e) => setFormData({ ...formData, base_salary: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">時給</label>
-                  <input type="number" value={formData.hourly_rate} onChange={(e) => setFormData({ ...formData, hourly_rate: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+                  <label htmlFor="hourly_rate" className="mb-1 block text-sm font-medium">時給</label>
+                  <input id="hourly_rate" type="number" inputMode="decimal" value={formData.hourly_rate} onChange={(e) => setFormData({ ...formData, hourly_rate: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
                 </div>
               </div>
               <div className="mt-4 flex gap-2">
@@ -440,13 +441,13 @@ export default function PayrollPage() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/50">
                   <tr>
-                    <th className="px-4 py-3 text-left font-medium">従業員コード</th>
-                    <th className="px-4 py-3 text-left font-medium">氏名</th>
-                    <th className="px-4 py-3 text-left font-medium">部署</th>
-                    <th className="px-4 py-3 text-left font-medium">雇用形態</th>
-                    <th className="px-4 py-3 text-center font-medium">状態</th>
-                    <th className="px-4 py-3 text-right font-medium">基本給</th>
-                    <th className="px-4 py-3 text-center font-medium">操作</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">従業員コード</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">氏名</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">部署</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">雇用形態</th>
+                    <th scope="col" className="px-4 py-3 text-center font-medium">状態</th>
+                    <th scope="col" className="px-4 py-3 text-right font-medium">基本給</th>
+                    <th scope="col" className="px-4 py-3 text-center font-medium">操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -549,15 +550,15 @@ export default function PayrollPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50">
                     <tr>
-                      <th className="px-4 py-3 text-left font-medium">従業員</th>
-                      <th className="px-4 py-3 text-right font-medium">基本給</th>
-                      <th className="px-4 py-3 text-right font-medium">残業代</th>
-                      <th className="px-4 py-3 text-right font-medium">総支給額</th>
-                      <th className="px-4 py-3 text-right font-medium">源泉所得税</th>
-                      <th className="px-4 py-3 text-right font-medium">社会保険料</th>
-                      <th className="px-4 py-3 text-right font-medium">差引合計</th>
-                      <th className="px-4 py-3 text-center font-medium">ステータス</th>
-                      <th className="px-4 py-3 text-center font-medium">明細</th>
+                      <th scope="col" className="px-4 py-3 text-left font-medium">従業員</th>
+                      <th scope="col" className="px-4 py-3 text-right font-medium">基本給</th>
+                      <th scope="col" className="px-4 py-3 text-right font-medium">残業代</th>
+                      <th scope="col" className="px-4 py-3 text-right font-medium">総支給額</th>
+                      <th scope="col" className="px-4 py-3 text-right font-medium">源泉所得税</th>
+                      <th scope="col" className="px-4 py-3 text-right font-medium">社会保険料</th>
+                      <th scope="col" className="px-4 py-3 text-right font-medium">差引合計</th>
+                      <th scope="col" className="px-4 py-3 text-center font-medium">ステータス</th>
+                      <th scope="col" className="px-4 py-3 text-center font-medium">明細</th>
                     </tr>
                   </thead>
                   <tbody>
