@@ -543,6 +543,48 @@ class AuditLogListResponse(BaseModel):
     page_size: int
 
 
+class AuditLedgerImbalanceEntry(BaseModel):
+    journal_header_id: UUID
+    debit_sum: Decimal
+    credit_sum: Decimal
+    difference: Decimal
+
+
+class AuditLedgerBalanceCheckResponse(BaseModel):
+    headers_checked: int
+    imbalanced_count: int
+    total_debit: Decimal
+    total_credit: Decimal
+    imbalanced_entries: list[AuditLedgerImbalanceEntry]
+
+
+class AuditLedgerCacheDriftEntry(BaseModel):
+    account_id: UUID
+    year: int
+    month: int
+    expected_debit: Decimal
+    expected_credit: Decimal
+    cached_debit: Decimal
+    cached_credit: Decimal
+
+
+class AuditLedgerCacheDriftResponse(BaseModel):
+    rows_checked: int
+    drift_count: int
+    drift_entries: list[AuditLedgerCacheDriftEntry]
+
+
+class LedgerCheckRequest(BaseModel):
+    company_id: UUID
+    target_date: date
+
+
+class LedgerCheckResponse(BaseModel):
+    status: str
+    balance_check: AuditLedgerBalanceCheckResponse
+    cache_drift_check: AuditLedgerCacheDriftResponse
+
+
 class YearEndListResponse(BaseModel):
     items: list[YearEndAdjustmentResponse]
     total: int
