@@ -113,12 +113,12 @@ export default function NotificationsPage() {
 
   return (
     <PageLayout>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Bell className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold">通知</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-muted-foreground">
             {notifications.filter((n) => !n.is_read).length}件の未読
           </span>
