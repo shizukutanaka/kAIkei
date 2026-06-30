@@ -327,6 +327,7 @@ export default function PayrollPage() {
                   {empSearch && (
                     <button
                       onClick={() => setEmpSearch("")}
+                      aria-label="クリア"
                       className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
                     >
                       <X className="h-3 w-3 text-muted-foreground" />

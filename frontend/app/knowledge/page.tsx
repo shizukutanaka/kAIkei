@@ -106,6 +106,7 @@ export default function KnowledgePage() {
               {keywords && (
                 <button
                   onClick={() => setKeywords("")}
+                  aria-label="クリア"
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
                 >
                   <X className="h-4 w-4 text-muted-foreground" />

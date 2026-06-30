@@ -41,6 +41,7 @@ export default function MastersPage() {
   const [typeFilter, setTypeFilter] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [initLoading, setInitLoading] = useState(false);
+  const [addLoading, setAddLoading] = useState(false);
   const [newAccount, setNewAccount] = useState({
     account_code: "",
     account_name: "",
@@ -75,6 +76,7 @@ export default function MastersPage() {
       return;
     }
 
+    setAddLoading(true);
     try {
       await apiPost("/masters", { company_id: companyId, ...newAccount });
       setShowAddForm(false);
@@ -84,6 +86,8 @@ export default function MastersPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "科目の追加に失敗しました");
       toast(err instanceof Error ? err.message : "科目の追加に失敗しました", "error");
+    } finally {
+      setAddLoading(false);
     }
   };
 
@@ -207,10 +211,11 @@ export default function MastersPage() {
             <div className="mt-4 flex gap-2">
               <button
                 onClick={handleAddAccount}
-                className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+                disabled={addLoading}
+                className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
               >
-                <Plus className="h-4 w-4" />
-                追加
+                {addLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                {addLoading ? "追加中..." : "追加"}
               </button>
               <button
                 onClick={() => setShowAddForm(false)}
@@ -248,6 +253,7 @@ export default function MastersPage() {
               {search && (
                 <button
                   onClick={() => setSearch("")}
+                  aria-label="クリア"
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
                 >
                   <X className="h-3 w-3 text-muted-foreground" />
