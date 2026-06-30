@@ -176,6 +176,40 @@ class MonthlyBalance(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
+class Budget(Base):
+    """予算ヘッダー（会計年度単位）。"""
+    __tablename__ = "budgets"
+
+    budget_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    fiscal_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    company = relationship("Company")
+    lines = relationship("BudgetLine", back_populates="budget", cascade="all, delete-orphan")
+
+
+class BudgetLine(Base):
+    """予算明細（勘定科目×月単位）。"""
+    __tablename__ = "budget_lines"
+
+    budget_line_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    budget_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("budgets.budget_id", ondelete="CASCADE"), nullable=False
+    )
+    account_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("accounts.account_id"), nullable=False)
+    month: Mapped[int] = mapped_column(Integer, nullable=False)
+    budgeted_amount: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    budget = relationship("Budget", back_populates="lines")
+    account = relationship("Account")
+
+
 class ApprovalWorkflow(Base):
     """承認ワークフロー定義。"""
     __tablename__ = "approval_workflows"

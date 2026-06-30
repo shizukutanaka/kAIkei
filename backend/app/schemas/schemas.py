@@ -632,3 +632,60 @@ class NotificationPreferenceUpdate(BaseModel):
     channel_email: bool | None = None
     channel_push: bool | None = None
     channel_webhook: bool | None = None
+
+
+class BudgetLineCreate(BaseModel):
+    account_id: UUID
+    month: int = Field(ge=1, le=12)
+    budgeted_amount: Decimal = Field(ge=0)
+
+
+class BudgetCreate(BaseModel):
+    company_id: UUID
+    fiscal_year: int = Field(ge=2000, le=2999)
+    name: str = Field(max_length=200)
+    lines: list[BudgetLineCreate] = Field(default_factory=list)
+
+
+class BudgetLineResponse(BaseModel):
+    budget_line_id: UUID
+    account_id: UUID
+    month: int
+    budgeted_amount: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class BudgetResponse(BaseModel):
+    budget_id: UUID
+    company_id: UUID
+    fiscal_year: int
+    name: str
+    status: str
+    lines: list[BudgetLineResponse] = Field(default_factory=list)
+
+    model_config = {"from_attributes": True}
+
+
+class BudgetVarianceLine(BaseModel):
+    account_id: UUID
+    account_code: str
+    account_name: str
+    budgeted_amount: Decimal
+    actual_amount: Decimal
+    variance_amount: Decimal
+    variance_rate: Decimal
+    execution_rate: Decimal
+    is_over_budget: bool
+
+
+class BudgetVarianceResponse(BaseModel):
+    budget_id: UUID
+    fiscal_year: int
+    budgeted_total: Decimal
+    actual_total: Decimal
+    variance_total: Decimal
+    execution_rate: Decimal
+    over_budget_count: int
+    line_count: int
+    lines: list[BudgetVarianceLine]
