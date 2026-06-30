@@ -252,14 +252,22 @@ export default function AttendancePage() {
         </div>
       )}
 
-      <div className="mb-6 flex gap-2 border-b">
+      <div className="mb-6 flex gap-2 border-b" role="tablist" aria-orientation="horizontal">
         <button
+          role="tab"
+          id="tab-records"
+          aria-selected={tab === "records"}
+          aria-controls="panel-records"
           onClick={() => setTab("records")}
           className={`px-4 py-2 text-sm font-medium border-b-2 ${tab === "records" ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}
         >
           勤怠記録
         </button>
         <button
+          role="tab"
+          id="tab-summary"
+          aria-selected={tab === "summary"}
+          aria-controls="panel-summary"
           onClick={() => setTab("summary")}
           className={`px-4 py-2 text-sm font-medium border-b-2 ${tab === "summary" ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}
         >
@@ -391,6 +399,7 @@ export default function AttendancePage() {
       )}
 
       {tab === "records" && (
+        <div role="tabpanel" id="panel-records" aria-labelledby="tab-records">
         <>
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <div className="relative">
@@ -463,9 +472,11 @@ export default function AttendancePage() {
             </div>
           )}
         </>
+        </div>
       )}
 
       {tab === "summary" && (
+        <div role="tabpanel" id="panel-summary" aria-labelledby="tab-summary">
         <>
           {loading ? (
             <SkeletonTable rows={5} columns={6} />
@@ -525,6 +536,7 @@ export default function AttendancePage() {
             </div>
           )}
         </>
+        </div>
       )}
     </PageLayout>
   );

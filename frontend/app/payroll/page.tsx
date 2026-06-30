@@ -292,14 +292,22 @@ export default function PayrollPage() {
         </div>
       )}
 
-      <div className="mb-6 flex gap-2 border-b">
+      <div className="mb-6 flex gap-2 border-b" role="tablist" aria-orientation="horizontal">
         <button
+          role="tab"
+          id="tab-employees"
+          aria-selected={tab === "employees"}
+          aria-controls="panel-employees"
           onClick={() => setTab("employees")}
           className={`px-4 py-2 text-sm font-medium border-b-2 ${tab === "employees" ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}
         >
           従業員マスタ
         </button>
         <button
+          role="tab"
+          id="tab-payroll"
+          aria-selected={tab === "payroll"}
+          aria-controls="panel-payroll"
           onClick={() => setTab("payroll")}
           className={`px-4 py-2 text-sm font-medium border-b-2 ${tab === "payroll" ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}
         >
@@ -314,6 +322,7 @@ export default function PayrollPage() {
       )}
 
       {tab === "employees" && (
+        <div role="tabpanel" id="panel-employees" aria-labelledby="tab-employees">
         <>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
@@ -489,9 +498,11 @@ export default function PayrollPage() {
             </div>
           )}
         </>
+        </div>
       )}
 
       {tab === "payroll" && (
+        <div role="tabpanel" id="panel-payroll" aria-labelledby="tab-payroll">
         <>
           <div className="mb-4 flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-4">
@@ -522,7 +533,7 @@ export default function PayrollPage() {
 
           {canCalculate && employees.length > 0 && (
             <div className="mb-4 rounded-lg border bg-card p-4">
-              <h3 className="mb-3 text-sm font-semibold">残業時間入力</h3>
+              <h2 className="mb-3 text-sm font-semibold">残業時間入力</h2>
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
                 {employees.map((e) => (
                   <div key={e.employee_id} className="flex items-center gap-2">
@@ -678,6 +689,7 @@ export default function PayrollPage() {
             </div>
           )}
         </>
+        </div>
       )}
     </PageLayout>
   );

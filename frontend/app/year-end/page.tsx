@@ -219,7 +219,7 @@ export default function YearEndPage() {
 
       {canCalculate && employees.length > 0 && (
         <div className="mb-4 rounded-lg border bg-card p-4">
-          <h3 className="mb-3 text-sm font-semibold">扶養親族の数（個別設定）</h3>
+          <h2 className="mb-3 text-sm font-semibold">扶養親族の数（個別設定）</h2>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
             {employees.map((e) => (
               <div key={e.employee_id} className="flex items-center gap-2">
