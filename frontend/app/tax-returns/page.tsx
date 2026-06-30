@@ -220,7 +220,7 @@ export default function TaxReturnsPage() {
             <h2 className="text-lg font-semibold">
               申告詳細 — {selectedRecord.tax_year}年度 ({FILING_LABELS[selectedRecord.filing_type]})
             </h2>
-            <button onClick={() => setSelectedRecord(null)} className="rounded p-1 hover:bg-accent">
+            <button onClick={() => setSelectedRecord(null)} className="rounded p-1 hover:bg-accent" aria-label="閉じる">
               <X className="h-4 w-4" />
             </button>
           </div>

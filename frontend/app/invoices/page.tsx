@@ -336,7 +336,7 @@ export default function InvoicesPage() {
         <div className="mb-6 rounded-lg border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">新規請求書</h2>
-            <button onClick={() => setShowForm(false)} className="rounded p-1 hover:bg-accent">
+            <button onClick={() => setShowForm(false)} className="rounded p-1 hover:bg-accent" aria-label="閉じる">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -420,7 +420,7 @@ export default function InvoicesPage() {
         <div className="mb-6 rounded-lg border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">請求書詳細: {selectedInvoice.invoice_number}</h2>
-            <button onClick={() => setSelectedInvoice(null)} className="rounded p-1 hover:bg-accent">
+            <button onClick={() => setSelectedInvoice(null)} className="rounded p-1 hover:bg-accent" aria-label="閉じる">
               <X className="h-4 w-4" />
             </button>
           </div>

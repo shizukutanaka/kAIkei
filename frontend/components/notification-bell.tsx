@@ -162,6 +162,7 @@ export default function NotificationBell() {
               <button
                 onClick={() => setOpen(false)}
                 className="rounded p-1 hover:bg-accent"
+                aria-label="閉じる"
               >
                 <X className="h-4 w-4" />
               </button>

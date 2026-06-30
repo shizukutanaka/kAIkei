@@ -75,6 +75,7 @@ export default function BonusPage() {
   const [baseMonths, setBaseMonths] = useState("2.0");
   const [perfFactors, setPerfFactors] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
+  const [downloadLoading, setDownloadLoading] = useState<string | null>(null);
 
   const fetchBonusRecords = async () => {
     if (!companyId) return;
@@ -158,6 +159,7 @@ export default function BonusPage() {
   };
 
   const handleDownload = async (bonusId: string, empName: string) => {
+    setDownloadLoading(bonusId);
     try {
       const token = localStorage.getItem("token");
       const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
@@ -176,6 +178,8 @@ export default function BonusPage() {
       toast("CSVをダウンロードしました", "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "ダウンロードに失敗しました", "error");
+    } finally {
+      setDownloadLoading(null);
     }
   };
 
@@ -323,10 +327,11 @@ export default function BonusPage() {
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => handleDownload(r.bonus_id, r.employee_name || r.employee_id.slice(0, 8))}
-                        className="inline-flex items-center justify-center rounded p-1 hover:bg-accent"
+                        disabled={downloadLoading === r.bonus_id}
+                        className="inline-flex items-center justify-center rounded p-1 hover:bg-accent disabled:opacity-50"
                         title="CSV出力"
                       >
-                        <Download className="h-4 w-4 text-muted-foreground" />
+                        {downloadLoading === r.bonus_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-muted-foreground" />}
                       </button>
                     </td>
                   </tr>

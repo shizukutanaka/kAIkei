@@ -84,6 +84,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               <button
                 onClick={handleCancel}
                 className="rounded p-1 hover:bg-accent"
+                aria-label="閉じる"
               >
                 <X className="h-4 w-4" />
               </button>
