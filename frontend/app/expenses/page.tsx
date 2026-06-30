@@ -324,7 +324,7 @@ export default function ExpensesPage() {
         <div className="mb-6 rounded-lg border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">経費精算申請</h2>
-            <button onClick={() => setShowForm(false)} className="rounded p-1 hover:bg-accent" aria-label="閉じる">
+            <button onClick={() => setShowForm(false)} className="rounded p-2 hover:bg-accent" aria-label="閉じる">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -398,7 +398,7 @@ export default function ExpensesPage() {
         <div className="mb-6 rounded-lg border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">精算詳細: {selectedReport.title}</h2>
-            <button onClick={() => setSelectedReport(null)} className="rounded p-1 hover:bg-accent" aria-label="閉じる">
+            <button onClick={() => setSelectedReport(null)} className="rounded p-2 hover:bg-accent" aria-label="閉じる">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -512,7 +512,7 @@ export default function ExpensesPage() {
                       <button
                         onClick={() => handleDownload(r.report_id, r.title)}
                         disabled={downloadLoading === r.report_id}
-                        className="inline-flex items-center justify-center rounded p-1 hover:bg-accent disabled:opacity-50"
+                        className="inline-flex items-center justify-center rounded p-2 hover:bg-accent disabled:opacity-50"
                         title="CSV出力"
                       >
                         {downloadLoading === r.report_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-muted-foreground" />}

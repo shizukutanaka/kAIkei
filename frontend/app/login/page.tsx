@@ -68,6 +68,7 @@ export default function LoginPage() {
               placeholder="user@example.com"
               className="w-full rounded-md border px-3 py-2 text-sm"
               required
+              autoComplete="email"
             />
           </div>
 
@@ -81,6 +82,7 @@ export default function LoginPage() {
                 placeholder="••••••••"
                 className="w-full rounded-md border px-3 py-2 pr-10 text-sm"
                 required
+                autoComplete="current-password"
               />
               <button
                 type="button"

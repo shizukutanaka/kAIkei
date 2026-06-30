@@ -341,7 +341,7 @@ export default function InvoicesPage() {
         <div className="mb-6 rounded-lg border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">新規請求書</h2>
-            <button onClick={() => setShowForm(false)} className="rounded p-1 hover:bg-accent" aria-label="閉じる">
+            <button onClick={() => setShowForm(false)} className="rounded p-2 hover:bg-accent" aria-label="閉じる">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -425,7 +425,7 @@ export default function InvoicesPage() {
         <div className="mb-6 rounded-lg border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">請求書詳細: {selectedInvoice.invoice_number}</h2>
-            <button onClick={() => setSelectedInvoice(null)} className="rounded p-1 hover:bg-accent" aria-label="閉じる">
+            <button onClick={() => setSelectedInvoice(null)} className="rounded p-2 hover:bg-accent" aria-label="閉じる">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -542,7 +542,7 @@ export default function InvoicesPage() {
                   <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1">
                       <button onClick={() => setSelectedInvoice(inv)} className="rounded px-2 py-1 text-xs hover:bg-accent">詳細</button>
-                      <button onClick={() => handleDownload(inv.invoice_id, inv.invoice_number)} disabled={downloadLoading === inv.invoice_id} className="inline-flex items-center justify-center rounded p-1 hover:bg-accent disabled:opacity-50" title="CSV出力">
+                      <button onClick={() => handleDownload(inv.invoice_id, inv.invoice_number)} disabled={downloadLoading === inv.invoice_id} className="inline-flex items-center justify-center rounded p-2 hover:bg-accent disabled:opacity-50" title="CSV出力">
                         {downloadLoading === inv.invoice_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-muted-foreground" />}
                       </button>
                     </div>

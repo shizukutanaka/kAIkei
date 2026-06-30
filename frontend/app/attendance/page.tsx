@@ -334,7 +334,7 @@ export default function AttendancePage() {
         <div className="mb-6 rounded-lg border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">手動勤怠登録</h2>
-            <button onClick={() => setShowForm(false)} className="rounded p-1 hover:bg-accent" aria-label="閉じる">
+            <button onClick={() => setShowForm(false)} className="rounded p-2 hover:bg-accent" aria-label="閉じる">
               <X className="h-4 w-4" />
             </button>
           </div>

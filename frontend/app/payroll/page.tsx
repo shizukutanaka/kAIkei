@@ -390,7 +390,7 @@ export default function PayrollPage() {
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium">氏名</label>
-                  <input type="text" value={formData.employee_name} onChange={(e) => setFormData({ ...formData, employee_name: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
+                  <input type="text" value={formData.employee_name} onChange={(e) => setFormData({ ...formData, employee_name: e.target.value })} required aria-required="true" autoComplete="name" className="w-full rounded-md border px-3 py-2 text-sm" />
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium">部署</label>
