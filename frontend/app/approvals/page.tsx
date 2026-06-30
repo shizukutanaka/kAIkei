@@ -179,7 +179,7 @@ export default function ApprovalsPage() {
           </div>
         )}
 
-        <div className="mb-4 flex items-center gap-2">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setSelectedId(""); }}

@@ -267,8 +267,8 @@ export default function AttendancePage() {
         </button>
       </div>
 
-      <div className="mb-4 flex items-center justify-between rounded-lg border bg-card p-4">
-        <div className="flex items-center gap-4">
+      <div className="mb-4 flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-4">
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">年</label>
             <input type="number" value={year} onChange={(e) => setYear(e.target.value)} className="w-24 rounded-md border px-3 py-1.5 text-sm" />
@@ -392,7 +392,7 @@ export default function AttendancePage() {
 
       {tab === "records" && (
         <>
-          <div className="mb-3 flex items-center gap-2">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
             <div className="relative">
               <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input

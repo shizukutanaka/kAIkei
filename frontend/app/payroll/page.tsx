@@ -311,7 +311,7 @@ export default function PayrollPage() {
 
       {tab === "employees" && (
         <>
-          <div className="mb-4 flex items-center justify-between gap-4">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <p className="text-sm text-muted-foreground">{filteredEmployees.length}/{employees.length}件の従業員</p>
               <div className="flex items-center gap-2">
@@ -486,8 +486,8 @@ export default function PayrollPage() {
 
       {tab === "payroll" && (
         <>
-          <div className="mb-4 flex items-center justify-between rounded-lg border bg-card p-4">
-            <div className="flex items-center gap-4">
+          <div className="mb-4 flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-4">
               <div>
                 <label className="mb-1 block text-xs text-muted-foreground">年</label>
                 <input type="number" value={payrollYear} onChange={(e) => setPayrollYear(e.target.value)} className="w-24 rounded-md border px-3 py-1.5 text-sm" />

@@ -302,7 +302,7 @@ export default function ReportsPage() {
         )}
 
         <div className="mb-6 rounded-lg border bg-card p-6">
-          <div className="mb-4 flex gap-2">
+          <div className="mb-4 flex flex-wrap gap-2">
             <button
               onClick={() => setReportType("trial-balance")}
               className={`rounded-md px-4 py-2 text-sm font-medium ${

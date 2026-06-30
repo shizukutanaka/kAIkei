@@ -183,7 +183,7 @@ export default function TaxReturnsPage() {
       {canCreate && (
         <div className="mb-6 rounded-lg border bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold">消費税計算</h2>
-          <div className="mb-4 flex items-end gap-4">
+          <div className="mb-4 flex flex-wrap items-end gap-4">
             <div>
               <label className="mb-1 block text-sm font-medium">対象年度</label>
               <input type="number" value={calcYear} onChange={(e) => setCalcYear(e.target.value)} className="w-32 rounded-md border px-3 py-2 text-sm" />
@@ -304,7 +304,7 @@ export default function TaxReturnsPage() {
         </div>
       )}
 
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="relative">
           <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
