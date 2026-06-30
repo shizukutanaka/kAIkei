@@ -1,10 +1,11 @@
-from datetime import date
-from decimal import Decimal, ROUND_HALF_UP
+# ruff: noqa: B008, I001
+from contextlib import suppress
+from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import PlainTextResponse
-from sqlalchemy import select, delete, func
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -13,15 +14,21 @@ from app.core.rbac import Permission
 from app.models.models import Employee, PayrollRecord
 from app.schemas.schemas import (
     EmployeeCreate,
-    EmployeeResponse,
     EmployeeListResponse,
+    EmployeeResponse,
+    LaborInsuranceEmployeeResponse,
+    LaborInsuranceSummaryResponse,
+    NotificationCreate,
     PayrollCalculateRequest,
-    PayrollRecordResponse,
     PayrollListResponse,
+    PayrollRecordResponse,
 )
 from app.services.auto_journal import generate_payroll_journal
+from app.services.labor_insurance import (
+    DEFAULT_WORKERS_COMPENSATION_RATE,
+    LaborInsuranceService,
+)
 from app.services.notification_service import create_notification
-from app.schemas.schemas import NotificationCreate
 
 router = APIRouter()
 
@@ -77,6 +84,14 @@ def _calc_social_insurance(gross: Decimal) -> Decimal:
         return Decimal("0")
     # 簡易: 総額の約15%
     return (gross * Decimal("0.15")).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+
+
+
+
+def _gross_for_labor_insurance(emp: Employee, payroll_record: PayrollRecord | None) -> Decimal:
+    if payroll_record is not None:
+        return Decimal(payroll_record.total_gross)
+    return Decimal(emp.base_salary)
 
 
 # --- Employee endpoints ---
@@ -227,6 +242,80 @@ async def calculate_payroll(
 
     return [_to_payroll_response(r) for r in records]
 
+
+
+
+@router.get("/labor-insurance", response_model=LaborInsuranceSummaryResponse)
+async def calculate_labor_insurance(
+    company_id: UUID = Query(...),  # noqa: B008
+    target_year: int = Query(...),  # noqa: B008
+    target_month: int = Query(...),  # noqa: B008
+    business_type: str = Query(...),  # noqa: B008
+    workers_comp_rate: Decimal = Query(DEFAULT_WORKERS_COMPENSATION_RATE),  # noqa: B008
+    senior_employee_ids: list[UUID] | None = Query(None),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> LaborInsuranceSummaryResponse:
+    employees_result = await db.execute(
+        select(Employee).where(
+            Employee.company_id == company_id,
+            Employee.is_active == True,  # noqa: E712
+            Employee.is_deleted == False,  # noqa: E712
+        ).order_by(Employee.employee_code)
+    )
+    employees = employees_result.scalars().all()
+
+    payroll_result = await db.execute(
+        select(PayrollRecord).where(
+            PayrollRecord.company_id == company_id,
+            PayrollRecord.payroll_year == target_year,
+            PayrollRecord.payroll_month == target_month,
+        )
+    )
+    payroll_records = {record.employee_id: record for record in payroll_result.scalars().all()}
+
+    exempt_employee_ids = set(senior_employee_ids or [])
+
+    items: list[LaborInsuranceEmployeeResponse] = []
+    breakdowns = []
+    for emp in employees:
+        payroll_record = payroll_records.get(emp.employee_id)
+        gross = _gross_for_labor_insurance(emp, payroll_record)
+        is_exempt = emp.employee_id in exempt_employee_ids
+        breakdown = LaborInsuranceService.calculate_employee_premium(
+            gross_monthly_pay=gross,
+            business_type=business_type,
+            is_exempt=is_exempt,
+            workers_comp_rate=workers_comp_rate,
+        )
+        breakdowns.append(breakdown)
+        items.append(
+            LaborInsuranceEmployeeResponse(
+                employee_id=emp.employee_id,
+                employee_name=emp.employee_name,
+                gross_monthly_pay=gross,
+                employment_insurance_employee=breakdown.employment_insurance_employee,
+                employment_insurance_employer=breakdown.employment_insurance_employer,
+                workers_comp_employer=breakdown.workers_comp_employer,
+                total_employee=breakdown.total_employee,
+                total_employer=breakdown.total_employer,
+                total_premium=breakdown.total_premium,
+            )
+        )
+
+    summary = LaborInsuranceService.summarize_company_premiums(breakdowns)
+    return LaborInsuranceSummaryResponse(
+        company_id=company_id,
+        target_year=target_year,
+        target_month=target_month,
+        business_type=business_type,
+        workers_comp_rate=workers_comp_rate,
+        employee_count=summary.employee_count,
+        total_employee_premium=summary.total_employee_premium,
+        total_employer_premium=summary.total_employer_premium,
+        total_premium=summary.total_premium,
+        items=items,
+    )
 
 @router.get("/records", response_model=PayrollListResponse)
 async def list_payroll_records(
@@ -415,7 +504,7 @@ async def batch_transition_payroll(
 
     # Auto-generate payroll journal on batch "paid" transition
     if action == "paid":
-        try:
+        with suppress(ValueError):
             await generate_payroll_journal(
                 db,
                 company_id=company_id,
@@ -426,12 +515,10 @@ async def batch_transition_payroll(
                 net_pay=net_pay_sum,
                 created_by=current_user.user_id,
             )
-        except ValueError:
-            pass  # Account not found — skip auto-journal
 
     # Notify on batch transition
     action_labels = {"approved": "承認", "rejected": "差戻し", "paid": "支払完了"}
-    try:
+    with suppress(Exception):
         await create_notification(db, current_user.tenant_id, NotificationCreate(
             company_id=company_id,
             category="payroll",
@@ -440,8 +527,6 @@ async def batch_transition_payroll(
             body=f"{len(updated)}件の給与レコードを{action_labels[action]}しました。",
             action_url="/payroll",
         ))
-    except Exception:
-        pass
 
     await db.commit()
     return updated

@@ -5,34 +5,44 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.models.models import (
+    Account,
     AuditLog,
+    Company,
     JournalHeader,
     JournalLine,
-    Account,
-    Company,
+    MonthlyBalance,
 )
-from app.schemas.schemas import AuditLogListResponse, AuditLogResponse
+from app.schemas.schemas import (
+    AuditDetectionResponse,
+    AuditInspectRequest,
+    AuditLogListResponse,
+    AuditLogResponse,
+    LedgerCheckRequest,
+    LedgerCheckResponse,
+)
+from app.services.audit_inspection import AuditInspectionService
+from app.services.ledger_consistency import LedgerConsistencyService
 
 router = APIRouter(tags=["audit"])
 
 
 @router.get("/logs", response_model=AuditLogListResponse)
 async def list_audit_logs(
-    company_id: UUID = Query(..., description="会社ID"),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=200),
-    action: str | None = Query(None, description="アクションでフィルタ"),
-    resource_type: str | None = Query(None, description="リソース種別でフィルタ"),
-    user_id: UUID | None = Query(None, description="ユーザーIDでフィルタ"),
-    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
-    db: AsyncSession = Depends(get_db),
+    company_id: UUID = Query(..., description="会社ID"),  # noqa: B008
+    page: int = Query(1, ge=1),  # noqa: B008
+    page_size: int = Query(50, ge=1, le=200),  # noqa: B008
+    action: str | None = Query(None, description="アクションでフィルタ"),  # noqa: B008
+    resource_type: str | None = Query(None, description="リソース種別でフィルタ"),  # noqa: B008
+    user_id: UUID | None = Query(None, description="ユーザーIDでフィルタ"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> AuditLogListResponse:
     """操作証跡ログ一覧を取得する。"""
     conditions = [AuditLog.company_id == company_id]
@@ -75,11 +85,156 @@ async def list_audit_logs(
     return AuditLogListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
+@router.post("/ledger-check", response_model=LedgerCheckResponse)
+async def ledger_check(
+    payload: LedgerCheckRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> LedgerCheckResponse:
+    header_result = await db.execute(
+        select(JournalHeader).where(
+            JournalHeader.company_id == payload.company_id,
+            JournalHeader.approval_status == "approved",
+            JournalHeader.is_deleted == False,  # noqa: E712
+            JournalHeader.transaction_date <= payload.target_date,
+        )
+    )
+    line_result = await db.execute(
+        select(JournalLine)
+        .join(JournalHeader, JournalHeader.journal_header_id == JournalLine.journal_header_id)
+        .where(
+            JournalHeader.company_id == payload.company_id,
+            JournalHeader.approval_status == "approved",
+            JournalHeader.is_deleted == False,  # noqa: E712
+            JournalHeader.transaction_date <= payload.target_date,
+            JournalLine.is_deleted == False,  # noqa: E712
+        )
+    )
+    balance_result = await db.execute(
+        select(MonthlyBalance).where(
+            MonthlyBalance.company_id == payload.company_id,
+            MonthlyBalance.is_deleted == False,  # noqa: E712
+            (MonthlyBalance.year < payload.target_date.year)
+            | (
+                (MonthlyBalance.year == payload.target_date.year)
+                & (MonthlyBalance.month <= payload.target_date.month)
+            ),
+        )
+    )
+    result = LedgerConsistencyService.check(
+        company_id=payload.company_id,
+        target_date=payload.target_date,
+        journal_headers=list(header_result.scalars().all()),
+        journal_lines=list(line_result.scalars().all()),
+        monthly_balances=list(balance_result.scalars().all()),
+    )
+    return LedgerCheckResponse(
+        status=result.status,
+        balance_check={
+            "headers_checked": result.balance_check.headers_checked,
+            "imbalanced_count": result.balance_check.imbalanced_count,
+            "total_debit": result.balance_check.total_debit,
+            "total_credit": result.balance_check.total_credit,
+            "imbalanced_entries": [
+                {
+                    "journal_header_id": entry.journal_header_id,
+                    "debit_sum": entry.debit_sum,
+                    "credit_sum": entry.credit_sum,
+                    "difference": entry.difference,
+                }
+                for entry in result.balance_check.imbalanced_entries
+            ],
+        },
+        cache_drift_check={
+            "rows_checked": result.cache_drift_check.rows_checked,
+            "drift_count": result.cache_drift_check.drift_count,
+            "drift_entries": [
+                {
+                    "account_id": entry.account_id,
+                    "year": entry.year,
+                    "month": entry.month,
+                    "expected_debit": entry.expected_debit,
+                    "expected_credit": entry.expected_credit,
+                    "cached_debit": entry.cached_debit,
+                    "cached_credit": entry.cached_credit,
+                }
+                for entry in result.cache_drift_check.drift_entries
+            ],
+        },
+    )
+
+
+@router.post("/inspect", response_model=list[AuditDetectionResponse])
+async def inspect_audit(
+    payload: AuditInspectRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> list[AuditDetectionResponse]:
+    target_result = await db.execute(
+        select(JournalHeader).where(
+            JournalHeader.journal_header_id == payload.journal_header_id,
+            JournalHeader.is_deleted == False,  # noqa: E712
+            JournalHeader.is_voided == False,  # noqa: E712
+        )
+    )
+    target_header = target_result.scalar_one_or_none()
+    if target_header is None:
+        raise HTTPException(status_code=404, detail="Journal not found")
+
+    target_lines_result = await db.execute(
+        select(JournalLine).where(
+            JournalLine.journal_header_id == target_header.journal_header_id,
+            JournalLine.is_deleted == False,  # noqa: E712
+        )
+    )
+    target_lines = target_lines_result.scalars().all()
+
+    peer_headers_result = await db.execute(
+        select(JournalHeader).where(
+            JournalHeader.company_id == target_header.company_id,
+            JournalHeader.transaction_date == target_header.transaction_date,
+            JournalHeader.journal_header_id != target_header.journal_header_id,
+            JournalHeader.is_deleted == False,  # noqa: E712
+            JournalHeader.is_voided == False,  # noqa: E712
+        )
+    )
+    peer_headers = peer_headers_result.scalars().all()
+
+    peer_lines_by_header: dict[UUID, list[JournalLine]] = {header.journal_header_id: [] for header in peer_headers}
+    if peer_headers:
+        peer_lines_result = await db.execute(
+            select(JournalLine).where(
+                JournalLine.journal_header_id.in_(
+                    [header.journal_header_id for header in peer_headers]
+                ),
+                JournalLine.is_deleted == False,  # noqa: E712
+            )
+        )
+        for line in peer_lines_result.scalars().all():
+            peer_lines_by_header.setdefault(line.journal_header_id, []).append(line)
+
+    detections = AuditInspectionService.inspect(
+        target_header=target_header,
+        target_lines=target_lines,
+        peer_headers_with_lines=[
+            (header, peer_lines_by_header.get(header.journal_header_id, []))
+            for header in peer_headers
+        ],
+    )
+    return [
+        AuditDetectionResponse(
+            risk_level=detection.risk_level,
+            category=detection.category,
+            reason=detection.reason,
+        )
+        for detection in detections
+    ]
+
 @router.get("/export")
 async def export_audit_package(
-    company_id: UUID = Query(..., description="会社ID"),
-    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
-    db: AsyncSession = Depends(get_db),
+    company_id: UUID = Query(..., description="会社ID"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> Response:
     """監査データ一括エクスポート（ZIP・総勘定元帳CSV・操作証跡CSV）。"""
     buf = io.BytesIO()
