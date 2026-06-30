@@ -585,6 +585,16 @@ class LedgerCheckResponse(BaseModel):
     cache_drift_check: AuditLedgerCacheDriftResponse
 
 
+class AuditInspectRequest(BaseModel):
+    journal_header_id: UUID
+
+
+class AuditDetectionResponse(BaseModel):
+    risk_level: str
+    category: str
+    reason: str
+
+
 class YearEndListResponse(BaseModel):
     items: list[YearEndAdjustmentResponse]
     total: int
