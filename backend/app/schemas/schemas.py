@@ -515,6 +515,33 @@ class PayrollListResponse(BaseModel):
     page_size: int
 
 
+class LaborInsuranceEmployeeResponse(BaseModel):
+    employee_id: UUID
+    employee_name: str
+    gross_monthly_pay: Decimal
+    employment_insurance_employee: Decimal
+    employment_insurance_employer: Decimal
+    workers_comp_employer: Decimal
+    total_employee: Decimal
+    total_employer: Decimal
+    total_premium: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class LaborInsuranceSummaryResponse(BaseModel):
+    company_id: UUID
+    target_year: int
+    target_month: int
+    business_type: str
+    workers_comp_rate: Decimal
+    employee_count: int
+    total_employee_premium: Decimal
+    total_employer_premium: Decimal
+    total_premium: Decimal
+    items: list[LaborInsuranceEmployeeResponse]
+
+
 class PartnerListResponse(BaseModel):
     items: list[PartnerResponse]
     total: int
