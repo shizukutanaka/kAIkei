@@ -66,6 +66,9 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           onClick={handleCancel}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-title"
             className="w-full max-w-sm rounded-lg border bg-popover p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
@@ -74,7 +77,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                 <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
               )}
               <div className="flex-1">
-                <h3 className="text-sm font-semibold">
+                <h3 id="confirm-title" className="text-sm font-semibold">
                   {state.options.title || "確認"}
                 </h3>
                 <p className="mt-1 text-sm text-muted-foreground">

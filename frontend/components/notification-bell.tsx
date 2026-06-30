@@ -90,8 +90,15 @@ export default function NotificationBell() {
         setOpen(false);
       }
     };
+    const handleKeydown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeydown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeydown);
+    };
   }, []);
 
   const handleMarkRead = async (id: string) => {
