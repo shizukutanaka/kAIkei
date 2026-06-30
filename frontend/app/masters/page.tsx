@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useDeferredValue, useMemo } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost, apiPut } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
@@ -125,11 +125,17 @@ export default function MastersPage() {
     }
   };
 
-  const filtered = accounts.filter(
-    (a) =>
-      (a.account_code.includes(search) ||
-      a.account_name.includes(search)) &&
-      (!typeFilter || a.account_type === typeFilter)
+  const deferredSearch = useDeferredValue(search);
+  const deferredTypeFilter = useDeferredValue(typeFilter);
+
+  const filtered = useMemo(() =>
+    accounts.filter(
+      (a) =>
+        (a.account_code.includes(deferredSearch) ||
+        a.account_name.includes(deferredSearch)) &&
+        (!deferredTypeFilter || a.account_type === deferredTypeFilter)
+    ),
+    [accounts, deferredSearch, deferredTypeFilter]
   );
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useDeferredValue, useMemo } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
@@ -142,15 +142,19 @@ export default function PayrollPage() {
   }, [companyId, tab, payrollYear, payrollMonth]);
 
   const departments = Array.from(new Set(employees.map((e) => e.department).filter(Boolean) as string[])).sort();
-  const filteredEmployees = employees.filter((e) => {
+  const deferredEmpSearch = useDeferredValue(empSearch);
+  const deferredEmpDeptFilter = useDeferredValue(empDeptFilter);
+  const deferredEmpActiveFilter = useDeferredValue(empActiveFilter);
+
+  const filteredEmployees = useMemo(() => employees.filter((e) => {
     const matchesSearch =
-      !empSearch ||
-      e.employee_code.toLowerCase().includes(empSearch.toLowerCase()) ||
-      e.employee_name.toLowerCase().includes(empSearch.toLowerCase());
-    const matchesDept = !empDeptFilter || e.department === empDeptFilter;
-    const matchesActive = !empActiveFilter || (empActiveFilter === "active" ? e.is_active : !e.is_active);
+      !deferredEmpSearch ||
+      e.employee_code.toLowerCase().includes(deferredEmpSearch.toLowerCase()) ||
+      e.employee_name.toLowerCase().includes(deferredEmpSearch.toLowerCase());
+    const matchesDept = !deferredEmpDeptFilter || e.department === deferredEmpDeptFilter;
+    const matchesActive = !deferredEmpActiveFilter || (deferredEmpActiveFilter === "active" ? e.is_active : !e.is_active);
     return matchesSearch && matchesDept && matchesActive;
-  });
+  }), [employees, deferredEmpSearch, deferredEmpDeptFilter, deferredEmpActiveFilter]);
 
   const handleCreateEmployee = async () => {
     if (!formData.employee_code || !formData.employee_name) {

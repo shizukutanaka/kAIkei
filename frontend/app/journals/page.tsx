@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useDeferredValue, useMemo } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPostMultipart } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
@@ -89,15 +89,20 @@ export default function JournalsListPage() {
     if (companyId) fetchJournals();
   }, [companyId, page, statusFilter]);
 
-  const filteredItems = data
-    ? data.items.filter((j) => {
-        const matchesSearch =
-          !searchQuery ||
-          j.journal_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (j.summary || "").toLowerCase().includes(searchQuery.toLowerCase());
-        return matchesSearch;
-      })
-    : [];
+  const deferredSearch = useDeferredValue(searchQuery);
+
+  const filteredItems = useMemo(() =>
+    data
+      ? data.items.filter((j) => {
+          const matchesSearch =
+            !deferredSearch ||
+            j.journal_number.toLowerCase().includes(deferredSearch.toLowerCase()) ||
+            (j.summary || "").toLowerCase().includes(deferredSearch.toLowerCase());
+          return matchesSearch;
+        })
+      : [],
+    [data, deferredSearch]
+  );
 
   const totalPages = data ? Math.ceil(data.total / data.page_size) : 0;
 

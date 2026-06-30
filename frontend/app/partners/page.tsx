@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useDeferredValue, useMemo } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
@@ -86,14 +86,17 @@ export default function PartnersPage() {
     if (companyId) fetchPartners();
   }, [companyId, page]);
 
-  const filtered = partners.filter((p) => {
+  const deferredSearch = useDeferredValue(search);
+  const deferredTypeFilter = useDeferredValue(typeFilter);
+
+  const filtered = useMemo(() => partners.filter((p) => {
     const matchesSearch =
-      !search ||
-      p.partner_code.toLowerCase().includes(search.toLowerCase()) ||
-      p.partner_name.toLowerCase().includes(search.toLowerCase());
-    const matchesType = !typeFilter || p.partner_type === typeFilter;
+      !deferredSearch ||
+      p.partner_code.toLowerCase().includes(deferredSearch.toLowerCase()) ||
+      p.partner_name.toLowerCase().includes(deferredSearch.toLowerCase());
+    const matchesType = !deferredTypeFilter || p.partner_type === deferredTypeFilter;
     return matchesSearch && matchesType;
-  });
+  }), [partners, deferredSearch, deferredTypeFilter]);
 
   const handleSave = async () => {
     if (!formData.partner_code || !formData.partner_name) {
