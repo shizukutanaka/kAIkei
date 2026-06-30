@@ -189,7 +189,7 @@ export default function PartnersPage() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+        <div role="alert" className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -204,7 +204,7 @@ export default function PartnersPage() {
         <div className="mb-6 rounded-lg border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">{editingId ? "取引先編集" : "新規取引先登録"}</h2>
-            <button onClick={handleCancel} className="rounded-md p-1 hover:bg-accent">
+            <button onClick={handleCancel} className="rounded-md p-2 hover:bg-accent" aria-label="閉じる">
               <X className="h-4 w-4" />
             </button>
           </div>

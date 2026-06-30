@@ -86,3 +86,12 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     scroll-behavior: auto !important;
   }
 }
+
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}

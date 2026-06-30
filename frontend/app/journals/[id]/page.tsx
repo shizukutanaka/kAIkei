@@ -143,7 +143,7 @@ export default function JournalDetailPage() {
           <ArrowLeft className="h-4 w-4" />
           仕訳一覧へ戻る
         </button>
-        <div className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+        <div role="alert" className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
           {error || "仕訳が見つかりません"}
         </div>
       </PageLayout>
