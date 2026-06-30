@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useCallback, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { AlertTriangle, X } from "lucide-react";
 
 interface ConfirmOptions {
@@ -30,6 +30,8 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     options: ConfirmOptions;
     resolve: (value: boolean) => void;
   } | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocus = useRef<HTMLElement | null>(null);
 
   const confirm = useCallback((options: ConfirmOptions) => {
     return new Promise<boolean>((resolve) => {
@@ -48,10 +50,43 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    if (!state) return;
+    if (!state) {
+      if (previousFocus.current) {
+        previousFocus.current.focus();
+        previousFocus.current = null;
+      }
+      return;
+    }
+    previousFocus.current = document.activeElement as HTMLElement;
+    const dialog = dialogRef.current;
+    if (dialog) {
+      const focusable = dialog.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length > 0) {
+        focusable[0].focus();
+      } else {
+        dialog.focus();
+      }
+    }
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") handleCancel();
-      if (e.key === "Enter") handleConfirm();
+      if (e.key === "Escape") { handleCancel(); return; }
+      if (e.key === "Enter") { handleConfirm(); return; }
+      if (e.key === "Tab" && dialogRef.current) {
+        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
@@ -66,10 +101,12 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           onClick={handleCancel}
         >
           <div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="confirm-title"
-            className="w-full max-w-sm rounded-lg border bg-popover p-6 shadow-xl"
+            tabIndex={-1}
+            className="w-full max-w-sm rounded-lg border bg-popover p-6 shadow-xl outline-none"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-start gap-3">

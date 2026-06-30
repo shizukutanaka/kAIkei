@@ -8,6 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
+import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 import { Receipt, Plus, X, Search, Download, CheckCircle, XCircle, Banknote, Loader2, RefreshCw } from "lucide-react";
 import { Pagination } from "@/components/pagination";
 
@@ -93,6 +94,9 @@ export default function ExpensesPage() {
     note: "",
   });
   const [items, setItems] = useState([{ ...emptyItem }]);
+
+  const isDirty = showForm && (formData.title !== "" || items.some((i) => i.description !== ""));
+  useUnsavedChanges(isDirty);
 
   const fetchReports = async () => {
     if (!companyId) return;

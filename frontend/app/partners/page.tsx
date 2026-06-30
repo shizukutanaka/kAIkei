@@ -8,6 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
+import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 import { Handshake, Plus, Search, Trash2, Pencil, X, Users, RefreshCw, Loader2 } from "lucide-react";
 import { Pagination } from "@/components/pagination";
 
@@ -66,6 +67,9 @@ export default function PartnersPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState(emptyForm);
+
+  const isDirty = showForm && (formData.partner_code !== emptyForm.partner_code || formData.partner_name !== emptyForm.partner_name);
+  useUnsavedChanges(isDirty);
 
   const fetchPartners = async () => {
     if (!companyId) return;

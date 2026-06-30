@@ -8,6 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
+import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 import { FileText, Plus, X, Search, Download, Send, CheckCircle, XCircle, Loader2, RefreshCw } from "lucide-react";
 import { Pagination } from "@/components/pagination";
 
@@ -104,6 +105,9 @@ export default function InvoicesPage() {
   const [lines, setLines] = useState([{ ...emptyLine }]);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [downloadLoading, setDownloadLoading] = useState<string | null>(null);
+
+  const isDirty = showForm && (formData.invoice_number !== "" || lines.some((l) => l.description !== ""));
+  useUnsavedChanges(isDirty);
 
   const fetchInvoices = async () => {
     if (!companyId) return;
