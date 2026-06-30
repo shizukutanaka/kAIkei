@@ -606,6 +606,13 @@ class TaxReturnListResponse(BaseModel):
     page_size: int
 
 
+class TaxForecastResponse(BaseModel):
+    forecasted_profit_before_tax: Decimal
+    estimated_taxable_income: Decimal
+    estimated_tax_amount: Decimal
+    tax_risk_warnings: list[str]
+
+
 class EmployeeListResponse(BaseModel):
     items: list[EmployeeResponse]
     total: int
