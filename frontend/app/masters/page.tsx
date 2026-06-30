@@ -159,7 +159,7 @@ export default function MastersPage() {
         {showAddForm && (
           <div className="mb-6 rounded-lg border bg-card p-6">
             <h2 className="mb-4 text-lg font-semibold">新規勘定科目</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-sm font-medium">科目コード</label>
                 <input

@@ -384,7 +384,7 @@ export default function ReportsPage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {reportType === "trial-balance" || reportType === "income-statement" || reportType === "balance-sheet" || reportType === "cash-flow" ? (
               <div>
                 <label className="mb-1 block text-sm font-medium">基準日</label>

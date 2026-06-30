@@ -201,7 +201,7 @@ export default function PartnersPage() {
               <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-medium">取引先コード</label>
               <input

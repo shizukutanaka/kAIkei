@@ -149,7 +149,7 @@ export default function FixedAssetsPage() {
 
   return (
     <PageLayout>
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <Calculator className="h-6 w-6 text-primary" />
             <h1 className="text-2xl font-bold">固定資産</h1>
@@ -177,7 +177,7 @@ export default function FixedAssetsPage() {
         {showForm && (
           <div className="mb-6 rounded-lg border bg-card p-6">
             <h2 className="mb-4 text-lg font-semibold">新規資産登録</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-sm font-medium">資産コード</label>
                 <input type="text" value={formData.asset_code} onChange={(e) => setFormData({ ...formData, asset_code: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />

@@ -378,7 +378,7 @@ export default function PayrollPage() {
           {showForm && (
             <div className="mb-6 rounded-lg border bg-card p-6">
               <h2 className="mb-4 text-lg font-semibold">新規従業員登録</h2>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-sm font-medium">従業員コード</label>
                   <input type="text" value={formData.employee_code} onChange={(e) => setFormData({ ...formData, employee_code: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
