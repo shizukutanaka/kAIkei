@@ -76,6 +76,8 @@ class Company(Base):
     journal_headers = relationship("JournalHeader", back_populates="company")
     webhook_endpoints = relationship("WebhookEndpoint", back_populates="company")
     webhook_deliveries = relationship("WebhookDelivery", back_populates="company")
+    scheduled_jobs = relationship("ScheduledJob", back_populates="company")
+    job_executions = relationship("JobExecution", back_populates="company")
 
 
 class Account(Base):
@@ -768,3 +770,46 @@ class WebhookDelivery(Base):
 
     endpoint = relationship("WebhookEndpoint", back_populates="deliveries")
     company = relationship("Company", back_populates="webhook_deliveries")
+
+
+class ScheduledJob(Base):
+    __tablename__ = "scheduled_jobs"
+
+    scheduled_job_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    job_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    frequency: Mapped[str] = mapped_column(String(20), nullable=False)
+    run_hour: Mapped[int] = mapped_column(Integer, nullable=False)
+    run_day: Mapped[int | None] = mapped_column(Integer)
+    priority: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
+    payload: Mapped[dict[str, object] | None] = mapped_column(JSON)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    company = relationship("Company", back_populates="scheduled_jobs")
+    executions = relationship("JobExecution", back_populates="scheduled_job")
+
+
+class JobExecution(Base):
+    __tablename__ = "job_executions"
+
+    job_execution_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    scheduled_job_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("scheduled_jobs.scheduled_job_id"))
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    job_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    priority: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
+    scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    scheduled_job = relationship("ScheduledJob", back_populates="executions")
+    company = relationship("Company", back_populates="job_executions")

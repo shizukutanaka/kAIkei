@@ -15,6 +15,7 @@ from app.api.v1.endpoints import (
     fixed_assets,
     integrations,
     invoices,
+    jobs,
     journals,
     knowledge,
     masters,
@@ -55,6 +56,7 @@ api_router.include_router(attendance.router, prefix="/attendance", tags=["Attend
 api_router.include_router(expenses.router, prefix="/expenses", tags=["Expenses"])
 api_router.include_router(invoices.router, prefix="/invoices", tags=["Invoices"])
 api_router.include_router(tax_forecast.router, prefix="/tax", tags=["Tax"])
+api_router.include_router(jobs.router, prefix="/jobs", tags=["Jobs"])
 api_router.include_router(tax_returns.router, prefix="/tax-returns", tags=["Tax Returns"])
 api_router.include_router(treasury.router, prefix="/treasury", tags=["Treasury"])
 api_router.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks"])

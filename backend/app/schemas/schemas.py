@@ -750,6 +750,50 @@ class WebhookDeliveryResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ScheduledJobCreate(BaseModel):
+    company_id: UUID
+    job_type: str
+    frequency: str
+    run_hour: int = Field(ge=0, le=23)
+    run_day: int | None = None
+    priority: int = 100
+    payload: dict[str, object] | None = None
+
+
+class ScheduledJobResponse(BaseModel):
+    scheduled_job_id: UUID
+    company_id: UUID
+    job_type: str
+    frequency: str
+    run_hour: int
+    run_day: int | None = None
+    priority: int
+    payload: dict[str, object] | None = None
+    is_active: bool
+    last_run_at: datetime | None = None
+    next_run_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class JobExecutionResponse(BaseModel):
+    job_execution_id: UUID
+    scheduled_job_id: UUID | None = None
+    job_type: str
+    status: str
+    priority: int
+    attempt_count: int
+    scheduled_for: datetime | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    error_message: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class BudgetLineCreate(BaseModel):
     account_id: UUID
     month: int = Field(ge=1, le=12)
