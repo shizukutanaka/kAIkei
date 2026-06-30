@@ -794,6 +794,11 @@ class JobExecutionResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class JobExecutionComplete(BaseModel):
+    success: bool
+    error_message: str | None = None
+
+
 class OfficeTaskGenerateRequest(BaseModel):
     company_id: UUID
     scope: str = Field(description="'monthly' or 'daily'")

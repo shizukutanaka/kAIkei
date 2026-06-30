@@ -10,6 +10,7 @@ from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.models.models import JobExecution, ScheduledJob
 from app.schemas.schemas import (
+    JobExecutionComplete,
     JobExecutionResponse,
     ScheduledJobCreate,
     ScheduledJobResponse,
@@ -150,6 +151,59 @@ async def dispatch_due_jobs(
     for execution in created:
         await db.refresh(execution)
     return [JobExecutionResponse.model_validate(execution) for execution in created]
+
+
+async def _get_execution(db: AsyncSession, job_execution_id: UUID) -> JobExecution:
+    result = await db.execute(
+        select(JobExecution).where(JobExecution.job_execution_id == job_execution_id)
+    )
+    execution = result.scalar_one_or_none()
+    if execution is None:
+        raise HTTPException(status_code=404, detail="Job execution not found")
+    return execution
+
+
+@router.post("/executions/{job_execution_id}/start", response_model=JobExecutionResponse)
+async def start_job_execution(
+    job_execution_id: UUID,
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> JobExecutionResponse:
+    execution = await _get_execution(db, job_execution_id)
+    if execution.status not in {"pending", "failed_retry"}:
+        raise HTTPException(status_code=409, detail=f"Cannot start execution in status {execution.status}")
+    execution.status = "running"
+    execution.attempt_count += 1
+    execution.started_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(execution)
+    return JobExecutionResponse.model_validate(execution)
+
+
+@router.post("/executions/{job_execution_id}/complete", response_model=JobExecutionResponse)
+async def complete_job_execution(
+    job_execution_id: UUID,
+    payload: JobExecutionComplete,
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> JobExecutionResponse:
+    execution = await _get_execution(db, job_execution_id)
+    try:
+        new_status = JobSchedulerService.next_status(
+            execution.status,
+            success=payload.success,
+            attempt_count=execution.attempt_count,
+            max_attempts=execution.max_attempts,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    execution.status = new_status
+    execution.error_message = None if payload.success else payload.error_message
+    execution.finished_at = datetime.now(UTC) if new_status in {"succeeded", "dead"} else None
+    await db.commit()
+    await db.refresh(execution)
+    return JobExecutionResponse.model_validate(execution)
 
 
 @router.get("/executions", response_model=list[JobExecutionResponse])
