@@ -809,6 +809,22 @@ class OfficeTaskGenerateRequest(BaseModel):
     fiscal_year_end_month: int | None = Field(default=None, ge=1, le=12)
 
 
+class HealthSummaryResponse(BaseModel):
+    total: int
+    failed: int
+    dead: int
+    failure_rate: float
+    level: str
+
+
+class OperationsHealthResponse(BaseModel):
+    company_id: UUID
+    overall_level: str
+    jobs: HealthSummaryResponse
+    webhooks: HealthSummaryResponse
+    overdue_tasks: int
+
+
 class EventJournalDraftRequest(BaseModel):
     event_type: str
     amount: Decimal = Field(gt=0)

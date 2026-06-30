@@ -21,6 +21,7 @@ from app.api.v1.endpoints import (
     masters,
     notifications,
     office_tasks,
+    ops,
     partners,
     payments,
     payroll,
@@ -64,3 +65,4 @@ api_router.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks"]
 api_router.include_router(audit.router, prefix="/audit", tags=["Audit"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 api_router.include_router(office_tasks.router, prefix="/office-tasks", tags=["Office Tasks"])
+api_router.include_router(ops.router, prefix="/ops", tags=["Operations"])
