@@ -794,6 +794,33 @@ class JobExecutionResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class OfficeTaskGenerateRequest(BaseModel):
+    company_id: UUID
+    scope: str = Field(description="'monthly' or 'daily'")
+    target_year: int | None = None
+    target_month: int | None = None
+    target_date: date | None = None
+    phase: str | None = None
+
+
+class OfficeTaskResponse(BaseModel):
+    task_id: UUID
+    company_id: UUID
+    task_type: str
+    title: str
+    status: str
+    assigned_to: UUID | None = None
+    due_date: date | None = None
+    completed_at: datetime | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class OfficeTaskStatusUpdate(BaseModel):
+    status: str
+
+
 class BudgetLineCreate(BaseModel):
     account_id: UUID
     month: int = Field(ge=1, le=12)

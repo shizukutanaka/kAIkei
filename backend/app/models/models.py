@@ -78,6 +78,7 @@ class Company(Base):
     webhook_deliveries = relationship("WebhookDelivery", back_populates="company")
     scheduled_jobs = relationship("ScheduledJob", back_populates="company")
     job_executions = relationship("JobExecution", back_populates="company")
+    office_tasks = relationship("OfficeTask", back_populates="company")
 
 
 class Account(Base):
@@ -813,3 +814,22 @@ class JobExecution(Base):
 
     scheduled_job = relationship("ScheduledJob", back_populates="executions")
     company = relationship("Company", back_populates="job_executions")
+
+
+class OfficeTask(Base):
+    """事務タスク（月次/日次業務エンジンが生成する定型タスク）。"""
+    __tablename__ = "office_tasks"
+
+    task_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    task_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    assigned_to: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.user_id"))
+    meta_data: Mapped[dict[str, object] | None] = mapped_column(JSON)
+    due_date: Mapped[date | None] = mapped_column(Date)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    company = relationship("Company", back_populates="office_tasks")
