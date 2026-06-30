@@ -353,7 +353,7 @@ export default function TaxReturnsPage() {
             </thead>
             <tbody>
               {filteredRecords.map((r) => (
-                <tr key={r.return_id} className="cursor-pointer border-t hover:bg-muted/30" onClick={() => setSelectedRecord(r)}>
+                <tr key={r.return_id} tabIndex={0} className="cursor-pointer border-t hover:bg-muted/30 focus:outline-none focus:ring-2 focus:ring-ring" onClick={() => setSelectedRecord(r)} onKeyDown={(e) => { if (e.key === "Enter") setSelectedRecord(r); }}>
                   <td className="px-4 py-3 font-medium">{r.tax_year}年度</td>
                   <td className="px-4 py-3">{FILING_LABELS[r.filing_type] || r.filing_type}</td>
                   <td className="px-4 py-3 text-right">{fmt(r.total_sales)}</td>

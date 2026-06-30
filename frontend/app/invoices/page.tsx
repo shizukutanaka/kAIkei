@@ -524,7 +524,7 @@ export default function InvoicesPage() {
             </thead>
             <tbody>
               {filteredInvoices.map((inv) => (
-                <tr key={inv.invoice_id} className="cursor-pointer border-t hover:bg-muted/30" onClick={() => setSelectedInvoice(inv)}>
+                <tr key={inv.invoice_id} tabIndex={0} className="cursor-pointer border-t hover:bg-muted/30 focus:outline-none focus:ring-2 focus:ring-ring" onClick={() => setSelectedInvoice(inv)} onKeyDown={(e) => { if (e.key === "Enter") setSelectedInvoice(inv); }}>
                   <td className="px-4 py-3 font-mono font-medium">{inv.invoice_number}</td>
                   <td className="px-4 py-3">{inv.invoice_date}</td>
                   <td className="px-4 py-3">{inv.due_date}</td>

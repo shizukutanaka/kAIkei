@@ -136,6 +136,7 @@ export default function Sidebar() {
       </div>
 
       <aside
+        aria-label="サイドバーナビゲーション"
         className={`fixed inset-y-0 left-0 z-40 flex h-screen w-60 flex-col border-r bg-muted/40 transition-transform duration-200 md:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}

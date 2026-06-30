@@ -486,7 +486,7 @@ export default function ExpensesPage() {
             </thead>
             <tbody>
               {filteredReports.map((r) => (
-                <tr key={r.report_id} className="cursor-pointer border-t hover:bg-muted/30" onClick={() => setSelectedReport(r)}>
+                <tr key={r.report_id} tabIndex={0} className="cursor-pointer border-t hover:bg-muted/30 focus:outline-none focus:ring-2 focus:ring-ring" onClick={() => setSelectedReport(r)} onKeyDown={(e) => { if (e.key === "Enter") setSelectedReport(r); }}>
                   <td className="px-4 py-3">{r.report_date}</td>
                   <td className="px-4 py-3 font-medium">{r.title}</td>
                   <td className="px-4 py-3">{r.employee_name || r.employee_id.slice(0, 8)}</td>
