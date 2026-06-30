@@ -735,3 +735,40 @@ class BankAccountResponse(BaseModel):
     auto_fetch_enabled: bool
 
     model_config = {"from_attributes": True}
+
+
+class PaymentRequestCreate(BaseModel):
+    company_id: UUID
+    partner_id: UUID | None = None
+    payment_date: date
+    payment_amount: Decimal = Field(gt=0)
+    bank_account_id: UUID | None = None
+    dest_bank_code: str | None = Field(default=None, max_length=4)
+    dest_branch_code: str | None = Field(default=None, max_length=3)
+    dest_account_type: str | None = Field(default=None, max_length=10)
+    dest_account_no: str | None = Field(default=None, max_length=7)
+    dest_account_name_kana: str | None = Field(default=None, max_length=30)
+
+
+class PaymentRequestResponse(BaseModel):
+    payment_request_id: UUID
+    company_id: UUID
+    partner_id: UUID | None
+    payment_date: date
+    payment_amount: Decimal
+    bank_account_id: UUID | None
+    dest_bank_code: str | None
+    dest_branch_code: str | None
+    dest_account_type: str | None
+    dest_account_no: str | None
+    dest_account_name_kana: str | None
+    status: str
+
+    model_config = {"from_attributes": True}
+
+
+class ZenginExportRequest(BaseModel):
+    company_id: UUID
+    payment_date: date
+    bank_account_id: UUID
+    payment_request_ids: list[UUID] | None = None

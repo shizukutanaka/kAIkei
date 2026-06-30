@@ -19,6 +19,7 @@ from app.api.v1.endpoints import (
     masters,
     notifications,
     partners,
+    payments,
     payroll,
     rbac,
     reports,
@@ -36,6 +37,7 @@ api_router.include_router(masters.router, prefix="/masters", tags=["Masters"])
 api_router.include_router(reports.router, prefix="/reports", tags=["Reports"])
 api_router.include_router(budgets.router, prefix="/budgets", tags=["Budgets"])
 api_router.include_router(bank.router, prefix="/bank", tags=["Bank"])
+api_router.include_router(payments.router, prefix="/payments", tags=["Payments"])
 api_router.include_router(ai.router, prefix="/ai", tags=["AI"])
 api_router.include_router(integrations.router, prefix="/integrations", tags=["Integrations"])
 api_router.include_router(knowledge.router, prefix="/knowledge", tags=["Knowledge"])
