@@ -676,6 +676,36 @@ class NotificationPreferenceUpdate(BaseModel):
     channel_webhook: bool | None = None
 
 
+class WebhookEndpointCreate(BaseModel):
+    company_id: UUID
+    target_url: str
+    secret_token: str
+    subscribed_events: list[str]
+
+
+class WebhookEndpointResponse(BaseModel):
+    endpoint_id: UUID
+    company_id: UUID
+    target_url: str
+    subscribed_events: list[str]
+    is_active: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class WebhookDeliveryResponse(BaseModel):
+    delivery_id: UUID
+    endpoint_id: UUID
+    event_type: str
+    status: str
+    attempt_count: int
+    response_status: int | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class BudgetLineCreate(BaseModel):
     account_id: UUID
     month: int = Field(ge=1, le=12)
