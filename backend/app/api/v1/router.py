@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     bonus,
     budgets,
     companies,
+    documents,
     expenses,
     fixed_assets,
     integrations,
@@ -38,6 +39,7 @@ api_router.include_router(reports.router, prefix="/reports", tags=["Reports"])
 api_router.include_router(budgets.router, prefix="/budgets", tags=["Budgets"])
 api_router.include_router(bank.router, prefix="/bank", tags=["Bank"])
 api_router.include_router(payments.router, prefix="/payments", tags=["Payments"])
+api_router.include_router(documents.router, prefix="/documents", tags=["Documents"])
 api_router.include_router(ai.router, prefix="/ai", tags=["AI"])
 api_router.include_router(integrations.router, prefix="/integrations", tags=["Integrations"])
 api_router.include_router(knowledge.router, prefix="/knowledge", tags=["Knowledge"])

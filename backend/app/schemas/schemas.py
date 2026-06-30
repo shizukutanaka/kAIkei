@@ -772,3 +772,32 @@ class ZenginExportRequest(BaseModel):
     payment_date: date
     bank_account_id: UUID
     payment_request_ids: list[UUID] | None = None
+
+
+class ArchivedDocumentCreate(BaseModel):
+    company_id: UUID
+    transaction_date: date
+    transaction_amount: Decimal
+    counterparty_name: str = Field(max_length=255)
+    document_type: str = Field(default="other", max_length=50)
+
+
+class ArchivedDocumentResponse(BaseModel):
+    document_id: UUID
+    company_id: UUID
+    file_path: str
+    file_extension: str
+    file_hash: str
+    file_size: int
+    transaction_date: date
+    transaction_amount: Decimal
+    counterparty_name: str
+    document_type: str
+    timestamp_token: str | None = None
+    timestamp_verified_at: datetime | None = None
+    journal_header_id: UUID | None = None
+    created_by: UUID
+    created_at: datetime
+    is_deleted: bool
+
+    model_config = {"from_attributes": True}
