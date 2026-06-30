@@ -689,3 +689,49 @@ class BudgetVarianceResponse(BaseModel):
     over_budget_count: int
     line_count: int
     lines: list[BudgetVarianceLine]
+
+
+class BankReconcileRequest(BaseModel):
+    company_id: UUID
+    bank_account_id: UUID | None = None
+    date_from: date | None = None
+    date_to: date | None = None
+
+
+class BankReconciliationCandidate(BaseModel):
+    source_id: UUID
+    source_type: str
+    source_date: date
+    amount: Decimal
+    score: Decimal
+    reason: str
+
+
+class BankReconciliationItem(BaseModel):
+    statement_detail_id: UUID
+    candidates: list[BankReconciliationCandidate]
+
+
+class BankAccountCreate(BaseModel):
+    company_id: UUID
+    bank_code: str = Field(min_length=4, max_length=4)
+    branch_code: str = Field(min_length=3, max_length=3)
+    account_type: str
+    account_no_encrypted: bytes
+    account_name: str = Field(max_length=100)
+    account_name_kana: str = Field(max_length=40)
+    currency_code: str = Field(default="JPY", min_length=3, max_length=3)
+
+
+class BankAccountResponse(BaseModel):
+    bank_account_id: UUID
+    company_id: UUID
+    bank_code: str
+    branch_code: str
+    account_type: str
+    account_name: str
+    account_name_kana: str
+    currency_code: str
+    auto_fetch_enabled: bool
+
+    model_config = {"from_attributes": True}
