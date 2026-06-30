@@ -57,3 +57,37 @@ def test_generate_daily_tasks_due_today():
     assert len(specs) == len(DAILY_TEMPLATES)
     assert all(s.due_date == target for s in specs)
     assert {s.task_type for s in specs} == {t[0] for t in DAILY_TEMPLATES}
+
+
+def test_generate_annual_tasks_fixed_events():
+    specs = TaskTemplateService.generate_annual_tasks(calendar_year=2026)
+    types = {s.task_type for s in specs}
+    assert {"legal_records_submission", "labor_insurance_renewal", "year_end_adjustment"} <= types
+    renewal = next(s for s in specs if s.task_type == "labor_insurance_renewal")
+    assert renewal.due_date == date(2026, 7, 10)
+    legal = next(s for s in specs if s.task_type == "legal_records_submission")
+    assert legal.due_date == date(2026, 1, 31)
+
+
+def test_annual_corporate_tax_due_two_months_after_fye():
+    # FYE March -> filing deadline end of May
+    specs = TaskTemplateService.generate_annual_tasks(calendar_year=2026, fiscal_year_end_month=3)
+    filing = next(s for s in specs if s.task_type == "corporate_tax_return")
+    assert filing.due_date == date(2026, 5, 31)
+
+
+def test_annual_corporate_tax_year_rollover():
+    # FYE December -> filing deadline end of February next year (clamped)
+    specs = TaskTemplateService.generate_annual_tasks(calendar_year=2026, fiscal_year_end_month=12)
+    filing = next(s for s in specs if s.task_type == "corporate_tax_return")
+    assert filing.due_date == date(2027, 2, 28)
+
+
+def test_annual_without_fye_has_no_corporate_tax():
+    specs = TaskTemplateService.generate_annual_tasks(calendar_year=2026)
+    assert all(s.task_type != "corporate_tax_return" for s in specs)
+
+
+def test_annual_invalid_fye_raises():
+    with pytest.raises(ValueError):
+        TaskTemplateService.generate_annual_tasks(calendar_year=2026, fiscal_year_end_month=13)

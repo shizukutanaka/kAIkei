@@ -37,7 +37,17 @@ def _build_specs(payload: OfficeTaskGenerateRequest) -> list[TaskSpec]:
         if payload.target_date is None:
             raise HTTPException(status_code=422, detail="target_date is required for daily scope")
         return TaskTemplateService.generate_daily_tasks(target_date=payload.target_date)
-    raise HTTPException(status_code=422, detail="scope must be 'monthly' or 'daily'")
+    if payload.scope == "annual":
+        if payload.target_year is None:
+            raise HTTPException(status_code=422, detail="target_year is required for annual scope")
+        try:
+            return TaskTemplateService.generate_annual_tasks(
+                calendar_year=payload.target_year,
+                fiscal_year_end_month=payload.fiscal_year_end_month,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    raise HTTPException(status_code=422, detail="scope must be 'monthly', 'daily' or 'annual'")
 
 
 @router.post("/generate", response_model=list[OfficeTaskResponse], status_code=status.HTTP_201_CREATED)

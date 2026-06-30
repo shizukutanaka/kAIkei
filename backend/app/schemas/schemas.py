@@ -801,11 +801,12 @@ class JobExecutionComplete(BaseModel):
 
 class OfficeTaskGenerateRequest(BaseModel):
     company_id: UUID
-    scope: str = Field(description="'monthly' or 'daily'")
+    scope: str = Field(description="'monthly', 'daily' or 'annual'")
     target_year: int | None = None
     target_month: int | None = None
     target_date: date | None = None
     phase: str | None = None
+    fiscal_year_end_month: int | None = Field(default=None, ge=1, le=12)
 
 
 class OfficeTaskResponse(BaseModel):
