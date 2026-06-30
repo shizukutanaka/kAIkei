@@ -25,6 +25,7 @@ from app.api.v1.endpoints import (
     rbac,
     reports,
     tax_returns,
+    treasury,
     year_end,
 )
 
@@ -52,5 +53,6 @@ api_router.include_router(attendance.router, prefix="/attendance", tags=["Attend
 api_router.include_router(expenses.router, prefix="/expenses", tags=["Expenses"])
 api_router.include_router(invoices.router, prefix="/invoices", tags=["Invoices"])
 api_router.include_router(tax_returns.router, prefix="/tax-returns", tags=["Tax Returns"])
+api_router.include_router(treasury.router, prefix="/treasury", tags=["Treasury"])
 api_router.include_router(audit.router, prefix="/audit", tags=["Audit"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])

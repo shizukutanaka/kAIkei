@@ -801,3 +801,22 @@ class ArchivedDocumentResponse(BaseModel):
     is_deleted: bool
 
     model_config = {"from_attributes": True}
+
+
+class CashflowForecastRequest(BaseModel):
+    company_id: UUID
+    as_of: date
+    horizon_days: list[int] = Field(default_factory=lambda: [7, 30, 90, 365])
+
+
+class CashflowForecastBucket(BaseModel):
+    horizon_days: int
+    inflows: Decimal
+    outflows: Decimal
+    net_cashflow: Decimal
+
+
+class CashflowForecastResponse(BaseModel):
+    company_id: UUID
+    as_of: date
+    buckets: list[CashflowForecastBucket]
