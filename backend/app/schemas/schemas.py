@@ -809,6 +809,27 @@ class OfficeTaskGenerateRequest(BaseModel):
     fiscal_year_end_month: int | None = Field(default=None, ge=1, le=12)
 
 
+class EventJournalDraftRequest(BaseModel):
+    event_type: str
+    amount: Decimal = Field(gt=0)
+    tax_rate: Decimal = Decimal("0.10")
+    is_tax_inclusive: bool = True
+
+
+class JournalLineDraftResponse(BaseModel):
+    account_role: str
+    debit: Decimal
+    credit: Decimal
+
+
+class EventJournalDraftResponse(BaseModel):
+    event_type: str
+    description: str
+    total_debit: Decimal
+    total_credit: Decimal
+    lines: list[JournalLineDraftResponse]
+
+
 class OfficeTaskResponse(BaseModel):
     task_id: UUID
     company_id: UUID

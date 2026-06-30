@@ -13,11 +13,46 @@ from app.core.database import get_db
 from app.core.deps import CurrentUser, get_current_user, require_permission
 from app.core.rbac import Permission
 from app.models.models import Account, JournalHeader, JournalLine
-from app.schemas.schemas import JournalCreate, JournalListResponse, JournalResponse
+from app.schemas.schemas import (
+    EventJournalDraftRequest,
+    EventJournalDraftResponse,
+    JournalCreate,
+    JournalLineDraftResponse,
+    JournalListResponse,
+    JournalResponse,
+)
+from app.services.event_journal import EventJournalService
 from app.services.journal_service import JournalService
 from app.services.validation_engine import ValidationError, ValidationEngine
 
 router = APIRouter()
+
+
+@router.post("/from-event", response_model=EventJournalDraftResponse)
+async def draft_journal_from_event(
+    payload: EventJournalDraftRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_CREATE)),  # noqa: B008
+) -> EventJournalDraftResponse:
+    """業務イベントから貸借一致の仕訳ドラフト（勘定ロール表現）をプレビュー生成する。"""
+    try:
+        draft = EventJournalService.build_journal_draft(
+            event_type=payload.event_type,
+            amount=payload.amount,
+            tax_rate=payload.tax_rate,
+            is_tax_inclusive=payload.is_tax_inclusive,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return EventJournalDraftResponse(
+        event_type=draft.event_type,
+        description=draft.description,
+        total_debit=draft.total_debit,
+        total_credit=draft.total_credit,
+        lines=[
+            JournalLineDraftResponse(account_role=line.account_role, debit=line.debit, credit=line.credit)
+            for line in draft.lines
+        ],
+    )
 
 
 @router.post("", response_model=JournalResponse, status_code=status.HTTP_201_CREATED)
