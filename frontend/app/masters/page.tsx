@@ -177,6 +177,8 @@ export default function MastersPage() {
                   value={newAccount.account_code}
                   onChange={(e) => setNewAccount({ ...newAccount, account_code: e.target.value })}
                   placeholder="1000"
+                  required
+                  aria-required="true"
                   className="w-full rounded-md border px-3 py-2 text-sm"
                 />
               </div>
@@ -187,6 +189,8 @@ export default function MastersPage() {
                   value={newAccount.account_name}
                   onChange={(e) => setNewAccount({ ...newAccount, account_name: e.target.value })}
                   placeholder="現金"
+                  required
+                  aria-required="true"
                   className="w-full rounded-md border px-3 py-2 text-sm"
                 />
               </div>

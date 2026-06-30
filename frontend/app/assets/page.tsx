@@ -180,11 +180,11 @@ export default function FixedAssetsPage() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-sm font-medium">資産コード</label>
-                <input type="text" value={formData.asset_code} onChange={(e) => setFormData({ ...formData, asset_code: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+                <input type="text" value={formData.asset_code} onChange={(e) => setFormData({ ...formData, asset_code: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium">資産名</label>
-                <input type="text" value={formData.asset_name} onChange={(e) => setFormData({ ...formData, asset_name: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+                <input type="text" value={formData.asset_name} onChange={(e) => setFormData({ ...formData, asset_name: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium">カテゴリ</label>
@@ -196,15 +196,15 @@ export default function FixedAssetsPage() {
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium">取得日</label>
-                <input type="date" value={formData.acquisition_date} onChange={(e) => setFormData({ ...formData, acquisition_date: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+                <input type="date" value={formData.acquisition_date} onChange={(e) => setFormData({ ...formData, acquisition_date: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium">取得価額</label>
-                <input type="number" value={formData.acquisition_cost} onChange={(e) => setFormData({ ...formData, acquisition_cost: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+                <input type="number" value={formData.acquisition_cost} onChange={(e) => setFormData({ ...formData, acquisition_cost: e.target.value })} required aria-required="true" min="0" className="w-full rounded-md border px-3 py-2 text-sm" />
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium">耐用年数（月）</label>
-                <input type="number" value={formData.useful_life_months} onChange={(e) => setFormData({ ...formData, useful_life_months: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+                <input type="number" value={formData.useful_life_months} onChange={(e) => setFormData({ ...formData, useful_life_months: e.target.value })} required aria-required="true" min="1" className="w-full rounded-md border px-3 py-2 text-sm" />
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium">償却方法</label>

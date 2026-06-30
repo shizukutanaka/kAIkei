@@ -212,6 +212,8 @@ export default function PartnersPage() {
                 value={formData.partner_code}
                 onChange={(e) => setFormData({ ...formData, partner_code: e.target.value })}
                 disabled={!!editingId}
+                required
+                aria-required="true"
                 className="w-full rounded-md border px-3 py-2 text-sm disabled:bg-muted"
               />
             </div>
@@ -221,6 +223,8 @@ export default function PartnersPage() {
                 type="text"
                 value={formData.partner_name}
                 onChange={(e) => setFormData({ ...formData, partner_name: e.target.value })}
+                required
+                aria-required="true"
                 className="w-full rounded-md border px-3 py-2 text-sm"
               />
             </div>

@@ -344,7 +344,7 @@ export default function InvoicesPage() {
           <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-3">
             <div>
               <label className="mb-1 block text-sm font-medium">請求書番号</label>
-              <input type="text" value={formData.invoice_number} onChange={(e) => setFormData({ ...formData, invoice_number: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" placeholder="例: INV-2026-001" />
+              <input type="text" value={formData.invoice_number} onChange={(e) => setFormData({ ...formData, invoice_number: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" placeholder="例: INV-2026-001" />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">取引先</label>
@@ -357,11 +357,11 @@ export default function InvoicesPage() {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">請求日</label>
-              <input type="date" value={formData.invoice_date} onChange={(e) => setFormData({ ...formData, invoice_date: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+              <input type="date" value={formData.invoice_date} onChange={(e) => setFormData({ ...formData, invoice_date: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">支払期限</label>
-              <input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+              <input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">消費税率(%)</label>

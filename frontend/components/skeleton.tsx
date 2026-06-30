@@ -22,7 +22,7 @@ export function SkeletonRow({ columns = 5 }: { columns?: number }) {
 
 export function SkeletonTable({ rows = 5, columns = 5 }: { rows?: number; columns?: number }) {
   return (
-    <div className="overflow-x-auto rounded-lg border">
+    <div className="overflow-x-auto rounded-lg border" aria-busy="true" role="status">
       <table className="w-full text-sm">
         <thead className="bg-muted/50">
           <tr>
@@ -39,6 +39,7 @@ export function SkeletonTable({ rows = 5, columns = 5 }: { rows?: number; column
           ))}
         </tbody>
       </table>
+      <span className="sr-only">読み込み中...</span>
     </div>
   );
 }
