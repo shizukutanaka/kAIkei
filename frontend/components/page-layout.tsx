@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/sidebar";
 
-export default function PageLayout({ children }: { children: React.ReactNode }) {
+export default function PageLayout({ children, title }: { children: React.ReactNode; title?: string }) {
   const pathname = usePathname();
 
   useEffect(() => {
@@ -14,6 +14,12 @@ export default function PageLayout({ children }: { children: React.ReactNode }) 
       main.scrollTo(0, 0);
     }
   }, [pathname]);
+
+  useEffect(() => {
+    if (title) {
+      document.title = `${title} | kAIkei`;
+    }
+  }, [title]);
 
   return (
     <div className="flex h-screen pt-14 md:pt-0">

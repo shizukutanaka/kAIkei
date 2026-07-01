@@ -164,7 +164,7 @@ export default function TaxReturnsPage() {
   const fmt = (v: string) => `¥${parseInt(v || "0").toLocaleString()}`;
 
   return (
-    <PageLayout>
+    <PageLayout title="消費税申告">
       <div className="mb-6 flex items-center gap-3">
         <Calculator className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">消費税申告</h1>

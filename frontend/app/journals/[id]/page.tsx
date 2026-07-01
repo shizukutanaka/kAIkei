@@ -111,7 +111,7 @@ export default function JournalDetailPage() {
 
   if (loading) {
     return (
-      <PageLayout>
+      <PageLayout title="仕訳詳細">
         <button
           onClick={() => router.push("/journals")}
           className="mb-4 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
@@ -135,7 +135,7 @@ export default function JournalDetailPage() {
 
   if (error || !journal) {
     return (
-      <PageLayout>
+      <PageLayout title="仕訳詳細">
         <button
           onClick={() => router.push("/journals")}
           className="mb-4 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"

@@ -252,7 +252,7 @@ export default function ExpensesPage() {
   };
 
   return (
-    <PageLayout>
+    <PageLayout title="経費精算">
       <div className="mb-6 flex items-center gap-3">
         <Receipt className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">経費精算</h1>

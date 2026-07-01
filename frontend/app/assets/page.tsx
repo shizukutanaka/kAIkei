@@ -161,7 +161,7 @@ export default function FixedAssetsPage() {
   };
 
   return (
-    <PageLayout>
+    <PageLayout title="固定資産">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <Calculator className="h-6 w-6 text-primary" />

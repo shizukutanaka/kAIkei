@@ -113,7 +113,7 @@ export default function AuditLogPage() {
 
   if (!canView) {
     return (
-      <PageLayout>
+      <PageLayout title="操作証跡ログ">
         <div className="mb-6 flex items-center gap-3">
           <ScrollText className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold">操作証跡ログ</h1>
@@ -126,7 +126,7 @@ export default function AuditLogPage() {
   }
 
   return (
-    <PageLayout>
+    <PageLayout title="操作証跡ログ">
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <ScrollText className="h-6 w-6 text-primary" />

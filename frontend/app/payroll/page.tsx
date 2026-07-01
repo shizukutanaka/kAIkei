@@ -307,7 +307,7 @@ export default function PayrollPage() {
   const currentStatus = payrollRecords[0]?.status;
 
   return (
-    <PageLayout>
+    <PageLayout title="給与">
       <div className="mb-6 flex items-center gap-3">
         <Users className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">給与</h1>

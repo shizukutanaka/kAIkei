@@ -318,7 +318,7 @@ export default function DashboardPage() {
 
   if (loading || userLoading) {
     return (
-      <PageLayout>
+      <PageLayout title="ダッシュボード">
         <div className="mb-6 h-8 w-48 animate-pulse rounded bg-muted" />
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-8">
           {Array.from({ length: 8 }).map((_, i) => (

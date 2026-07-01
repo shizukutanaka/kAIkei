@@ -259,7 +259,7 @@ export default function AttendancePage() {
   });
 
   return (
-    <PageLayout>
+    <PageLayout title="勤怠管理">
       <div className="mb-6 flex items-center gap-3">
         <Clock className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">勤怠管理</h1>

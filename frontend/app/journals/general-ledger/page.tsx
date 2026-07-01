@@ -110,7 +110,7 @@ export default function GeneralLedgerPage() {
   };
 
   return (
-    <PageLayout>
+    <PageLayout title="総勘定元帳">
       <div className="mb-6 flex items-center gap-3">
         <BookOpen className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">総勘定元帳</h1>

@@ -199,7 +199,7 @@ export default function BonusPage() {
   const currentStatus = bonusRecords[0]?.status;
 
   return (
-    <PageLayout>
+    <PageLayout title="賞与">
       <div className="mb-6 flex items-center gap-3">
         <Gift className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">賞与</h1>

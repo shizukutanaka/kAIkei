@@ -157,7 +157,7 @@ export default function JournalsListPage() {
   };
 
   return (
-    <PageLayout>
+    <PageLayout title="仕訳一覧">
         <div className="mb-6 flex items-center gap-3">
           <Receipt className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold">仕訳一覧</h1>

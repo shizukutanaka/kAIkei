@@ -182,7 +182,7 @@ export default function YearEndPage() {
   const currentStatus = records[0]?.status;
 
   return (
-    <PageLayout>
+    <PageLayout title="年末調整">
       <div className="mb-6 flex items-center gap-3">
         <CalendarClock className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">年末調整</h1>

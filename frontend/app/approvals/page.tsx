@@ -167,7 +167,7 @@ export default function ApprovalsPage() {
   };
 
   return (
-    <PageLayout>
+    <PageLayout title="承認ワークフロー">
         <div className="mb-6 flex items-center gap-3">
           <FileCheck className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold">承認ワークフロー</h1>

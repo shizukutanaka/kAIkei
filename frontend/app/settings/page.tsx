@@ -126,7 +126,7 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <PageLayout>
+      <PageLayout title="設定">
         <div className="mb-6 h-8 w-32 animate-pulse rounded bg-muted" />
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
