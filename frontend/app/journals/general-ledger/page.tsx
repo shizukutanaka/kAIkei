@@ -216,6 +216,7 @@ export default function GeneralLedgerPage() {
                   </button>
                   {isExpanded && (
                     <table className="w-full text-sm">
+                      <caption className="sr-only">総勘定元帳明細</caption>
                       <thead className="bg-muted/30">
                         <tr>
                           <th scope="col" className="px-4 py-2 text-left">取引日</th>

@@ -228,6 +228,7 @@ export default function SettingsPage() {
             ) : (
               <div className="overflow-x-auto rounded-lg border">
                 <table className="w-full text-sm">
+                  <caption className="sr-only">通知設定</caption>
                   <thead className="bg-muted/50">
                     <tr>
                       <th scope="col" className="px-4 py-3 text-left font-medium">カテゴリ</th>

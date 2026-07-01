@@ -202,6 +202,7 @@ export default function AuditLogPage() {
       ) : logs.length > 0 ? (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
+            <caption className="sr-only">操作証跡ログ一覧</caption>
             <thead className="bg-muted/50">
               <tr>
                 <th scope="col" className="px-4 py-3 text-left font-medium">日時</th>

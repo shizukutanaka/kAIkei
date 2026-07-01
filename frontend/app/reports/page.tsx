@@ -478,6 +478,7 @@ export default function ReportsPage() {
               </span>
             </div>
             <table className="w-full text-sm">
+              <caption className="sr-only">試算表</caption>
               <thead className="bg-muted/30">
                 <tr>
                   <th scope="col" className="px-4 py-2 text-left font-medium">科目コード</th>
@@ -517,6 +518,7 @@ export default function ReportsPage() {
               <h2 className="text-lg font-semibold">給与サマリー — {year}年{month}月</h2>
             </div>
             <table className="w-full text-sm">
+              <caption className="sr-only">給与サマリー</caption>
               <thead className="bg-muted/30">
                 <tr>
                   <th scope="col" className="px-4 py-2 text-left font-medium">従業員</th>
@@ -576,6 +578,7 @@ export default function ReportsPage() {
               </h2>
             </div>
             <table className="w-full text-sm">
+              <caption className="sr-only">賞与サマリー</caption>
               <thead className="bg-muted/30">
                 <tr>
                   <th scope="col" className="px-4 py-2 text-left font-medium">従業員</th>
@@ -631,6 +634,7 @@ export default function ReportsPage() {
               </h2>
             </div>
             <table className="w-full text-sm">
+              <caption className="sr-only">月次残高</caption>
               <thead className="bg-muted/30">
                 <tr>
                   <th scope="col" className="px-4 py-2 text-left font-medium">科目コード</th>
@@ -669,6 +673,7 @@ export default function ReportsPage() {
               <h2 className="text-lg font-semibold">勤怠集計 — {year}年{month}月</h2>
             </div>
             <table className="w-full text-sm">
+              <caption className="sr-only">勤怠集計</caption>
               <thead className="bg-muted/30">
                 <tr>
                   <th scope="col" className="px-4 py-3 text-left font-medium">従業員コード</th>
@@ -730,6 +735,7 @@ export default function ReportsPage() {
               <h2 className="text-lg font-semibold">経費精算一覧</h2>
             </div>
             <table className="w-full text-sm">
+              <caption className="sr-only">経費精算一覧</caption>
               <thead className="bg-muted/30">
                 <tr>
                   <th scope="col" className="px-4 py-3 text-left font-medium">精算日</th>
@@ -791,6 +797,7 @@ export default function ReportsPage() {
               </span>
             </div>
             <table className="w-full text-sm">
+              <caption className="sr-only">損益計算書</caption>
               <tbody>
                 <tr className="border-b bg-muted/30">
                   <td className="px-4 py-2 font-bold" colSpan={3}>収益</td>
@@ -840,6 +847,7 @@ export default function ReportsPage() {
               </span>
             </div>
             <table className="w-full text-sm">
+              <caption className="sr-only">貸借対照表</caption>
               <tbody>
                 <tr className="border-b bg-muted/30">
                   <td className="px-4 py-2 font-bold" colSpan={3}>資産</td>
@@ -896,6 +904,7 @@ export default function ReportsPage() {
         {cashFlowData && (
           <div className="mt-6 overflow-x-auto rounded-lg border">
             <table className="w-full text-sm">
+              <caption className="sr-only">キャッシュフロー計算書</caption>
               <thead className="bg-primary/10">
                 <tr>
                   <th scope="col" className="px-4 py-3 text-left">区分</th>

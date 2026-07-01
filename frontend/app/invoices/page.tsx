@@ -464,6 +464,7 @@ export default function InvoicesPage() {
           </div>
           <div className="overflow-x-auto rounded-lg border">
             <table className="w-full text-sm">
+              <caption className="sr-only">請求書明細</caption>
               <thead className="bg-muted/50">
                 <tr>
                   <th scope="col" className="px-4 py-3 text-center font-medium">No</th>

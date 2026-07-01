@@ -248,6 +248,7 @@ export default function JournalEntryPage() {
 
         <div className="mb-4 overflow-x-auto">
         <table className="w-full border-collapse">
+          <caption className="sr-only">仕訳入力明細</caption>
           <thead>
             <tr className="border-b bg-muted/50">
               <th scope="col" className="p-2 text-left text-sm">行</th>
