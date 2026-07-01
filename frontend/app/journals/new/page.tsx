@@ -222,17 +222,21 @@ export default function JournalEntryPage() {
             </div>
           </div>
           <div className="flex-1">
-            <label className="mb-1 block text-sm font-medium">取引日</label>
+            <label htmlFor="journal_date" className="mb-1 block text-sm font-medium">取引日 <span className="text-destructive" aria-hidden="true">*</span></label>
             <input
+              id="journal_date"
               type="date"
               value={transactionDate}
               onChange={(e) => setTransactionDate(e.target.value)}
+              required
+              aria-required="true"
               className="w-full rounded-md border px-3 py-2"
             />
           </div>
           <div className="flex-[2]">
-            <label className="mb-1 block text-sm font-medium">摘要</label>
+            <label htmlFor="journal_summary" className="mb-1 block text-sm font-medium">摘要</label>
             <input
+              id="journal_summary"
               type="text"
               value={summary}
               onChange={(e) => setSummary(e.target.value)}

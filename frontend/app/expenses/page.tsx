@@ -331,8 +331,8 @@ export default function ExpensesPage() {
           </div>
           <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-3">
             <div>
-              <label className="mb-1 block text-sm font-medium">従業員</label>
-              <select value={formData.employee_id} onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm">
+              <label htmlFor="exp_employee" className="mb-1 block text-sm font-medium">従業員 <span className="text-destructive" aria-hidden="true">*</span></label>
+              <select id="exp_employee" value={formData.employee_id} onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm">
                 <option value="">選択...</option>
                 {employees.map((e) => (
                   <option key={e.employee_id} value={e.employee_id}>{e.employee_name}</option>
@@ -340,12 +340,12 @@ export default function ExpensesPage() {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">精算日</label>
-              <input type="date" value={formData.report_date} onChange={(e) => setFormData({ ...formData, report_date: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
+              <label htmlFor="exp_date" className="mb-1 block text-sm font-medium">精算日 <span className="text-destructive" aria-hidden="true">*</span></label>
+              <input id="exp_date" type="date" value={formData.report_date} onChange={(e) => setFormData({ ...formData, report_date: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">タイトル</label>
-              <input type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" placeholder="例: 6月営業交通費" />
+              <label htmlFor="exp_title" className="mb-1 block text-sm font-medium">タイトル <span className="text-destructive" aria-hidden="true">*</span></label>
+              <input id="exp_title" type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" placeholder="例: 6月営業交通費" />
             </div>
           </div>
 

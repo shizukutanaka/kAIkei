@@ -369,8 +369,8 @@ export default function AttendancePage() {
           </div>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
             <div>
-              <label className="mb-1 block text-sm font-medium">従業員</label>
-              <select value={formData.employee_id} onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm">
+              <label htmlFor="att_employee" className="mb-1 block text-sm font-medium">従業員 <span className="text-destructive" aria-hidden="true">*</span></label>
+              <select id="att_employee" value={formData.employee_id} onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm">
                 <option value="">選択...</option>
                 {employees.map((e) => (
                   <option key={e.employee_id} value={e.employee_id}>{e.employee_name}</option>
@@ -378,24 +378,24 @@ export default function AttendancePage() {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">日付</label>
-              <input type="date" value={formData.work_date} onChange={(e) => setFormData({ ...formData, work_date: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+              <label htmlFor="att_work_date" className="mb-1 block text-sm font-medium">日付 <span className="text-destructive" aria-hidden="true">*</span></label>
+              <input id="att_work_date" type="date" value={formData.work_date} onChange={(e) => setFormData({ ...formData, work_date: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">出勤時刻</label>
-              <input type="time" value={formData.clock_in} onChange={(e) => setFormData({ ...formData, clock_in: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+              <label htmlFor="att_clock_in" className="mb-1 block text-sm font-medium">出勤時刻</label>
+              <input id="att_clock_in" type="time" value={formData.clock_in} onChange={(e) => setFormData({ ...formData, clock_in: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">退勤時刻</label>
-              <input type="time" value={formData.clock_out} onChange={(e) => setFormData({ ...formData, clock_out: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+              <label htmlFor="att_clock_out" className="mb-1 block text-sm font-medium">退勤時刻</label>
+              <input id="att_clock_out" type="time" value={formData.clock_out} onChange={(e) => setFormData({ ...formData, clock_out: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">休憩時間（分）</label>
-              <input type="number" value={formData.break_minutes} onChange={(e) => setFormData({ ...formData, break_minutes: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+              <label htmlFor="att_break" className="mb-1 block text-sm font-medium">休憩時間（分）</label>
+              <input id="att_break" type="number" value={formData.break_minutes} onChange={(e) => setFormData({ ...formData, break_minutes: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">勤怠区分</label>
-              <select value={formData.leave_type} onChange={(e) => setFormData({ ...formData, leave_type: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm">
+              <label htmlFor="att_leave_type" className="mb-1 block text-sm font-medium">勤怠区分</label>
+              <select id="att_leave_type" value={formData.leave_type} onChange={(e) => setFormData({ ...formData, leave_type: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm">
                 <option value="none">出勤</option>
                 <option value="paid_leave">有給休暇</option>
                 <option value="absent">欠勤</option>
@@ -403,8 +403,8 @@ export default function AttendancePage() {
               </select>
             </div>
             <div className="col-span-2 md:col-span-3">
-              <label className="mb-1 block text-sm font-medium">備考</label>
-              <input type="text" value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+              <label htmlFor="att_note" className="mb-1 block text-sm font-medium">備考</label>
+              <input id="att_note" type="text" value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
             </div>
           </div>
           <div className="mt-4 flex gap-2">

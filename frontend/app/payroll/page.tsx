@@ -416,11 +416,11 @@ export default function PayrollPage() {
               <h2 className="mb-4 text-lg font-semibold">新規従業員登録</h2>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label htmlFor="employee_code" className="mb-1 block text-sm font-medium">従業員コード</label>
+                  <label htmlFor="employee_code" className="mb-1 block text-sm font-medium">従業員コード <span className="text-destructive" aria-hidden="true">*</span></label>
                   <input id="employee_code" type="text" value={formData.employee_code} onChange={(e) => setFormData({ ...formData, employee_code: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label htmlFor="employee_name" className="mb-1 block text-sm font-medium">氏名</label>
+                  <label htmlFor="employee_name" className="mb-1 block text-sm font-medium">氏名 <span className="text-destructive" aria-hidden="true">*</span></label>
                   <input id="employee_name" type="text" value={formData.employee_name} onChange={(e) => setFormData({ ...formData, employee_name: e.target.value })} required aria-required="true" autoComplete="name" className="w-full rounded-md border px-3 py-2 text-sm" />
                 </div>
                 <div>

@@ -210,7 +210,7 @@ export default function PartnersPage() {
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="partner_code" className="mb-1 block text-sm font-medium">取引先コード</label>
+              <label htmlFor="partner_code" className="mb-1 block text-sm font-medium">取引先コード <span className="text-destructive" aria-hidden="true">*</span></label>
               <input
                 id="partner_code"
                 type="text"
@@ -223,7 +223,7 @@ export default function PartnersPage() {
               />
             </div>
             <div>
-              <label htmlFor="partner_name" className="mb-1 block text-sm font-medium">取引先名</label>
+              <label htmlFor="partner_name" className="mb-1 block text-sm font-medium">取引先名 <span className="text-destructive" aria-hidden="true">*</span></label>
               <input
                 id="partner_name"
                 type="text"

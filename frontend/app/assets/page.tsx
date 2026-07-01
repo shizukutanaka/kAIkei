@@ -179,11 +179,11 @@ export default function FixedAssetsPage() {
             <h2 className="mb-4 text-lg font-semibold">新規資産登録</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label htmlFor="asset_code" className="mb-1 block text-sm font-medium">資産コード</label>
+                <label htmlFor="asset_code" className="mb-1 block text-sm font-medium">資産コード <span className="text-destructive" aria-hidden="true">*</span></label>
                 <input id="asset_code" type="text" value={formData.asset_code} onChange={(e) => setFormData({ ...formData, asset_code: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
               </div>
               <div>
-                <label htmlFor="asset_name" className="mb-1 block text-sm font-medium">資産名</label>
+                <label htmlFor="asset_name" className="mb-1 block text-sm font-medium">資産名 <span className="text-destructive" aria-hidden="true">*</span></label>
                 <input id="asset_name" type="text" value={formData.asset_name} onChange={(e) => setFormData({ ...formData, asset_name: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
               </div>
               <div>
@@ -195,15 +195,15 @@ export default function FixedAssetsPage() {
                 </select>
               </div>
               <div>
-                <label htmlFor="acquisition_date" className="mb-1 block text-sm font-medium">取得日</label>
+                <label htmlFor="acquisition_date" className="mb-1 block text-sm font-medium">取得日 <span className="text-destructive" aria-hidden="true">*</span></label>
                 <input id="acquisition_date" type="date" value={formData.acquisition_date} onChange={(e) => setFormData({ ...formData, acquisition_date: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
               </div>
               <div>
-                <label htmlFor="acquisition_cost" className="mb-1 block text-sm font-medium">取得価額</label>
+                <label htmlFor="acquisition_cost" className="mb-1 block text-sm font-medium">取得価額 <span className="text-destructive" aria-hidden="true">*</span></label>
                 <input id="acquisition_cost" type="number" inputMode="decimal" value={formData.acquisition_cost} onChange={(e) => setFormData({ ...formData, acquisition_cost: e.target.value })} required aria-required="true" min="0" className="w-full rounded-md border px-3 py-2 text-sm" />
               </div>
               <div>
-                <label htmlFor="useful_life_months" className="mb-1 block text-sm font-medium">耐用年数（月）</label>
+                <label htmlFor="useful_life_months" className="mb-1 block text-sm font-medium">耐用年数（月） <span className="text-destructive" aria-hidden="true">*</span></label>
                 <input id="useful_life_months" type="number" inputMode="numeric" value={formData.useful_life_months} onChange={(e) => setFormData({ ...formData, useful_life_months: e.target.value })} required aria-required="true" min="1" className="w-full rounded-md border px-3 py-2 text-sm" />
               </div>
               <div>

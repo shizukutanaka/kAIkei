@@ -171,7 +171,7 @@ export default function MastersPage() {
             <h2 className="mb-4 text-lg font-semibold">新規勘定科目</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label htmlFor="account_code" className="mb-1 block text-sm font-medium">科目コード</label>
+                <label htmlFor="account_code" className="mb-1 block text-sm font-medium">科目コード <span className="text-destructive" aria-hidden="true">*</span></label>
                 <input
                   id="account_code"
                   type="text"
@@ -184,7 +184,7 @@ export default function MastersPage() {
                 />
               </div>
               <div>
-                <label htmlFor="account_name" className="mb-1 block text-sm font-medium">科目名</label>
+                <label htmlFor="account_name" className="mb-1 block text-sm font-medium">科目名 <span className="text-destructive" aria-hidden="true">*</span></label>
                 <input
                   id="account_name"
                   type="text"
