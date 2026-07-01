@@ -204,7 +204,7 @@ export default function JournalEntryPage() {
         )}
 
         {result && (
-          <div className="mb-4 rounded-md border border-green-500/50 bg-green-50 p-4 text-sm text-green-700">
+          <div role="status" className="mb-4 rounded-md border border-green-500/50 bg-green-50 p-4 text-sm text-green-700">
             仕訳を保存しました: {result.journal_number as string} (ID: {result.journal_header_id as string})
           </div>
         )}

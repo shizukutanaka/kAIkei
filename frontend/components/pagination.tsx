@@ -30,7 +30,7 @@ export function Pagination({ page, pageSize, total, onPageChange }: PaginationPr
   }
 
   return (
-    <div className="mt-4 flex flex-col items-center justify-between gap-2 sm:flex-row">
+    <nav aria-label="ページネーション" className="mt-4 flex flex-col items-center justify-between gap-2 sm:flex-row">
       <p className="text-sm text-muted-foreground">
         {total}件中 {start}-{end}件
       </p>
@@ -76,6 +76,6 @@ export function Pagination({ page, pageSize, total, onPageChange }: PaginationPr
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
-    </div>
+    </nav>
   );
 }

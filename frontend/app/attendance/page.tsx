@@ -399,7 +399,7 @@ export default function AttendancePage() {
       )}
 
       {tab === "records" && (
-        <div role="tabpanel" id="panel-records" aria-labelledby="tab-records">
+        <div role="tabpanel" id="panel-records" aria-labelledby="tab-records" tabIndex={0}>
         <>
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <div className="relative">
@@ -476,7 +476,7 @@ export default function AttendancePage() {
       )}
 
       {tab === "summary" && (
-        <div role="tabpanel" id="panel-summary" aria-labelledby="tab-summary">
+        <div role="tabpanel" id="panel-summary" aria-labelledby="tab-summary" tabIndex={0}>
         <>
           {loading ? (
             <SkeletonTable rows={5} columns={6} />

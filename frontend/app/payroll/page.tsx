@@ -322,7 +322,7 @@ export default function PayrollPage() {
       )}
 
       {tab === "employees" && (
-        <div role="tabpanel" id="panel-employees" aria-labelledby="tab-employees">
+        <div role="tabpanel" id="panel-employees" aria-labelledby="tab-employees" tabIndex={0}>
         <>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
@@ -502,7 +502,7 @@ export default function PayrollPage() {
       )}
 
       {tab === "payroll" && (
-        <div role="tabpanel" id="panel-payroll" aria-labelledby="tab-payroll">
+        <div role="tabpanel" id="panel-payroll" aria-labelledby="tab-payroll" tabIndex={0}>
         <>
           <div className="mb-4 flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-4">
