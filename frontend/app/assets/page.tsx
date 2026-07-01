@@ -41,6 +41,7 @@ export default function FixedAssetsPage() {
   const [assets, setAssets] = useState<FixedAsset[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [showForm, setShowForm] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -76,6 +77,18 @@ export default function FixedAssetsPage() {
   }, [companyId]);
 
   const handleCreate = async () => {
+    const errors: Record<string, string> = {};
+    if (!formData.asset_code) errors.asset_code = "資産コードは必須です";
+    if (!formData.asset_name) errors.asset_name = "資産名は必須です";
+    if (!formData.acquisition_date) errors.acquisition_date = "取得日は必須です";
+    if (!formData.acquisition_cost) errors.acquisition_cost = "取得価額は必須です";
+    if (!formData.useful_life_months) errors.useful_life_months = "耐用年数は必須です";
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      toast("必須項目を入力してください", "warning");
+      return;
+    }
+    setFieldErrors({});
     setLoading(true);
     setError("");
     try {
@@ -180,11 +193,13 @@ export default function FixedAssetsPage() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="asset_code" className="mb-1 block text-sm font-medium">資産コード <span className="text-destructive" aria-hidden="true">*</span></label>
-                <input id="asset_code" type="text" value={formData.asset_code} onChange={(e) => setFormData({ ...formData, asset_code: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
+                <input id="asset_code" type="text" value={formData.asset_code} onChange={(e) => { setFormData({ ...formData, asset_code: e.target.value }); if (fieldErrors.asset_code) setFieldErrors({ ...fieldErrors, asset_code: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.asset_code} aria-describedby={fieldErrors.asset_code ? "asset_code-error" : undefined} className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive" />
+                {fieldErrors.asset_code && <p id="asset_code-error" className="mt-1 text-xs text-destructive">{fieldErrors.asset_code}</p>}
               </div>
               <div>
                 <label htmlFor="asset_name" className="mb-1 block text-sm font-medium">資産名 <span className="text-destructive" aria-hidden="true">*</span></label>
-                <input id="asset_name" type="text" value={formData.asset_name} onChange={(e) => setFormData({ ...formData, asset_name: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
+                <input id="asset_name" type="text" value={formData.asset_name} onChange={(e) => { setFormData({ ...formData, asset_name: e.target.value }); if (fieldErrors.asset_name) setFieldErrors({ ...fieldErrors, asset_name: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.asset_name} aria-describedby={fieldErrors.asset_name ? "asset_name-error" : undefined} className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive" />
+                {fieldErrors.asset_name && <p id="asset_name-error" className="mt-1 text-xs text-destructive">{fieldErrors.asset_name}</p>}
               </div>
               <div>
                 <label htmlFor="asset_category" className="mb-1 block text-sm font-medium">カテゴリ</label>
@@ -196,15 +211,18 @@ export default function FixedAssetsPage() {
               </div>
               <div>
                 <label htmlFor="acquisition_date" className="mb-1 block text-sm font-medium">取得日 <span className="text-destructive" aria-hidden="true">*</span></label>
-                <input id="acquisition_date" type="date" value={formData.acquisition_date} onChange={(e) => setFormData({ ...formData, acquisition_date: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
+                <input id="acquisition_date" type="date" value={formData.acquisition_date} onChange={(e) => { setFormData({ ...formData, acquisition_date: e.target.value }); if (fieldErrors.acquisition_date) setFieldErrors({ ...fieldErrors, acquisition_date: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.acquisition_date} aria-describedby={fieldErrors.acquisition_date ? "acquisition_date-error" : undefined} className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive" />
+                {fieldErrors.acquisition_date && <p id="acquisition_date-error" className="mt-1 text-xs text-destructive">{fieldErrors.acquisition_date}</p>}
               </div>
               <div>
                 <label htmlFor="acquisition_cost" className="mb-1 block text-sm font-medium">取得価額 <span className="text-destructive" aria-hidden="true">*</span></label>
-                <input id="acquisition_cost" type="number" inputMode="decimal" value={formData.acquisition_cost} onChange={(e) => setFormData({ ...formData, acquisition_cost: e.target.value })} required aria-required="true" min="0" className="w-full rounded-md border px-3 py-2 text-sm" />
+                <input id="acquisition_cost" type="number" inputMode="decimal" value={formData.acquisition_cost} onChange={(e) => { setFormData({ ...formData, acquisition_cost: e.target.value }); if (fieldErrors.acquisition_cost) setFieldErrors({ ...fieldErrors, acquisition_cost: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.acquisition_cost} aria-describedby={fieldErrors.acquisition_cost ? "acquisition_cost-error" : undefined} min="0" className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive" />
+                {fieldErrors.acquisition_cost && <p id="acquisition_cost-error" className="mt-1 text-xs text-destructive">{fieldErrors.acquisition_cost}</p>}
               </div>
               <div>
                 <label htmlFor="useful_life_months" className="mb-1 block text-sm font-medium">耐用年数（月） <span className="text-destructive" aria-hidden="true">*</span></label>
-                <input id="useful_life_months" type="number" inputMode="numeric" value={formData.useful_life_months} onChange={(e) => setFormData({ ...formData, useful_life_months: e.target.value })} required aria-required="true" min="1" className="w-full rounded-md border px-3 py-2 text-sm" />
+                <input id="useful_life_months" type="number" inputMode="numeric" value={formData.useful_life_months} onChange={(e) => { setFormData({ ...formData, useful_life_months: e.target.value }); if (fieldErrors.useful_life_months) setFieldErrors({ ...fieldErrors, useful_life_months: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.useful_life_months} aria-describedby={fieldErrors.useful_life_months ? "useful_life_months-error" : "useful_life_months-hint"} min="1" className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive" />
+                {fieldErrors.useful_life_months ? <p id="useful_life_months-error" className="mt-1 text-xs text-destructive">{fieldErrors.useful_life_months}</p> : <p id="useful_life_months-hint" className="mt-1 text-xs text-muted-foreground">月数で入力してください（例: 60ヶ月=5年）</p>}
               </div>
               <div>
                 <label htmlFor="depreciation_method" className="mb-1 block text-sm font-medium">償却方法</label>

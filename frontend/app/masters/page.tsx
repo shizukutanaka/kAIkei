@@ -37,6 +37,7 @@ export default function MastersPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
@@ -71,10 +72,15 @@ export default function MastersPage() {
   };
 
   const handleAddAccount = async () => {
-    if (!companyId || !newAccount.account_code || !newAccount.account_name) {
-      setError("科目コードと科目名を入力してください");
+    const errors: Record<string, string> = {};
+    if (!newAccount.account_code) errors.account_code = "科目コードは必須です";
+    if (!newAccount.account_name) errors.account_name = "科目名は必須です";
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      toast("必須項目を入力してください", "warning");
       return;
     }
+    setFieldErrors({});
 
     setAddLoading(true);
     try {
@@ -176,12 +182,15 @@ export default function MastersPage() {
                   id="account_code"
                   type="text"
                   value={newAccount.account_code}
-                  onChange={(e) => setNewAccount({ ...newAccount, account_code: e.target.value })}
+                  onChange={(e) => { setNewAccount({ ...newAccount, account_code: e.target.value }); if (fieldErrors.account_code) setFieldErrors({ ...fieldErrors, account_code: "" }); }}
                   placeholder="1000"
                   required
                   aria-required="true"
-                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  aria-invalid={!!fieldErrors.account_code}
+                  aria-describedby={fieldErrors.account_code ? "account_code-error" : undefined}
+                  className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive"
                 />
+                {fieldErrors.account_code && <p id="account_code-error" className="mt-1 text-xs text-destructive">{fieldErrors.account_code}</p>}
               </div>
               <div>
                 <label htmlFor="account_name" className="mb-1 block text-sm font-medium">科目名 <span className="text-destructive" aria-hidden="true">*</span></label>
@@ -189,12 +198,15 @@ export default function MastersPage() {
                   id="account_name"
                   type="text"
                   value={newAccount.account_name}
-                  onChange={(e) => setNewAccount({ ...newAccount, account_name: e.target.value })}
+                  onChange={(e) => { setNewAccount({ ...newAccount, account_name: e.target.value }); if (fieldErrors.account_name) setFieldErrors({ ...fieldErrors, account_name: "" }); }}
                   placeholder="現金"
                   required
                   aria-required="true"
-                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  aria-invalid={!!fieldErrors.account_name}
+                  aria-describedby={fieldErrors.account_name ? "account_name-error" : undefined}
+                  className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive"
                 />
+                {fieldErrors.account_name && <p id="account_name-error" className="mt-1 text-xs text-destructive">{fieldErrors.account_name}</p>}
               </div>
               <div>
                 <label htmlFor="account_type" className="mb-1 block text-sm font-medium">科目区分</label>

@@ -87,6 +87,7 @@ export default function InvoicesPage() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -165,14 +166,20 @@ export default function InvoicesPage() {
   const totalAmount = subtotal + taxAmount;
 
   const handleSubmit = async () => {
-    if (!companyId || !formData.invoice_number || !formData.invoice_date || !formData.due_date) {
-      toast("請求書番号、請求日、支払期限は必須です", "warning");
+    const errors: Record<string, string> = {};
+    if (!formData.invoice_number) errors.inv_number = "請求書番号は必須です";
+    if (!formData.invoice_date) errors.inv_date = "請求日は必須です";
+    if (!formData.due_date) errors.inv_due_date = "支払期限は必須です";
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      toast("必須項目を入力してください", "warning");
       return;
     }
     if (lines.length === 0 || lines.some((l) => !l.description || !l.unit_price)) {
       toast("明細の内容と単価を入力してください", "warning");
       return;
     }
+    setFieldErrors({});
     setSubmitLoading(true);
     try {
       await apiPost("/invoices/invoices", {
@@ -351,7 +358,8 @@ export default function InvoicesPage() {
           <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-3">
             <div>
               <label htmlFor="inv_number" className="mb-1 block text-sm font-medium">請求書番号 <span className="text-destructive" aria-hidden="true">*</span></label>
-              <input id="inv_number" type="text" value={formData.invoice_number} onChange={(e) => setFormData({ ...formData, invoice_number: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" placeholder="例: INV-2026-001" />
+              <input id="inv_number" type="text" value={formData.invoice_number} onChange={(e) => { setFormData({ ...formData, invoice_number: e.target.value }); if (fieldErrors.inv_number) setFieldErrors({ ...fieldErrors, inv_number: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.inv_number} aria-describedby={fieldErrors.inv_number ? "inv_number-error" : undefined} className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive" placeholder="例: INV-2026-001" />
+              {fieldErrors.inv_number && <p id="inv_number-error" className="mt-1 text-xs text-destructive">{fieldErrors.inv_number}</p>}
             </div>
             <div>
               <label htmlFor="inv_partner" className="mb-1 block text-sm font-medium">取引先</label>
@@ -364,11 +372,13 @@ export default function InvoicesPage() {
             </div>
             <div>
               <label htmlFor="inv_date" className="mb-1 block text-sm font-medium">請求日 <span className="text-destructive" aria-hidden="true">*</span></label>
-              <input id="inv_date" type="date" value={formData.invoice_date} onChange={(e) => setFormData({ ...formData, invoice_date: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
+              <input id="inv_date" type="date" value={formData.invoice_date} onChange={(e) => { setFormData({ ...formData, invoice_date: e.target.value }); if (fieldErrors.inv_date) setFieldErrors({ ...fieldErrors, inv_date: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.inv_date} aria-describedby={fieldErrors.inv_date ? "inv_date-error" : undefined} className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive" />
+              {fieldErrors.inv_date && <p id="inv_date-error" className="mt-1 text-xs text-destructive">{fieldErrors.inv_date}</p>}
             </div>
             <div>
               <label htmlFor="inv_due_date" className="mb-1 block text-sm font-medium">支払期限 <span className="text-destructive" aria-hidden="true">*</span></label>
-              <input id="inv_due_date" type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
+              <input id="inv_due_date" type="date" value={formData.due_date} onChange={(e) => { setFormData({ ...formData, due_date: e.target.value }); if (fieldErrors.inv_due_date) setFieldErrors({ ...fieldErrors, inv_due_date: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.inv_due_date} aria-describedby={fieldErrors.inv_due_date ? "inv_due_date-error" : undefined} className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive" />
+              {fieldErrors.inv_due_date && <p id="inv_due_date-error" className="mt-1 text-xs text-destructive">{fieldErrors.inv_due_date}</p>}
             </div>
             <div>
               <label htmlFor="inv_tax_rate" className="mb-1 block text-sm font-medium">消費税率(%)</label>

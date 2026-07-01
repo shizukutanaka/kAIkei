@@ -78,6 +78,7 @@ export default function ExpensesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -156,14 +157,19 @@ export default function ExpensesPage() {
   const totalAmount = items.reduce((s, item) => s + (parseFloat(item.amount) || 0), 0);
 
   const handleSubmit = async () => {
-    if (!companyId || !formData.employee_id || !formData.title) {
-      toast("従業員とタイトルは必須です", "warning");
+    const errors: Record<string, string> = {};
+    if (!formData.employee_id) errors.exp_employee = "従業員を選択してください";
+    if (!formData.title) errors.exp_title = "タイトルは必須です";
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      toast("必須項目を入力してください", "warning");
       return;
     }
     if (items.length === 0 || items.some((i) => !i.description || !i.amount)) {
       toast("明細の摘要と金額を入力してください", "warning");
       return;
     }
+    setFieldErrors({});
     setSubmitLoading(true);
     try {
       await apiPost("/expenses/reports", {
@@ -334,12 +340,13 @@ export default function ExpensesPage() {
           <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-3">
             <div>
               <label htmlFor="exp_employee" className="mb-1 block text-sm font-medium">従業員 <span className="text-destructive" aria-hidden="true">*</span></label>
-              <select id="exp_employee" value={formData.employee_id} onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm">
+              <select id="exp_employee" value={formData.employee_id} onChange={(e) => { setFormData({ ...formData, employee_id: e.target.value }); if (fieldErrors.exp_employee) setFieldErrors({ ...fieldErrors, exp_employee: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.exp_employee} aria-describedby={fieldErrors.exp_employee ? "exp_employee-error" : undefined} className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive">
                 <option value="">選択...</option>
                 {employees.map((e) => (
                   <option key={e.employee_id} value={e.employee_id}>{e.employee_name}</option>
                 ))}
               </select>
+              {fieldErrors.exp_employee && <p id="exp_employee-error" className="mt-1 text-xs text-destructive">{fieldErrors.exp_employee}</p>}
             </div>
             <div>
               <label htmlFor="exp_date" className="mb-1 block text-sm font-medium">精算日 <span className="text-destructive" aria-hidden="true">*</span></label>
@@ -347,7 +354,8 @@ export default function ExpensesPage() {
             </div>
             <div>
               <label htmlFor="exp_title" className="mb-1 block text-sm font-medium">タイトル <span className="text-destructive" aria-hidden="true">*</span></label>
-              <input id="exp_title" type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" placeholder="例: 6月営業交通費" />
+              <input id="exp_title" type="text" value={formData.title} onChange={(e) => { setFormData({ ...formData, title: e.target.value }); if (fieldErrors.exp_title) setFieldErrors({ ...fieldErrors, exp_title: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.exp_title} aria-describedby={fieldErrors.exp_title ? "exp_title-error" : undefined} className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive" placeholder="例: 6月営業交通費" />
+              {fieldErrors.exp_title && <p id="exp_title-error" className="mt-1 text-xs text-destructive">{fieldErrors.exp_title}</p>}
             </div>
           </div>
 
