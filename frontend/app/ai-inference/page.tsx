@@ -258,15 +258,16 @@ export default function AiInferencePage() {
 
               <div className="overflow-x-auto">
               <table className="w-full border-collapse">
+                <caption className="sr-only">AI推論結果</caption>
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    <th className="p-2 text-left text-sm">借貸</th>
-                    <th className="p-2 text-left text-sm">科目コード</th>
-                    <th className="p-2 text-left text-sm">科目名</th>
-                    <th className="p-2 text-right text-sm">金額</th>
-                    <th className="p-2 text-right text-sm">税率</th>
-                    <th className="p-2 text-right text-sm">信頼度</th>
-                    <th className="p-2 text-left text-sm">推論理由</th>
+                    <th scope="col" className="p-2 text-left text-sm">借貸</th>
+                    <th scope="col" className="p-2 text-left text-sm">科目コード</th>
+                    <th scope="col" className="p-2 text-left text-sm">科目名</th>
+                    <th scope="col" className="p-2 text-right text-sm">金額</th>
+                    <th scope="col" className="p-2 text-right text-sm">税率</th>
+                    <th scope="col" className="p-2 text-right text-sm">信頼度</th>
+                    <th scope="col" className="p-2 text-left text-sm">推論理由</th>
                   </tr>
                 </thead>
                 <tbody>
