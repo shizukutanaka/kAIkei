@@ -58,6 +58,10 @@ body {
   color: hsl(var(--foreground));
 }
 
+button[disabled] {
+  cursor: not-allowed;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;

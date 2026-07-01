@@ -116,7 +116,9 @@ export default function YearEndPage() {
       setRecords(data);
       toast(`${data.length}件の年末調整を計算しました`, "success");
     } catch (err) {
-      toast(err instanceof Error ? err.message : "計算に失敗しました", "error");
+      const msg = err instanceof Error ? err.message : "計算に失敗しました";
+      setError(msg);
+      toast(msg, "error");
     } finally {
       setCalculating(false);
     }

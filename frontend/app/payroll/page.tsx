@@ -200,7 +200,9 @@ export default function PayrollPage() {
       toast("従業員を登録しました", "success");
       await fetchEmployees();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "登録に失敗しました", "error");
+      const msg = err instanceof Error ? err.message : "登録に失敗しました";
+      setError(msg);
+      toast(msg, "error");
     } finally {
       setLoading(false);
     }
@@ -236,7 +238,9 @@ export default function PayrollPage() {
       setPayrollRecords(data);
       toast(`${data.length}件の給与を計算しました`, "success");
     } catch (err) {
-      toast(err instanceof Error ? err.message : "計算に失敗しました", "error");
+      const msg = err instanceof Error ? err.message : "計算に失敗しました";
+      setError(msg);
+      toast(msg, "error");
     } finally {
       setCalculating(false);
     }

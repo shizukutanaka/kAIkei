@@ -202,7 +202,9 @@ export default function InvoicesPage() {
       setLines([{ ...emptyLine }]);
       fetchInvoices();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "作成に失敗しました", "error");
+      const msg = err instanceof Error ? err.message : "作成に失敗しました";
+      setError(msg);
+      toast(msg, "error");
     } finally {
       setSubmitLoading(false);
     }

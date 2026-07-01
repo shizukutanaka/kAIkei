@@ -238,7 +238,9 @@ export default function AttendancePage() {
       setShowForm(false);
       fetchRecords();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "登録に失敗しました", "error");
+      const msg = err instanceof Error ? err.message : "登録に失敗しました";
+      setError(msg);
+      toast(msg, "error");
     } finally {
       setFormLoading(false);
     }

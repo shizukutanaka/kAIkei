@@ -104,7 +104,9 @@ export default function TaxReturnsPage() {
       setSelectedRecord(data);
       toast(`${calcYear}年の消費税申告を計算しました`, "success");
     } catch (err) {
-      toast(err instanceof Error ? err.message : "計算に失敗しました", "error");
+      const msg = err instanceof Error ? err.message : "計算に失敗しました";
+      setError(msg);
+      toast(msg, "error");
     } finally {
       setCalculating(false);
     }

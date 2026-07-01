@@ -131,7 +131,9 @@ export default function PartnersPage() {
       setFormData(emptyForm);
       await fetchPartners();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "保存に失敗しました", "error");
+      const msg = err instanceof Error ? err.message : "保存に失敗しました";
+      setError(msg);
+      toast(msg, "error");
     } finally {
       setLoading(false);
     }

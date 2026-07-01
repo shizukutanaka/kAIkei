@@ -185,7 +185,9 @@ export default function ExpensesPage() {
       setItems([{ ...emptyItem }]);
       fetchReports();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "提出に失敗しました", "error");
+      const msg = err instanceof Error ? err.message : "提出に失敗しました";
+      setError(msg);
+      toast(msg, "error");
     } finally {
       setSubmitLoading(false);
     }
