@@ -102,8 +102,8 @@ class JournalLineCreate(BaseModel):
     sub_account_id: UUID | None = None
     department_id: UUID | None = None
     tax_rule_id: UUID | None = None
-    amount: Decimal = Field(gt=0)
-    tax_amount: Decimal = Field(default=Decimal("0"), ge=0)
+    amount: Decimal
+    tax_amount: Decimal = Decimal("0")
     description: str | None = None
 
 
@@ -112,7 +112,7 @@ class JournalCreate(BaseModel):
     transaction_date: date
     voucher_type: str = Field(default="transfer", pattern="^(transfer|receipt|payment)$")
     summary: str | None = None
-    lines: list[JournalLineCreate] = Field(min_length=2)
+    lines: list[JournalLineCreate]
 
 
 class JournalLineResponse(BaseModel):
