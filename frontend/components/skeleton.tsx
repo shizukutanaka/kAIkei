@@ -1,9 +1,10 @@
 export function SkeletonCard() {
   return (
-    <div className="rounded-lg border bg-card p-6">
+    <div className="rounded-lg border bg-card p-6" aria-busy="true" role="status">
       <div className="mb-4 h-4 w-32 animate-pulse rounded bg-muted" />
       <div className="mb-2 h-8 w-24 animate-pulse rounded bg-muted" />
       <div className="h-3 w-16 animate-pulse rounded bg-muted/70" />
+      <span className="sr-only">読み込み中...</span>
     </div>
   );
 }
