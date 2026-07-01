@@ -174,7 +174,8 @@ export default function PayrollPage() {
     return matchesSearch && matchesDept && matchesActive;
   }), [employees, deferredEmpSearch, deferredEmpDeptFilter, deferredEmpActiveFilter]);
 
-  const handleCreateEmployee = async () => {
+  const handleCreateEmployee = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     const errors: Record<string, string> = {};
     if (!formData.employee_code) errors.employee_code = "従業員コードは必須です";
     if (!formData.employee_name) errors.employee_name = "氏名は必須です";
@@ -381,6 +382,7 @@ export default function PayrollPage() {
                 </div>
                 {departments.length > 0 && (
                   <select
+                    aria-label="部署フィルター"
                     value={empDeptFilter}
                     onChange={(e) => setEmpDeptFilter(e.target.value)}
                     className="rounded-md border px-2 py-1.5 text-sm"
@@ -392,6 +394,7 @@ export default function PayrollPage() {
                   </select>
                 )}
                 <select
+                  aria-label="状態フィルター"
                   value={empActiveFilter}
                   onChange={(e) => setEmpActiveFilter(e.target.value)}
                   className="rounded-md border px-2 py-1.5 text-sm"
@@ -422,7 +425,7 @@ export default function PayrollPage() {
           </div>
 
           {showForm && (
-            <div className="mb-6 rounded-lg border bg-card p-6">
+            <form onSubmit={handleCreateEmployee} className="mb-6 rounded-lg border bg-card p-6">
               <h2 className="mb-4 text-lg font-semibold">新規従業員登録</h2>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
@@ -465,15 +468,15 @@ export default function PayrollPage() {
                 </div>
               </div>
               <div className="mt-4 flex gap-2">
-                <button onClick={handleCreateEmployee} disabled={loading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+                <button type="submit" disabled={loading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   {loading ? "登録中..." : "登録"}
                 </button>
-                <button onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
+                <button type="button" onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
                   キャンセル
                 </button>
               </div>
-            </div>
+            </form>
           )}
 
           {loading ? (

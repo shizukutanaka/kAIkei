@@ -76,7 +76,8 @@ export default function FixedAssetsPage() {
     if (companyId) fetchAssets();
   }, [companyId]);
 
-  const handleCreate = async () => {
+  const handleCreate = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     const errors: Record<string, string> = {};
     if (!formData.asset_code) errors.asset_code = "資産コードは必須です";
     if (!formData.asset_name) errors.asset_name = "資産名は必須です";
@@ -188,7 +189,7 @@ export default function FixedAssetsPage() {
         </div>
 
         {showForm && (
-          <div className="mb-6 rounded-lg border bg-card p-6">
+          <form onSubmit={handleCreate} className="mb-6 rounded-lg border bg-card p-6">
             <h2 className="mb-4 text-lg font-semibold">新規資産登録</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
@@ -236,15 +237,15 @@ export default function FixedAssetsPage() {
               </div>
             </div>
             <div className="mt-4 flex gap-2">
-              <button onClick={handleCreate} disabled={loading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+              <button type="submit" disabled={loading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 {loading ? "登録中..." : "登録"}
               </button>
-              <button onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
+              <button type="button" onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
                 キャンセル
               </button>
             </div>
-          </div>
+          </form>
         )}
 
         {!companyId && (

@@ -118,7 +118,8 @@ export default function JournalEntryPage() {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!isBalanced || !companyId || !transactionDate) return;
     setSaving(true);
     setError("");
@@ -186,6 +187,7 @@ export default function JournalEntryPage() {
 
   return (
     <PageLayout title="仕訳入力">
+      <form onSubmit={handleSave}>
       <div className="mb-6 flex items-center gap-3">
         <BookOpen className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">仕訳入力</h1>
@@ -378,7 +380,7 @@ export default function JournalEntryPage() {
 
         <div className="mt-6 flex gap-4">
           <button
-            onClick={handleSave}
+            type="submit"
             disabled={!isBalanced || saving || !companyId}
             className="flex items-center gap-2 rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
@@ -386,6 +388,7 @@ export default function JournalEntryPage() {
             {saving ? "保存中..." : "保存"}
           </button>
           <button
+            type="button"
             onClick={handleSubmitForApproval}
             disabled={!isBalanced || saving || !companyId}
             className="flex items-center gap-2 rounded-md border px-6 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
@@ -395,6 +398,7 @@ export default function JournalEntryPage() {
           </button>
           {result && (
             <button
+              type="button"
               onClick={resetForm}
               className="flex items-center gap-2 rounded-md border px-6 py-2 text-sm font-medium hover:bg-accent"
             >
@@ -403,6 +407,7 @@ export default function JournalEntryPage() {
             </button>
           )}
         </div>
+      </form>
     </PageLayout>
   );
 }

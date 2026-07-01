@@ -165,7 +165,8 @@ export default function InvoicesPage() {
   const taxAmount = subtotal * (parseFloat(formData.tax_rate) || 0) / 100;
   const totalAmount = subtotal + taxAmount;
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     const errors: Record<string, string> = {};
     if (!formData.invoice_number) errors.inv_number = "請求書番号は必須です";
     if (!formData.invoice_date) errors.inv_date = "請求日は必須です";
@@ -311,6 +312,7 @@ export default function InvoicesPage() {
             )}
           </div>
           <select
+            aria-label="ステータスフィルター"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="rounded-md border px-2 py-1.5 text-sm"
@@ -348,10 +350,10 @@ export default function InvoicesPage() {
       </div>
 
       {showForm && (
-        <div className="mb-6 rounded-lg border bg-card p-6">
+        <form onSubmit={handleSubmit} className="mb-6 rounded-lg border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">新規請求書</h2>
-            <button onClick={() => setShowForm(false)} className="rounded p-2 hover:bg-accent" aria-label="閉じる">
+            <button type="button" onClick={() => setShowForm(false)} className="rounded p-2 hover:bg-accent" aria-label="閉じる">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -423,15 +425,15 @@ export default function InvoicesPage() {
           </div>
 
           <div className="flex gap-2">
-            <button onClick={handleSubmit} disabled={submitLoading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+            <button type="submit" disabled={submitLoading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
               {submitLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {submitLoading ? "作成中..." : "作成"}
             </button>
-            <button onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
+            <button type="button" onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
               キャンセル
             </button>
           </div>
-        </div>
+        </form>
       )}
 
       {selectedInvoice && (

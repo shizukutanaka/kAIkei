@@ -71,7 +71,8 @@ export default function MastersPage() {
     }
   };
 
-  const handleAddAccount = async () => {
+  const handleAddAccount = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     const errors: Record<string, string> = {};
     if (!newAccount.account_code) errors.account_code = "科目コードは必須です";
     if (!newAccount.account_name) errors.account_name = "科目名は必須です";
@@ -173,7 +174,7 @@ export default function MastersPage() {
         </div>
 
         {showAddForm && (
-          <div className="mb-6 rounded-lg border bg-card p-6">
+          <form onSubmit={handleAddAccount} className="mb-6 rounded-lg border bg-card p-6">
             <h2 className="mb-4 text-lg font-semibold">新規勘定科目</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
@@ -235,7 +236,7 @@ export default function MastersPage() {
             </div>
             <div className="mt-4 flex gap-2">
               <button
-                onClick={handleAddAccount}
+                type="submit"
                 disabled={addLoading}
                 className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
               >
@@ -243,13 +244,14 @@ export default function MastersPage() {
                 {addLoading ? "追加中..." : "追加"}
               </button>
               <button
+                type="button"
                 onClick={() => setShowAddForm(false)}
                 className="rounded-md border px-4 py-2 text-sm font-medium"
               >
                 キャンセル
               </button>
             </div>
-          </div>
+          </form>
         )}
 
         {!companyId && (
@@ -287,6 +289,7 @@ export default function MastersPage() {
               )}
             </div>
             <select
+              aria-label="区分フィルター"
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
               className="rounded-md border px-2 py-2 text-sm"

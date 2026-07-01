@@ -218,7 +218,8 @@ export default function AttendancePage() {
     }
   };
 
-  const handleManualCreate = async () => {
+  const handleManualCreate = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     const errors: Record<string, string> = {};
     if (!formData.employee_id) errors.att_employee = "従業員を選択してください";
     if (!formData.work_date) errors.att_work_date = "日付を入力してください";
@@ -368,10 +369,10 @@ export default function AttendancePage() {
       </div>
 
       {showForm && tab === "records" && (
-        <div className="mb-6 rounded-lg border bg-card p-6">
+        <form onSubmit={handleManualCreate} className="mb-6 rounded-lg border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">手動勤怠登録</h2>
-            <button onClick={() => setShowForm(false)} className="rounded p-2 hover:bg-accent" aria-label="閉じる">
+            <button type="button" onClick={() => setShowForm(false)} className="rounded p-2 hover:bg-accent" aria-label="閉じる">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -418,15 +419,15 @@ export default function AttendancePage() {
             </div>
           </div>
           <div className="mt-4 flex gap-2">
-            <button onClick={handleManualCreate} disabled={formLoading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+            <button type="submit" disabled={formLoading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
               {formLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {formLoading ? "登録中..." : "登録"}
             </button>
-            <button onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
+            <button type="button" onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
               キャンセル
             </button>
           </div>
-        </div>
+        </form>
       )}
 
       {tab === "records" && (

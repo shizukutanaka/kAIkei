@@ -193,6 +193,7 @@ export default function JournalsListPage() {
             </div>
             <Filter className="h-4 w-4 text-muted-foreground" />
             <select
+              aria-label="ステータスフィルター"
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
               className="rounded-md border px-2 py-1.5 text-sm"

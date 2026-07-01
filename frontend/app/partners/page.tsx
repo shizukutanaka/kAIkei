@@ -103,7 +103,8 @@ export default function PartnersPage() {
     return matchesSearch && matchesType;
   }), [partners, deferredSearch, deferredTypeFilter]);
 
-  const handleSave = async () => {
+  const handleSave = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     const errors: Record<string, string> = {};
     if (!formData.partner_code) errors.partner_code = "取引先コードは必須です";
     if (!formData.partner_name) errors.partner_name = "取引先名は必須です";
@@ -209,10 +210,10 @@ export default function PartnersPage() {
       )}
 
       {showForm && (
-        <div className="mb-6 rounded-lg border bg-card p-6">
+        <form onSubmit={handleSave} className="mb-6 rounded-lg border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">{editingId ? "取引先編集" : "新規取引先登録"}</h2>
-            <button onClick={handleCancel} className="rounded-md p-2 hover:bg-accent" aria-label="閉じる">
+            <button type="button" onClick={handleCancel} className="rounded-md p-2 hover:bg-accent" aria-label="閉じる">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -330,18 +331,18 @@ export default function PartnersPage() {
           </div>
           <div className="mt-4 flex gap-2">
             <button
-              onClick={handleSave}
+              type="submit"
               disabled={loading}
               className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {loading ? "保存中..." : editingId ? "更新" : "登録"}
             </button>
-            <button onClick={handleCancel} className="rounded-md border px-4 py-2 text-sm">
+            <button type="button" onClick={handleCancel} className="rounded-md border px-4 py-2 text-sm">
               キャンセル
             </button>
           </div>
-        </div>
+        </form>
       )}
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -366,6 +367,7 @@ export default function PartnersPage() {
           )}
         </div>
         <select
+          aria-label="区分フィルター"
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
           className="rounded-md border px-2 py-1.5 text-sm"

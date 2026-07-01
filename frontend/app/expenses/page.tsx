@@ -156,7 +156,8 @@ export default function ExpensesPage() {
 
   const totalAmount = items.reduce((s, item) => s + (parseFloat(item.amount) || 0), 0);
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     const errors: Record<string, string> = {};
     if (!formData.employee_id) errors.exp_employee = "従業員を選択してください";
     if (!formData.title) errors.exp_title = "タイトルは必須です";
@@ -293,6 +294,7 @@ export default function ExpensesPage() {
             )}
           </div>
           <select
+            aria-label="ステータスフィルター"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="rounded-md border px-2 py-1.5 text-sm"
@@ -330,10 +332,10 @@ export default function ExpensesPage() {
       </div>
 
       {showForm && (
-        <div className="mb-6 rounded-lg border bg-card p-6">
+        <form onSubmit={handleSubmit} className="mb-6 rounded-lg border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">経費精算申請</h2>
-            <button onClick={() => setShowForm(false)} className="rounded p-2 hover:bg-accent" aria-label="閉じる">
+            <button type="button" onClick={() => setShowForm(false)} className="rounded p-2 hover:bg-accent" aria-label="閉じる">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -394,15 +396,15 @@ export default function ExpensesPage() {
           </div>
 
           <div className="flex gap-2">
-            <button onClick={handleSubmit} disabled={submitLoading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+            <button type="submit" disabled={submitLoading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
               {submitLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {submitLoading ? "提出中..." : "提出"}
             </button>
-            <button onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
+            <button type="button" onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
               キャンセル
             </button>
           </div>
-        </div>
+        </form>
       )}
 
       {selectedReport && (
