@@ -98,6 +98,7 @@ export default function PayrollPage() {
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     employee_code: "",
@@ -174,10 +175,15 @@ export default function PayrollPage() {
   }), [employees, deferredEmpSearch, deferredEmpDeptFilter, deferredEmpActiveFilter]);
 
   const handleCreateEmployee = async () => {
-    if (!formData.employee_code || !formData.employee_name) {
-      toast("従業員コードと氏名は必須です", "warning");
+    const errors: Record<string, string> = {};
+    if (!formData.employee_code) errors.employee_code = "従業員コードは必須です";
+    if (!formData.employee_name) errors.employee_name = "氏名は必須です";
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      toast("必須項目を入力してください", "warning");
       return;
     }
+    setFieldErrors({});
     setLoading(true);
     try {
       await apiPost("/payroll/employees", {
@@ -421,11 +427,13 @@ export default function PayrollPage() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label htmlFor="employee_code" className="mb-1 block text-sm font-medium">従業員コード <span className="text-destructive" aria-hidden="true">*</span></label>
-                  <input id="employee_code" type="text" value={formData.employee_code} onChange={(e) => setFormData({ ...formData, employee_code: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
+                  <input id="employee_code" type="text" value={formData.employee_code} onChange={(e) => { setFormData({ ...formData, employee_code: e.target.value }); if (fieldErrors.employee_code) setFieldErrors({ ...fieldErrors, employee_code: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.employee_code} aria-describedby={fieldErrors.employee_code ? "employee_code-error" : undefined} className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive" />
+                  {fieldErrors.employee_code && <p id="employee_code-error" className="mt-1 text-xs text-destructive">{fieldErrors.employee_code}</p>}
                 </div>
                 <div>
                   <label htmlFor="employee_name" className="mb-1 block text-sm font-medium">氏名 <span className="text-destructive" aria-hidden="true">*</span></label>
-                  <input id="employee_name" type="text" value={formData.employee_name} onChange={(e) => setFormData({ ...formData, employee_name: e.target.value })} required aria-required="true" autoComplete="name" className="w-full rounded-md border px-3 py-2 text-sm" />
+                  <input id="employee_name" type="text" value={formData.employee_name} onChange={(e) => { setFormData({ ...formData, employee_name: e.target.value }); if (fieldErrors.employee_name) setFieldErrors({ ...fieldErrors, employee_name: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.employee_name} aria-describedby={fieldErrors.employee_name ? "employee_name-error" : undefined} autoComplete="name" className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive" />
+                  {fieldErrors.employee_name && <p id="employee_name-error" className="mt-1 text-xs text-destructive">{fieldErrors.employee_name}</p>}
                 </div>
                 <div>
                   <label htmlFor="department" className="mb-1 block text-sm font-medium">部署</label>

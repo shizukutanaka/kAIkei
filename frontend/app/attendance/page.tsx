@@ -96,6 +96,7 @@ export default function AttendancePage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -218,10 +219,15 @@ export default function AttendancePage() {
   };
 
   const handleManualCreate = async () => {
-    if (!companyId || !formData.employee_id || !formData.work_date) {
-      toast("従業員と日付は必須です", "warning");
+    const errors: Record<string, string> = {};
+    if (!formData.employee_id) errors.att_employee = "従業員を選択してください";
+    if (!formData.work_date) errors.att_work_date = "日付を入力してください";
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      toast("必須項目を入力してください", "warning");
       return;
     }
+    setFieldErrors({});
     setFormLoading(true);
     try {
       await apiPost("/attendance/manual", {
@@ -372,16 +378,18 @@ export default function AttendancePage() {
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
             <div>
               <label htmlFor="att_employee" className="mb-1 block text-sm font-medium">従業員 <span className="text-destructive" aria-hidden="true">*</span></label>
-              <select id="att_employee" value={formData.employee_id} onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm">
+              <select id="att_employee" value={formData.employee_id} onChange={(e) => { setFormData({ ...formData, employee_id: e.target.value }); if (fieldErrors.att_employee) setFieldErrors({ ...fieldErrors, att_employee: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.att_employee} aria-describedby={fieldErrors.att_employee ? "att_employee-error" : undefined} className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive">
                 <option value="">選択...</option>
                 {employees.map((e) => (
                   <option key={e.employee_id} value={e.employee_id}>{e.employee_name}</option>
                 ))}
               </select>
+              {fieldErrors.att_employee && <p id="att_employee-error" className="mt-1 text-xs text-destructive">{fieldErrors.att_employee}</p>}
             </div>
             <div>
               <label htmlFor="att_work_date" className="mb-1 block text-sm font-medium">日付 <span className="text-destructive" aria-hidden="true">*</span></label>
-              <input id="att_work_date" type="date" value={formData.work_date} onChange={(e) => setFormData({ ...formData, work_date: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
+              <input id="att_work_date" type="date" value={formData.work_date} onChange={(e) => { setFormData({ ...formData, work_date: e.target.value }); if (fieldErrors.att_work_date) setFieldErrors({ ...fieldErrors, att_work_date: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.att_work_date} aria-describedby={fieldErrors.att_work_date ? "att_work_date-error" : undefined} className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive" />
+              {fieldErrors.att_work_date && <p id="att_work_date-error" className="mt-1 text-xs text-destructive">{fieldErrors.att_work_date}</p>}
             </div>
             <div>
               <label htmlFor="att_clock_in" className="mb-1 block text-sm font-medium">出勤時刻</label>

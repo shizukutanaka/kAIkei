@@ -59,6 +59,7 @@ export default function PartnersPage() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -103,10 +104,15 @@ export default function PartnersPage() {
   }), [partners, deferredSearch, deferredTypeFilter]);
 
   const handleSave = async () => {
-    if (!formData.partner_code || !formData.partner_name) {
-      toast("取引先コードと名称は必須です", "warning");
+    const errors: Record<string, string> = {};
+    if (!formData.partner_code) errors.partner_code = "取引先コードは必須です";
+    if (!formData.partner_name) errors.partner_name = "取引先名は必須です";
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      toast("必須項目を入力してください", "warning");
       return;
     }
+    setFieldErrors({});
     setLoading(true);
     try {
       const payload = {
@@ -217,12 +223,15 @@ export default function PartnersPage() {
                 id="partner_code"
                 type="text"
                 value={formData.partner_code}
-                onChange={(e) => setFormData({ ...formData, partner_code: e.target.value })}
+                onChange={(e) => { setFormData({ ...formData, partner_code: e.target.value }); if (fieldErrors.partner_code) setFieldErrors({ ...fieldErrors, partner_code: "" }); }}
                 disabled={!!editingId}
                 required
                 aria-required="true"
-                className="w-full rounded-md border px-3 py-2 text-sm disabled:bg-muted"
+                aria-invalid={!!fieldErrors.partner_code}
+                aria-describedby={fieldErrors.partner_code ? "partner_code-error" : undefined}
+                className="w-full rounded-md border px-3 py-2 text-sm disabled:bg-muted aria-[invalid=true]:border-destructive"
               />
+              {fieldErrors.partner_code && <p id="partner_code-error" className="mt-1 text-xs text-destructive">{fieldErrors.partner_code}</p>}
             </div>
             <div>
               <label htmlFor="partner_name" className="mb-1 block text-sm font-medium">取引先名 <span className="text-destructive" aria-hidden="true">*</span></label>
@@ -230,11 +239,14 @@ export default function PartnersPage() {
                 id="partner_name"
                 type="text"
                 value={formData.partner_name}
-                onChange={(e) => setFormData({ ...formData, partner_name: e.target.value })}
+                onChange={(e) => { setFormData({ ...formData, partner_name: e.target.value }); if (fieldErrors.partner_name) setFieldErrors({ ...fieldErrors, partner_name: "" }); }}
                 required
                 aria-required="true"
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                aria-invalid={!!fieldErrors.partner_name}
+                aria-describedby={fieldErrors.partner_name ? "partner_name-error" : undefined}
+                className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive"
               />
+              {fieldErrors.partner_name && <p id="partner_name-error" className="mt-1 text-xs text-destructive">{fieldErrors.partner_name}</p>}
             </div>
             <div>
               <label htmlFor="partner_type" className="mb-1 block text-sm font-medium">取引先区分</label>
