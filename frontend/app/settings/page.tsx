@@ -230,11 +230,11 @@ export default function SettingsPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50">
                     <tr>
-                      <th className="px-4 py-3 text-left font-medium">カテゴリ</th>
-                      <th className="px-4 py-3 text-center font-medium">アプリ内</th>
-                      <th className="px-4 py-3 text-center font-medium">メール</th>
-                      <th className="px-4 py-3 text-center font-medium">プッシュ</th>
-                      <th className="px-4 py-3 text-center font-medium">Webhook</th>
+                      <th scope="col" className="px-4 py-3 text-left font-medium">カテゴリ</th>
+                      <th scope="col" className="px-4 py-3 text-center font-medium">アプリ内</th>
+                      <th scope="col" className="px-4 py-3 text-center font-medium">メール</th>
+                      <th scope="col" className="px-4 py-3 text-center font-medium">プッシュ</th>
+                      <th scope="col" className="px-4 py-3 text-center font-medium">Webhook</th>
                     </tr>
                   </thead>
                   <tbody>

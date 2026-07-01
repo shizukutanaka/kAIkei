@@ -250,15 +250,15 @@ export default function JournalEntryPage() {
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b bg-muted/50">
-              <th className="p-2 text-left text-sm">行</th>
-              <th className="p-2 text-left text-sm">借貸</th>
-              <th className="p-2 text-left text-sm">科目</th>
-              <th className="p-2 text-left text-sm">科目コード</th>
-              <th className="p-2 text-left text-sm">科目名</th>
-              <th className="p-2 text-right text-sm">金額</th>
-              <th className="p-2 text-right text-sm">消費税</th>
-              <th className="p-2 text-left text-sm">摘要</th>
-              <th className="p-2"></th>
+              <th scope="col" className="p-2 text-left text-sm">行</th>
+              <th scope="col" className="p-2 text-left text-sm">借貸</th>
+              <th scope="col" className="p-2 text-left text-sm">科目</th>
+              <th scope="col" className="p-2 text-left text-sm">科目コード</th>
+              <th scope="col" className="p-2 text-left text-sm">科目名</th>
+              <th scope="col" className="p-2 text-right text-sm">金額</th>
+              <th scope="col" className="p-2 text-right text-sm">消費税</th>
+              <th scope="col" className="p-2 text-left text-sm">摘要</th>
+              <th scope="col" className="p-2"></th>
             </tr>
           </thead>
           <tbody>

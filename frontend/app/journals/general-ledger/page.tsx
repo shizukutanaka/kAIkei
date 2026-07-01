@@ -218,11 +218,11 @@ export default function GeneralLedgerPage() {
                     <table className="w-full text-sm">
                       <thead className="bg-muted/30">
                         <tr>
-                          <th className="px-4 py-2 text-left">取引日</th>
-                          <th className="px-4 py-2 text-left">伝票No</th>
-                          <th className="px-4 py-2 text-left">摘要</th>
-                          <th className="px-4 py-2 text-right">借方</th>
-                          <th className="px-4 py-2 text-right">貸方</th>
+                          <th scope="col" className="px-4 py-2 text-left">取引日</th>
+                          <th scope="col" className="px-4 py-2 text-left">伝票No</th>
+                          <th scope="col" className="px-4 py-2 text-left">摘要</th>
+                          <th scope="col" className="px-4 py-2 text-right">借方</th>
+                          <th scope="col" className="px-4 py-2 text-right">貸方</th>
                         </tr>
                       </thead>
                       <tbody>

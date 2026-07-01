@@ -204,13 +204,13 @@ export default function AuditLogPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">日時</th>
-                <th className="px-4 py-3 text-center font-medium">メソッド</th>
-                <th className="px-4 py-3 text-left font-medium">アクション</th>
-                <th className="px-4 py-3 text-left font-medium">リソース</th>
-                <th className="px-4 py-3 text-left font-medium">パス</th>
-                <th className="px-4 py-3 text-center font-medium">ステータス</th>
-                <th className="px-4 py-3 text-left font-medium">IP</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">日時</th>
+                <th scope="col" className="px-4 py-3 text-center font-medium">メソッド</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">アクション</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">リソース</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">パス</th>
+                <th scope="col" className="px-4 py-3 text-center font-medium">ステータス</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">IP</th>
               </tr>
             </thead>
             <tbody>

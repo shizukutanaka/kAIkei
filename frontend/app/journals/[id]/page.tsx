@@ -208,12 +208,12 @@ export default function JournalDetailPage() {
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr>
-              <th className="px-4 py-3 text-left font-medium">行</th>
-              <th className="px-4 py-3 text-left font-medium">借貸</th>
-              <th className="px-4 py-3 text-left font-medium">科目ID</th>
-              <th className="px-4 py-3 text-right font-medium">金額</th>
-              <th className="px-4 py-3 text-right font-medium">税額</th>
-              <th className="px-4 py-3 text-left font-medium">摘要</th>
+              <th scope="col" className="px-4 py-3 text-left font-medium">行</th>
+              <th scope="col" className="px-4 py-3 text-left font-medium">借貸</th>
+              <th scope="col" className="px-4 py-3 text-left font-medium">科目ID</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">金額</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">税額</th>
+              <th scope="col" className="px-4 py-3 text-left font-medium">摘要</th>
             </tr>
           </thead>
           <tbody>

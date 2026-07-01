@@ -501,7 +501,7 @@ export default function PayrollPage() {
                       <td className="px-4 py-3">{e.department || "-"}</td>
                       <td className="px-4 py-3">{EMPLOYMENT_TYPE_LABELS[e.employment_type] || e.employment_type}</td>
                       <td className="px-4 py-3 text-center">
-                        <span className={`rounded px-2 py-0.5 text-xs ${e.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                        <span className={`rounded px-2 py-0.5 text-xs ${e.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"}`}>
                           {e.is_active ? "在籍" : "退職"}
                         </span>
                       </td>

@@ -332,7 +332,7 @@ export default function MastersPage() {
                     <td className="px-4 py-3">{ACCOUNT_TYPES[account.account_type] || account.account_type}</td>
                     <td className="px-4 py-3">{account.debit_credit === "debit" ? "借方" : "貸方"}</td>
                     <td className="px-4 py-3">
-                      <span className={`rounded px-2 py-0.5 text-xs ${account.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                      <span className={`rounded px-2 py-0.5 text-xs ${account.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"}`}>
                         {account.is_active ? "有効" : "無効"}
                       </span>
                     </td>
