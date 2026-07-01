@@ -280,6 +280,7 @@ export default function BonusPage() {
               <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
+                aria-label="従業員名検索"
                 placeholder="従業員名で検索..."
                 enterKeyHint="search"
                 value={searchQuery}

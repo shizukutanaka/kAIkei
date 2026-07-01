@@ -364,6 +364,7 @@ export default function PayrollPage() {
                   <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <input
                     type="text"
+                    aria-label="従業員検索"
                     placeholder="検索..."
                     enterKeyHint="search"
                     value={empSearch}
@@ -543,12 +544,12 @@ export default function PayrollPage() {
           <div className="mb-4 flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-4">
               <div>
-                <label className="mb-1 block text-xs text-muted-foreground">年</label>
-                <input type="number" value={payrollYear} onChange={(e) => setPayrollYear(e.target.value)} className="w-24 rounded-md border px-3 py-1.5 text-sm" />
+                <label htmlFor="payroll-year" className="mb-1 block text-xs text-muted-foreground">年</label>
+                <input id="payroll-year" type="number" value={payrollYear} onChange={(e) => setPayrollYear(e.target.value)} className="w-24 rounded-md border px-3 py-1.5 text-sm" />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-muted-foreground">月</label>
-                <select value={payrollMonth} onChange={(e) => setPayrollMonth(e.target.value)} className="rounded-md border px-3 py-1.5 text-sm">
+                <label htmlFor="payroll-month" className="mb-1 block text-xs text-muted-foreground">月</label>
+                <select id="payroll-month" value={payrollMonth} onChange={(e) => setPayrollMonth(e.target.value)} className="rounded-md border px-3 py-1.5 text-sm">
                   {Array.from({ length: 12 }).map((_, i) => (
                     <option key={i + 1} value={String(i + 1)}>{i + 1}月</option>
                   ))}

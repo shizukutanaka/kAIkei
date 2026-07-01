@@ -277,6 +277,7 @@ export default function ExpensesPage() {
             <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
+              aria-label="経費精算検索"
               placeholder="タイトル・従業員名で検索..."
               enterKeyHint="search"
               value={searchQuery}
@@ -388,8 +389,8 @@ export default function ExpensesPage() {
             </div>
             <div className="mt-2 flex items-center justify-between border-t pt-2">
               <div>
-                <label className="text-sm font-medium">備考</label>
-                <input type="text" value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} className="ml-2 rounded-md border px-3 py-1 text-sm" placeholder="任意" />
+                <label htmlFor="exp-note" className="text-sm font-medium">備考</label>
+                <input id="exp-note" type="text" value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} className="ml-2 rounded-md border px-3 py-1 text-sm" placeholder="任意" />
               </div>
               <span className="text-sm font-bold">合計: ¥{totalAmount.toLocaleString()}</span>
             </div>

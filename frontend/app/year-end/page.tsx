@@ -203,8 +203,8 @@ export default function YearEndPage() {
       <div className="mb-4 flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-4">
           <div>
-            <label className="mb-1 block text-xs text-muted-foreground">対象年</label>
-            <input type="number" value={adjustmentYear} onChange={(e) => setAdjustmentYear(e.target.value)} className="w-28 rounded-md border px-3 py-1.5 text-sm" />
+            <label htmlFor="adjustment-year" className="mb-1 block text-xs text-muted-foreground">対象年</label>
+            <input id="adjustment-year" type="number" value={adjustmentYear} onChange={(e) => setAdjustmentYear(e.target.value)} className="w-28 rounded-md border px-3 py-1.5 text-sm" />
           </div>
         </div>
         {canCalculate && (
@@ -251,6 +251,7 @@ export default function YearEndPage() {
               <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
+                aria-label="従業員名検索"
                 placeholder="従業員名で検索..."
                 enterKeyHint="search"
                 value={searchQuery}

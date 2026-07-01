@@ -295,6 +295,7 @@ export default function InvoicesPage() {
             <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
+              aria-label="請求書検索"
               placeholder="請求書番号・取引先名で検索..."
               enterKeyHint="search"
               value={searchQuery}
@@ -413,8 +414,8 @@ export default function InvoicesPage() {
             </div>
             <div className="mt-2 flex items-center justify-between border-t pt-2">
               <div>
-                <label className="text-sm font-medium">備考</label>
-                <input type="text" value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} className="ml-2 rounded-md border px-3 py-1 text-sm" placeholder="任意" />
+                <label htmlFor="inv-note" className="text-sm font-medium">備考</label>
+                <input id="inv-note" type="text" value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} className="ml-2 rounded-md border px-3 py-1 text-sm" placeholder="任意" />
               </div>
               <div className="text-right text-sm">
                 <div>小計: ¥{Math.round(subtotal).toLocaleString()}</div>

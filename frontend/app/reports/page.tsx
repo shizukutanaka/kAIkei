@@ -387,8 +387,9 @@ export default function ReportsPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {reportType === "trial-balance" || reportType === "income-statement" || reportType === "balance-sheet" || reportType === "cash-flow" ? (
               <div>
-                <label className="mb-1 block text-sm font-medium">基準日</label>
+                <label htmlFor="report-as-of" className="mb-1 block text-sm font-medium">基準日</label>
                 <input
+                  id="report-as-of"
                   type="date"
                   value={asOf}
                   onChange={(e) => setAsOf(e.target.value)}
@@ -398,8 +399,9 @@ export default function ReportsPage() {
             ) : (
               <>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">年</label>
+                  <label htmlFor="report-year" className="mb-1 block text-sm font-medium">年</label>
                   <input
+                    id="report-year"
                     type="number"
                     value={year}
                     onChange={(e) => setYear(e.target.value)}
@@ -407,8 +409,9 @@ export default function ReportsPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">月</label>
+                  <label htmlFor="report-month" className="mb-1 block text-sm font-medium">月</label>
                   <select
+                    id="report-month"
                     value={month}
                     onChange={(e) => setMonth(e.target.value)}
                     className="w-full rounded-md border px-3 py-2 text-sm"
@@ -427,8 +430,9 @@ export default function ReportsPage() {
             )}
             {reportType === "bonus" && (
               <div>
-                <label className="mb-1 block text-sm font-medium">賞与区分</label>
+                <label htmlFor="report-bonus-term" className="mb-1 block text-sm font-medium">賞与区分</label>
                 <select
+                  id="report-bonus-term"
                   value={bonusTerm}
                   onChange={(e) => setBonusTerm(e.target.value)}
                   className="w-full rounded-md border px-3 py-2 text-sm"

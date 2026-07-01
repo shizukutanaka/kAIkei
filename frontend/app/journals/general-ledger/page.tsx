@@ -125,8 +125,9 @@ export default function GeneralLedgerPage() {
       <div className="mb-6 rounded-lg border bg-card p-4">
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="mb-1 block text-sm font-medium">開始日</label>
+            <label htmlFor="gl-start-date" className="mb-1 block text-sm font-medium">開始日</label>
             <input
+              id="gl-start-date"
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
@@ -134,8 +135,9 @@ export default function GeneralLedgerPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">終了日</label>
+            <label htmlFor="gl-end-date" className="mb-1 block text-sm font-medium">終了日</label>
             <input
+              id="gl-end-date"
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
@@ -143,8 +145,9 @@ export default function GeneralLedgerPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">科目コード（任意）</label>
+            <label htmlFor="gl-account-code" className="mb-1 block text-sm font-medium">科目コード（任意）</label>
             <input
+              id="gl-account-code"
               type="text"
               value={accountCode}
               onChange={(e) => setAccountCode(e.target.value)}

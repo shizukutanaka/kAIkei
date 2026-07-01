@@ -223,8 +223,9 @@ export default function MastersPage() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">借方/貸方</label>
+                <label htmlFor="debit-credit" className="mb-1 block text-sm font-medium">借方/貸方</label>
                 <select
+                  id="debit-credit"
                   value={newAccount.debit_credit}
                   onChange={(e) => setNewAccount({ ...newAccount, debit_credit: e.target.value })}
                   className="w-full rounded-md border px-3 py-2 text-sm"
@@ -272,6 +273,7 @@ export default function MastersPage() {
               <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
+                aria-label="科目検索"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="科目コード・科目名で検索"

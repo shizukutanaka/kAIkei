@@ -97,6 +97,7 @@ export default function KnowledgePage() {
             <div className="relative flex-1">
               <input
                 type="text"
+                aria-label="ナレッジ検索"
                 value={keywords}
                 onChange={(e) => setKeywords(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}

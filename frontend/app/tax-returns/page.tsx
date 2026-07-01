@@ -187,19 +187,19 @@ export default function TaxReturnsPage() {
           <h2 className="mb-4 text-lg font-semibold">消費税計算</h2>
           <div className="mb-4 flex flex-wrap items-end gap-4">
             <div>
-              <label className="mb-1 block text-sm font-medium">対象年度</label>
-              <input type="number" value={calcYear} onChange={(e) => setCalcYear(e.target.value)} className="w-32 rounded-md border px-3 py-2 text-sm" />
+              <label htmlFor="calc-year" className="mb-1 block text-sm font-medium">対象年度</label>
+              <input id="calc-year" type="number" value={calcYear} onChange={(e) => setCalcYear(e.target.value)} className="w-32 rounded-md border px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">申告区分</label>
-              <select value={filingType} onChange={(e) => setFilingType(e.target.value)} className="rounded-md border px-3 py-2 text-sm">
+              <label htmlFor="filing-type" className="mb-1 block text-sm font-medium">申告区分</label>
+              <select id="filing-type" value={filingType} onChange={(e) => setFilingType(e.target.value)} className="rounded-md border px-3 py-2 text-sm">
                 <option value="general">一般課税</option>
                 <option value="simplified">簡易課税</option>
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">調整額</label>
-              <input type="number" value={taxAdjustment} onChange={(e) => setTaxAdjustment(e.target.value)} className="w-32 rounded-md border px-3 py-2 text-sm" />
+              <label htmlFor="tax-adjustment" className="mb-1 block text-sm font-medium">調整額</label>
+              <input id="tax-adjustment" type="number" value={taxAdjustment} onChange={(e) => setTaxAdjustment(e.target.value)} className="w-32 rounded-md border px-3 py-2 text-sm" />
             </div>
             <button
               onClick={handleCalculate}
@@ -311,6 +311,7 @@ export default function TaxReturnsPage() {
           <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
+            aria-label="申告検索"
             placeholder="年度・申告区分で検索..."
             enterKeyHint="search"
             value={searchQuery}
