@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
@@ -74,6 +74,23 @@ export default function AttendancePage() {
   const canCreate = perms.includes("journal:create");
 
   const [tab, setTab] = useState<"records" | "summary">("records");
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const tabOrder: ("records" | "summary")[] = ["records", "summary"];
+
+  const handleTabKeyDown = (e: React.KeyboardEvent) => {
+    const currentIndex = tabOrder.indexOf(tab);
+    let nextIndex: number | null = null;
+    if (e.key === "ArrowRight") nextIndex = (currentIndex + 1) % tabOrder.length;
+    else if (e.key === "ArrowLeft") nextIndex = (currentIndex - 1 + tabOrder.length) % tabOrder.length;
+    else if (e.key === "Home") nextIndex = 0;
+    else if (e.key === "End") nextIndex = tabOrder.length - 1;
+    if (nextIndex !== null) {
+      e.preventDefault();
+      const nextTab = tabOrder[nextIndex];
+      setTab(nextTab);
+      requestAnimationFrame(() => tabRefs.current[nextIndex]?.focus());
+    }
+  };
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [summary, setSummary] = useState<AttendanceSummary[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -252,12 +269,14 @@ export default function AttendancePage() {
         </div>
       )}
 
-      <div className="mb-6 flex gap-2 border-b" role="tablist" aria-orientation="horizontal">
+      <div className="mb-6 flex gap-2 border-b" role="tablist" aria-orientation="horizontal" onKeyDown={handleTabKeyDown}>
         <button
           role="tab"
           id="tab-records"
+          ref={(el) => { tabRefs.current[0] = el; }}
           aria-selected={tab === "records"}
           aria-controls="panel-records"
+          tabIndex={tab === "records" ? 0 : -1}
           onClick={() => setTab("records")}
           className={`px-4 py-2 text-sm font-medium border-b-2 ${tab === "records" ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}
         >
@@ -266,8 +285,10 @@ export default function AttendancePage() {
         <button
           role="tab"
           id="tab-summary"
+          ref={(el) => { tabRefs.current[1] = el; }}
           aria-selected={tab === "summary"}
           aria-controls="panel-summary"
+          tabIndex={tab === "summary" ? 0 : -1}
           onClick={() => setTab("summary")}
           className={`px-4 py-2 text-sm font-medium border-b-2 ${tab === "summary" ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}
         >

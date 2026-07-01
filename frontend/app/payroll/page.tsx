@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useDeferredValue, useMemo } from "react";
+import { useState, useEffect, useDeferredValue, useMemo, useRef } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
@@ -77,6 +77,23 @@ export default function PayrollPage() {
   const canPost = perms.includes("payroll:post");
 
   const [tab, setTab] = useState<"employees" | "payroll">("employees");
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const tabOrder: ("employees" | "payroll")[] = ["employees", "payroll"];
+
+  const handleTabKeyDown = (e: React.KeyboardEvent) => {
+    const currentIndex = tabOrder.indexOf(tab);
+    let nextIndex: number | null = null;
+    if (e.key === "ArrowRight") nextIndex = (currentIndex + 1) % tabOrder.length;
+    else if (e.key === "ArrowLeft") nextIndex = (currentIndex - 1 + tabOrder.length) % tabOrder.length;
+    else if (e.key === "Home") nextIndex = 0;
+    else if (e.key === "End") nextIndex = tabOrder.length - 1;
+    if (nextIndex !== null) {
+      e.preventDefault();
+      const nextTab = tabOrder[nextIndex];
+      setTab(nextTab);
+      requestAnimationFrame(() => tabRefs.current[nextIndex]?.focus());
+    }
+  };
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -292,12 +309,14 @@ export default function PayrollPage() {
         </div>
       )}
 
-      <div className="mb-6 flex gap-2 border-b" role="tablist" aria-orientation="horizontal">
+      <div className="mb-6 flex gap-2 border-b" role="tablist" aria-orientation="horizontal" onKeyDown={handleTabKeyDown}>
         <button
           role="tab"
           id="tab-employees"
+          ref={(el) => { tabRefs.current[0] = el; }}
           aria-selected={tab === "employees"}
           aria-controls="panel-employees"
+          tabIndex={tab === "employees" ? 0 : -1}
           onClick={() => setTab("employees")}
           className={`px-4 py-2 text-sm font-medium border-b-2 ${tab === "employees" ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}
         >
@@ -306,8 +325,10 @@ export default function PayrollPage() {
         <button
           role="tab"
           id="tab-payroll"
+          ref={(el) => { tabRefs.current[1] = el; }}
           aria-selected={tab === "payroll"}
           aria-controls="panel-payroll"
+          tabIndex={tab === "payroll" ? 0 : -1}
           onClick={() => setTab("payroll")}
           className={`px-4 py-2 text-sm font-medium border-b-2 ${tab === "payroll" ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}
         >
