@@ -181,6 +181,12 @@ export default function InvoicesPage() {
       return;
     }
     setFieldErrors({});
+    const ok = await confirm({
+      title: "請求書作成",
+      message: "この請求書を登録しますか？",
+      confirmText: "登録",
+    });
+    if (!ok) return;
     setSubmitLoading(true);
     try {
       await apiPost("/invoices/invoices", {

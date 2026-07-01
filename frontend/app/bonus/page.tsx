@@ -114,6 +114,12 @@ export default function BonusPage() {
 
   const handleCalculate = async () => {
     if (!companyId) return;
+    const ok = await confirm({
+      title: "賞与計算",
+      message: `${bonusYear}年${bonusTerm === "summer" ? "夏" : "冬"}の賞与を計算しますか？`,
+      confirmText: "計算実行",
+    });
+    if (!ok) return;
     setCalculating(true);
     setError("");
     try {

@@ -227,6 +227,12 @@ export default function PayrollPage() {
   };
 
   const handleCalculate = async () => {
+    const ok = await confirm({
+      title: "給与計算",
+      message: `${payrollYear}年${payrollMonth}月の給与を計算しますか？`,
+      confirmText: "計算実行",
+    });
+    if (!ok) return;
     setCalculating(true);
     setError("");
     try {

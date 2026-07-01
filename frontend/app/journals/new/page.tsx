@@ -121,6 +121,12 @@ export default function JournalEntryPage() {
   const handleSave = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!isBalanced || !companyId || !transactionDate) return;
+    const ok = await confirm({
+      title: "仕訳保存",
+      message: "この仕訳を保存しますか？",
+      confirmText: "保存",
+    });
+    if (!ok) return;
     setSaving(true);
     setError("");
     setResult(null);

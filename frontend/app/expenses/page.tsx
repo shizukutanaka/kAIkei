@@ -171,6 +171,12 @@ export default function ExpensesPage() {
       return;
     }
     setFieldErrors({});
+    const ok = await confirm({
+      title: "経費精算申請",
+      message: "この経費精算を申請しますか？",
+      confirmText: "申請",
+    });
+    if (!ok) return;
     setSubmitLoading(true);
     try {
       await apiPost("/expenses/reports", {
