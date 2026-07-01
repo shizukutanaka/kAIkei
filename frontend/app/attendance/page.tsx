@@ -434,7 +434,7 @@ export default function AttendancePage() {
         <div role="tabpanel" id="panel-records" aria-labelledby="tab-records" tabIndex={0}>
         <>
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <div className="relative">
+            <div className="relative" role="search">
               <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"

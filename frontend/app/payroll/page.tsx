@@ -360,7 +360,7 @@ export default function PayrollPage() {
             <div className="flex items-center gap-3">
               <p className="text-sm text-muted-foreground">{filteredEmployees.length}/{employees.length}件の従業員</p>
               <div className="flex items-center gap-2">
-                <div className="relative">
+                <div className="relative" role="search">
                   <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <input
                     type="text"
@@ -574,8 +574,9 @@ export default function PayrollPage() {
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
                 {employees.map((e) => (
                   <div key={e.employee_id} className="flex items-center gap-2">
-                    <label className="text-xs text-muted-foreground whitespace-nowrap">{e.employee_name}</label>
+                    <label htmlFor={`ot-${e.employee_id}`} className="text-xs text-muted-foreground whitespace-nowrap">{e.employee_name}</label>
                     <input
+                      id={`ot-${e.employee_id}`}
                       type="number"
                       min="0"
                       step="0.5"

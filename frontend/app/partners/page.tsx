@@ -346,7 +346,7 @@ export default function PartnersPage() {
       )}
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="relative flex-1">
+        <div className="relative flex-1" role="search">
           <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"

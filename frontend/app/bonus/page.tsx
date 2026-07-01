@@ -254,8 +254,9 @@ export default function BonusPage() {
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
             {employees.map((e) => (
               <div key={e.employee_id} className="flex items-center gap-2">
-                <label className="whitespace-nowrap text-xs text-muted-foreground">{e.employee_name}</label>
+                <label htmlFor={`pf-${e.employee_id}`} className="whitespace-nowrap text-xs text-muted-foreground">{e.employee_name}</label>
                 <input
+                  id={`pf-${e.employee_id}`}
                   type="number"
                   step="0.01"
                   min="0"
@@ -276,7 +277,7 @@ export default function BonusPage() {
       ) : bonusRecords.length > 0 ? (
         <>
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <div className="relative">
+            <div className="relative" role="search">
               <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"

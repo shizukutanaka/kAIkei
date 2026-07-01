@@ -94,7 +94,7 @@ export default function KnowledgePage() {
         <div className="mb-6 rounded-lg border bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold">検索キーワード</h2>
           <div className="flex gap-2">
-            <div className="relative flex-1">
+            <div className="relative flex-1" role="search">
               <input
                 type="text"
                 aria-label="ナレッジ検索"
