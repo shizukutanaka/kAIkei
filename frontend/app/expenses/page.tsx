@@ -381,7 +381,7 @@ export default function ExpensesPage() {
                   </select>
                   <input type="text" placeholder="摘要" value={item.description} onChange={(e) => handleItemChange(idx, "description", e.target.value)} className="col-span-5 rounded-md border px-2 py-1.5 text-sm" />
                   <input type="number" placeholder="金額" value={item.amount} onChange={(e) => handleItemChange(idx, "amount", e.target.value)} className="col-span-2 rounded-md border px-2 py-1.5 text-sm text-right" />
-                  <button onClick={() => handleRemoveItem(idx)} className="col-span-1 flex items-center justify-center rounded hover:bg-accent">
+                  <button onClick={() => handleRemoveItem(idx)} aria-label="項目を削除" className="col-span-1 flex items-center justify-center rounded hover:bg-accent">
                     <X className="h-4 w-4 text-muted-foreground" />
                   </button>
                 </div>
@@ -529,6 +529,7 @@ export default function ExpensesPage() {
                         disabled={downloadLoading === r.report_id}
                         className="inline-flex items-center justify-center rounded p-2 hover:bg-accent disabled:opacity-50"
                         title="CSV出力"
+                        aria-label="CSV出力"
                       >
                         {downloadLoading === r.report_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-muted-foreground" />}
                       </button>

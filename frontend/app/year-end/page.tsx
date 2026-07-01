@@ -320,6 +320,7 @@ export default function YearEndPage() {
                         disabled={downloadLoading === r.adjustment_id}
                         className="inline-flex items-center justify-center rounded p-2 hover:bg-accent disabled:opacity-50"
                         title="CSV出力"
+                        aria-label="CSV出力"
                       >
                         {downloadLoading === r.adjustment_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-muted-foreground" />}
                       </button>

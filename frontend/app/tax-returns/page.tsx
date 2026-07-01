@@ -372,7 +372,7 @@ export default function TaxReturnsPage() {
                   <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1">
                       <button onClick={() => setSelectedRecord(r)} className="rounded px-2 py-1 text-xs hover:bg-accent">詳細</button>
-                      <button onClick={() => handleDownload(r.return_id, r.tax_year.toString())} disabled={downloadLoading === r.return_id} className="inline-flex items-center justify-center rounded p-2 hover:bg-accent disabled:opacity-50" title="CSV出力">
+                      <button onClick={() => handleDownload(r.return_id, r.tax_year.toString())} disabled={downloadLoading === r.return_id} className="inline-flex items-center justify-center rounded p-2 hover:bg-accent disabled:opacity-50" title="CSV出力" aria-label="CSV出力">
                         {downloadLoading === r.return_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-muted-foreground" />}
                       </button>
                     </div>

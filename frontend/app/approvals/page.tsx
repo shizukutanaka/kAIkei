@@ -181,6 +181,7 @@ export default function ApprovalsPage() {
 
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <select
+            aria-label="ステータスフィルター"
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setSelectedId(""); }}
             className="rounded-md border px-2 py-1.5 text-sm"
