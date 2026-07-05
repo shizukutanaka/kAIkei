@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.schemas.schemas import TaxForecastResponse
+from app.services.income_tax import IncomeTaxService
 from app.services.simplified_consumption_tax import SimplifiedConsumptionTaxService
 from app.services.tax_forecast import DEFAULT_FORECAST_FACTOR, TaxForecastService
 from app.services.withholding_tax import WithholdingTaxService
@@ -85,4 +86,21 @@ async def get_simplified_consumption_tax(
         "deemed_purchase_rate": result.deemed_purchase_rate,
         "deductible_tax": result.deductible_tax,
         "net_tax": result.net_tax,
+    }
+
+
+@router.get("/income-tax")
+async def get_income_tax(
+    taxable_income: Decimal = Query(..., description="課税所得金額"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> dict[str, Decimal]:
+    try:
+        rounded_taxable_income = (taxable_income // Decimal("1000")) * Decimal("1000")
+        income_tax = IncomeTaxService.compute(taxable_income)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "taxable_income": taxable_income,
+        "rounded_taxable_income": rounded_taxable_income,
+        "income_tax": income_tax,
     }
