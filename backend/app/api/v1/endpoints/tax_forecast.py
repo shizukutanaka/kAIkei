@@ -13,6 +13,7 @@ from app.schemas.schemas import TaxForecastResponse
 from app.services.income_tax import IncomeTaxService
 from app.services.interim_consumption_tax import InterimConsumptionTaxService
 from app.services.interim_corporate_tax import InterimCorporateTaxService
+from app.services.invoice_transitional_deduction import InvoiceTransitionalDeductionService
 from app.services.local_consumption_tax import LocalConsumptionTaxService
 from app.services.simplified_consumption_tax import SimplifiedConsumptionTaxService
 from app.services.special_20_percent_consumption_tax import SpecialTwentyPercentConsumptionTaxService
@@ -199,4 +200,22 @@ async def get_taxable_enterprise(
         "base_period_taxable_sales": result.base_period_taxable_sales,
         "specific_period_taxable_sales": result.specific_period_taxable_sales,
         "specific_period_salaries": result.specific_period_salaries,
+    }
+
+
+@router.get("/transitional-deduction")
+async def get_invoice_transitional_deduction(
+    purchase_consumption_tax: Decimal = Query(..., description="仕入れに係る消費税額"),  # noqa: B008
+    transaction_date: date = Query(..., description="取引日"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> dict[str, Decimal | date]:
+    try:
+        result = InvoiceTransitionalDeductionService.compute(purchase_consumption_tax, transaction_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "transaction_date": result.transaction_date,
+        "deduction_rate": result.deduction_rate,
+        "deductible_tax": result.deductible_tax,
+        "non_deductible_tax": result.non_deductible_tax,
     }
