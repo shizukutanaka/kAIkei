@@ -15,6 +15,7 @@ from app.services.interim_consumption_tax import InterimConsumptionTaxService
 from app.services.interim_corporate_tax import InterimCorporateTaxService
 from app.services.local_consumption_tax import LocalConsumptionTaxService
 from app.services.simplified_consumption_tax import SimplifiedConsumptionTaxService
+from app.services.special_20_percent_consumption_tax import SpecialTwentyPercentConsumptionTaxService
 from app.services.tax_forecast import DEFAULT_FORECAST_FACTOR, TaxForecastService
 from app.services.withholding_tax import WithholdingTaxService
 
@@ -157,4 +158,20 @@ async def get_local_consumption_tax(
         "national_tax": result.national_tax,
         "local_tax": result.local_tax,
         "total_tax": result.total_tax,
+    }
+
+
+@router.get("/special-20-percent")
+async def get_special_20_percent_consumption_tax(
+    sales_consumption_tax: Decimal = Query(..., description="課税売上に係る消費税額"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> dict[str, Decimal]:
+    try:
+        result = SpecialTwentyPercentConsumptionTaxService.compute(sales_consumption_tax)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "sales_consumption_tax": result.sales_consumption_tax,
+        "payable_tax": result.payable_tax,
+        "special_deduction": result.special_deduction,
     }
