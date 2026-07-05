@@ -1,10 +1,9 @@
-from datetime import date
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -14,16 +13,17 @@ from app.core.rbac import Permission
 from app.models.models import Invoice, InvoiceLine, Partner
 from app.schemas.schemas import (
     InvoiceCreate,
-    InvoiceResponse,
     InvoiceLineResponse,
     InvoiceListResponse,
+    InvoiceResponse,
+    NotificationCreate,
 )
 from app.services.auto_journal import (
     generate_invoice_issue_journal,
     generate_invoice_payment_journal,
 )
+from app.services.invoice_registration import InvoiceRegistrationService
 from app.services.notification_service import create_notification
-from app.schemas.schemas import NotificationCreate
 
 router = APIRouter()
 
@@ -178,6 +178,20 @@ async def list_invoices(
     items = [_to_response(inv, name) for inv, name in rows]
 
     return InvoiceListResponse(items=items, total=total, page=page, page_size=page_size)
+
+
+@router.get("/validate-registration-number")
+async def validate_registration_number(
+    number: str = Query(...),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> dict[str, object]:
+    result = InvoiceRegistrationService.validate(number)
+    return {
+        "input": result.input,
+        "normalized": result.normalized,
+        "format_valid": result.format_valid,
+        "check_digit_valid": result.check_digit_valid,
+    }
 
 
 @router.get("/invoices/{invoice_id}", response_model=InvoiceResponse)
