@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.schemas.schemas import TaxForecastResponse
+from app.services.entertainment_expense import EntertainmentExpenseService
 from app.services.income_tax import IncomeTaxService
 from app.services.interim_consumption_tax import InterimConsumptionTaxService
 from app.services.interim_corporate_tax import InterimCorporateTaxService
@@ -218,4 +219,26 @@ async def get_invoice_transitional_deduction(
         "deduction_rate": result.deduction_rate,
         "deductible_tax": result.deductible_tax,
         "non_deductible_tax": result.non_deductible_tax,
+    }
+
+
+@router.get("/entertainment-deduction")
+async def get_entertainment_deduction(
+    total_entertainment: Decimal = Query(..., description="交際費等総額"),  # noqa: B008
+    dining_expense: Decimal = Query(..., description="飲食費"),  # noqa: B008
+    capital: Decimal = Query(..., description="資本金"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> dict[str, Decimal | str]:
+    try:
+        result = EntertainmentExpenseService.compute(total_entertainment, dining_expense, capital)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "total_entertainment": total_entertainment,
+        "dining_expense": dining_expense,
+        "capital": capital,
+        "deductible_limit": result.deductible_limit,
+        "deductible_amount": result.deductible_amount,
+        "non_deductible_amount": result.non_deductible_amount,
+        "basis": result.basis,
     }
