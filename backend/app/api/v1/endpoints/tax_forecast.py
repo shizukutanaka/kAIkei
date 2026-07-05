@@ -13,6 +13,7 @@ from app.schemas.schemas import TaxForecastResponse
 from app.services.income_tax import IncomeTaxService
 from app.services.interim_consumption_tax import InterimConsumptionTaxService
 from app.services.interim_corporate_tax import InterimCorporateTaxService
+from app.services.local_consumption_tax import LocalConsumptionTaxService
 from app.services.simplified_consumption_tax import SimplifiedConsumptionTaxService
 from app.services.tax_forecast import DEFAULT_FORECAST_FACTOR, TaxForecastService
 from app.services.withholding_tax import WithholdingTaxService
@@ -140,4 +141,20 @@ async def get_interim_corporate_tax(
         "prior_period_months": result.prior_period_months,
         "interim_tax": result.interim_tax,
         "filing_required": result.filing_required,
+    }
+
+
+@router.get("/local-consumption")
+async def get_local_consumption_tax(
+    national_tax: Decimal = Query(..., description="国税分消費税額"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> dict[str, Decimal]:
+    try:
+        result = LocalConsumptionTaxService.compute(national_tax)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "national_tax": result.national_tax,
+        "local_tax": result.local_tax,
+        "total_tax": result.total_tax,
     }
