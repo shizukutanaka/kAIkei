@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+from datetime import date
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +11,7 @@ from app.core.rbac import Permission
 from app.models.models import PaymentRequest
 from app.schemas.schemas import PaymentRequestCreate, PaymentRequestResponse, ZenginExportRequest
 from app.services.payment_export import ZenginExportService
+from app.services.payment_terms import PaymentTermsService
 
 router = APIRouter()
 
@@ -62,3 +65,31 @@ async def export_zengin(
         bank_account_id=payload.bank_account_id,
     )
     return Response(content=body, media_type="application/octet-stream")
+
+
+@router.get("/payment-date")
+async def get_payment_date(
+    invoice_date: date = Query(..., description="請求日"),  # noqa: B008
+    closing_day: int = Query(..., ge=1, le=31, description="締め日"),  # noqa: B008
+    payment_month_offset: int = Query(1, ge=0, description="支払月オフセット"),  # noqa: B008
+    payment_day: int = Query(..., ge=1, le=31, description="支払日"),  # noqa: B008
+    adjustment: str = Query("next", description="next, previous, none"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),  # noqa: B008
+) -> dict[str, object]:
+    try:
+        closing_date = PaymentTermsService.compute_closing_date(invoice_date, closing_day)
+        payment_date = PaymentTermsService.compute_payment_date(
+            invoice_date=invoice_date,
+            closing_day=closing_day,
+            payment_month_offset=payment_month_offset,
+            payment_day=payment_day,
+            holidays=None,
+            adjustment=adjustment,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "invoice_date": invoice_date,
+        "closing_date": closing_date,
+        "payment_date": payment_date,
+    }
