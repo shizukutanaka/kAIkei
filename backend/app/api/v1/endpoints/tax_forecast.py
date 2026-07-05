@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.endpoints.reports import PL_ACCOUNT_TYPES, _get_account_balances
@@ -11,6 +11,7 @@ from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.schemas.schemas import TaxForecastResponse
 from app.services.tax_forecast import DEFAULT_FORECAST_FACTOR, TaxForecastService
+from app.services.withholding_tax import WithholdingTaxService
 
 router = APIRouter()
 
@@ -49,3 +50,19 @@ async def get_tax_forecast(
         estimated_tax_amount=result.estimated_tax_amount,
         tax_risk_warnings=result.tax_risk_warnings,
     )
+
+
+@router.get("/withholding-professional-fee")
+async def get_withholding_professional_fee(
+    amount: Decimal = Query(..., description="報酬額"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> dict[str, Decimal]:
+    try:
+        withholding_tax = WithholdingTaxService.compute_professional_fee(amount)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "amount": amount,
+        "withholding_tax": withholding_tax,
+        "net_payment": amount - withholding_tax,
+    }
