@@ -12,6 +12,7 @@ from app.core.rbac import Permission
 from app.schemas.schemas import TaxForecastResponse
 from app.services.income_tax import IncomeTaxService
 from app.services.interim_consumption_tax import InterimConsumptionTaxService
+from app.services.interim_corporate_tax import InterimCorporateTaxService
 from app.services.simplified_consumption_tax import SimplifiedConsumptionTaxService
 from app.services.tax_forecast import DEFAULT_FORECAST_FACTOR, TaxForecastService
 from app.services.withholding_tax import WithholdingTaxService
@@ -121,4 +122,22 @@ async def get_interim_consumption_tax(
         "installment_count": result.installment_count,
         "per_installment": result.per_installment,
         "total_interim": result.total_interim,
+    }
+
+
+@router.get("/interim-corporate")
+async def get_interim_corporate_tax(
+    prior_year_corporate_tax: Decimal = Query(..., description="前期法人税額"),  # noqa: B008
+    prior_period_months: int = Query(12, ge=1, le=12, description="前期月数"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> dict[str, Decimal | int | bool]:
+    try:
+        result = InterimCorporateTaxService.compute(prior_year_corporate_tax, prior_period_months=prior_period_months)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "prior_year_corporate_tax": prior_year_corporate_tax,
+        "prior_period_months": result.prior_period_months,
+        "interim_tax": result.interim_tax,
+        "filing_required": result.filing_required,
     }
