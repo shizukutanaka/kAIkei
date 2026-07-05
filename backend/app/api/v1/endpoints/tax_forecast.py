@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.schemas.schemas import TaxForecastResponse
+from app.services.simplified_consumption_tax import SimplifiedConsumptionTaxService
 from app.services.tax_forecast import DEFAULT_FORECAST_FACTOR, TaxForecastService
 from app.services.withholding_tax import WithholdingTaxService
 
@@ -65,4 +66,23 @@ async def get_withholding_professional_fee(
         "amount": amount,
         "withholding_tax": withholding_tax,
         "net_payment": amount - withholding_tax,
+    }
+
+
+@router.get("/simplified-consumption")
+async def get_simplified_consumption_tax(
+    sales_tax: Decimal = Query(..., description="売上税額"),  # noqa: B008
+    business_category: int = Query(..., description="事業区分"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> dict[str, Decimal | int]:
+    try:
+        result = SimplifiedConsumptionTaxService.compute(sales_tax, business_category)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "sales_tax": sales_tax,
+        "business_category": result.business_category,
+        "deemed_purchase_rate": result.deemed_purchase_rate,
+        "deductible_tax": result.deductible_tax,
+        "net_tax": result.net_tax,
     }
