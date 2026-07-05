@@ -17,6 +17,7 @@ from app.services.local_consumption_tax import LocalConsumptionTaxService
 from app.services.simplified_consumption_tax import SimplifiedConsumptionTaxService
 from app.services.special_20_percent_consumption_tax import SpecialTwentyPercentConsumptionTaxService
 from app.services.tax_forecast import DEFAULT_FORECAST_FACTOR, TaxForecastService
+from app.services.taxable_enterprise import TaxableEnterpriseJudgmentService
 from app.services.withholding_tax import WithholdingTaxService
 
 router = APIRouter()
@@ -174,4 +175,28 @@ async def get_special_20_percent_consumption_tax(
         "sales_consumption_tax": result.sales_consumption_tax,
         "payable_tax": result.payable_tax,
         "special_deduction": result.special_deduction,
+    }
+
+
+@router.get("/taxable-enterprise")
+async def get_taxable_enterprise(
+    base_period_taxable_sales: Decimal = Query(..., description="基準期間の課税売上高"),  # noqa: B008
+    specific_period_taxable_sales: Decimal = Query(..., description="特定期間の課税売上高"),  # noqa: B008
+    specific_period_salaries: Decimal = Query(..., description="特定期間の給与等支払額"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> dict[str, Decimal | bool | str]:
+    try:
+        result = TaxableEnterpriseJudgmentService.judge(
+            base_period_taxable_sales,
+            specific_period_taxable_sales,
+            specific_period_salaries,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "is_taxable": result.is_taxable,
+        "basis": result.basis,
+        "base_period_taxable_sales": result.base_period_taxable_sales,
+        "specific_period_taxable_sales": result.specific_period_taxable_sales,
+        "specific_period_salaries": result.specific_period_salaries,
     }
