@@ -28,6 +28,7 @@ from app.services.labor_insurance import (
     DEFAULT_WORKERS_COMPENSATION_RATE,
     LaborInsuranceService,
 )
+from app.services.overtime_pay import OvertimePayService
 from app.services.notification_service import create_notification
 
 router = APIRouter()
@@ -530,3 +531,33 @@ async def batch_transition_payroll(
 
     await db.commit()
     return updated
+
+@router.get("/overtime-premium")
+async def calculate_overtime_premium(
+    hourly_wage: Decimal = Query(..., description="時給"),  # noqa: B008
+    overtime_hours: Decimal = Query(Decimal("0"), description="法定時間外(月60時間以内)"),  # noqa: B008
+    overtime_over_60_hours: Decimal = Query(Decimal("0"), description="法定時間外(月60時間超)"),  # noqa: B008
+    late_night_hours: Decimal = Query(Decimal("0"), description="深夜時間"),  # noqa: B008
+    holiday_hours: Decimal = Query(Decimal("0"), description="法定休日時間"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> dict[str, Decimal]:
+    try:
+        result = OvertimePayService.compute(
+            hourly_wage=hourly_wage,
+            overtime_hours=overtime_hours,
+            overtime_over_60_hours=overtime_over_60_hours,
+            late_night_hours=late_night_hours,
+            holiday_hours=holiday_hours,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "hourly_wage": hourly_wage,
+        "overtime_pay": result.overtime_pay,
+        "overtime_over_60_pay": result.overtime_over_60_pay,
+        "late_night_pay": result.late_night_pay,
+        "holiday_pay": result.holiday_pay,
+        "total_premium": result.total_premium,
+    }
+
