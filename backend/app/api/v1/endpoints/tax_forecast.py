@@ -11,6 +11,7 @@ from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.schemas.schemas import TaxForecastResponse
 from app.services.income_tax import IncomeTaxService
+from app.services.interim_consumption_tax import InterimConsumptionTaxService
 from app.services.simplified_consumption_tax import SimplifiedConsumptionTaxService
 from app.services.tax_forecast import DEFAULT_FORECAST_FACTOR, TaxForecastService
 from app.services.withholding_tax import WithholdingTaxService
@@ -103,4 +104,21 @@ async def get_income_tax(
         "taxable_income": taxable_income,
         "rounded_taxable_income": rounded_taxable_income,
         "income_tax": income_tax,
+    }
+
+
+@router.get("/interim-consumption")
+async def get_interim_consumption_tax(
+    prior_year_national_tax: Decimal = Query(..., description="前年度の国税分消費税額"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> dict[str, Decimal | int]:
+    try:
+        result = InterimConsumptionTaxService.compute(prior_year_national_tax)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "prior_year_national_tax": result.annualized_basis,
+        "installment_count": result.installment_count,
+        "per_installment": result.per_installment,
+        "total_interim": result.total_interim,
     }
