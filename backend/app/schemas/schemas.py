@@ -518,6 +518,31 @@ class InvoiceTaxComputeResponse(BaseModel):
     total_amount: Decimal
 
 
+class QualifiedInvoiceLineInput(BaseModel):
+    description: str
+    tax_rate: Decimal
+
+
+class QualifiedInvoiceTaxByRateInput(BaseModel):
+    tax_rate: Decimal
+    tax_amount: Decimal
+
+
+class QualifiedInvoiceCheckRequest(BaseModel):
+    issuer_name: str
+    registration_number: str
+    transaction_date: date | None = None
+    recipient_name: str
+    line_items: list[QualifiedInvoiceLineInput]
+    tax_by_rate: list[QualifiedInvoiceTaxByRateInput]
+
+
+class QualifiedInvoiceCheckResponse(BaseModel):
+    is_valid: bool
+    missing_fields: list[str]
+    registration_number_valid: bool
+
+
 class InvoiceListResponse(BaseModel):
     items: list[InvoiceResponse]
     total: int

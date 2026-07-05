@@ -20,6 +20,8 @@ from app.schemas.schemas import (
     InvoiceTaxComputeRequest,
     InvoiceTaxComputeResponse,
     NotificationCreate,
+    QualifiedInvoiceCheckRequest,
+    QualifiedInvoiceCheckResponse,
 )
 from app.services.auto_journal import (
     generate_invoice_issue_journal,
@@ -28,6 +30,11 @@ from app.services.auto_journal import (
 from app.services.invoice_registration import InvoiceRegistrationService
 from app.services.invoice_tax import InvoiceTaxService
 from app.services.notification_service import create_notification
+from app.services.qualified_invoice_check import (
+    QualifiedInvoiceCheckService,
+    QualifiedInvoiceInput,
+    QualifiedInvoiceLine,
+)
 
 router = APIRouter()
 
@@ -196,6 +203,30 @@ async def validate_registration_number(
         "format_valid": result.format_valid,
         "check_digit_valid": result.check_digit_valid,
     }
+
+
+@router.post("/check-qualified", response_model=QualifiedInvoiceCheckResponse)
+async def check_qualified_invoice(
+    payload: QualifiedInvoiceCheckRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> QualifiedInvoiceCheckResponse:
+    invoice = QualifiedInvoiceInput(
+        issuer_name=payload.issuer_name,
+        registration_number=payload.registration_number,
+        transaction_date=payload.transaction_date,
+        recipient_name=payload.recipient_name,
+        line_items=[
+            QualifiedInvoiceLine(description=line.description, tax_rate=line.tax_rate)
+            for line in payload.line_items
+        ],
+        tax_by_rate={item.tax_rate: item.tax_amount for item in payload.tax_by_rate},
+    )
+    result = QualifiedInvoiceCheckService.check(invoice)
+    return QualifiedInvoiceCheckResponse(
+        is_valid=result.is_valid,
+        missing_fields=result.missing_fields,
+        registration_number_valid=result.registration_number_valid,
+    )
 
 
 @router.post("/compute-tax", response_model=InvoiceTaxComputeResponse)
