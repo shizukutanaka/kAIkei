@@ -1,3 +1,4 @@
+from contextlib import suppress
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
@@ -16,6 +17,8 @@ from app.schemas.schemas import (
     InvoiceLineResponse,
     InvoiceListResponse,
     InvoiceResponse,
+    InvoiceTaxComputeRequest,
+    InvoiceTaxComputeResponse,
     NotificationCreate,
 )
 from app.services.auto_journal import (
@@ -23,6 +26,7 @@ from app.services.auto_journal import (
     generate_invoice_payment_journal,
 )
 from app.services.invoice_registration import InvoiceRegistrationService
+from app.services.invoice_tax import InvoiceTaxService
 from app.services.notification_service import create_notification
 
 router = APIRouter()
@@ -71,8 +75,8 @@ def _to_response(inv: Invoice, partner_name: str | None = None) -> InvoiceRespon
 @router.post("/invoices", response_model=InvoiceResponse, status_code=201)
 async def create_invoice(
     payload: InvoiceCreate,
-    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_CREATE)),
-    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_CREATE)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> InvoiceResponse:
     """請求書を作成する。"""
     if not payload.lines:
@@ -138,13 +142,13 @@ async def create_invoice(
 
 @router.get("/invoices", response_model=InvoiceListResponse)
 async def list_invoices(
-    company_id: UUID = Query(...),
-    status: str | None = Query(None),
-    partner_id: UUID | None = Query(None),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=200),
-    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
-    db: AsyncSession = Depends(get_db),
+    company_id: UUID = Query(...),  # noqa: B008
+    status: str | None = Query(None),  # noqa: B008
+    partner_id: UUID | None = Query(None),  # noqa: B008
+    page: int = Query(1, ge=1),  # noqa: B008
+    page_size: int = Query(50, ge=1, le=200),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> InvoiceListResponse:
     """請求書一覧を取得する（ページネーション対応）。"""
     base_query = (
@@ -194,12 +198,36 @@ async def validate_registration_number(
     }
 
 
+@router.post("/compute-tax", response_model=InvoiceTaxComputeResponse)
+async def compute_invoice_tax(
+    payload: InvoiceTaxComputeRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> InvoiceTaxComputeResponse:
+    try:
+        result = InvoiceTaxService.compute_invoice_tax(payload.lines)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return InvoiceTaxComputeResponse(
+        by_rate=[
+            {
+                "tax_rate": entry.tax_rate,
+                "taxable_base": entry.taxable_base,
+                "tax": entry.tax,
+            }
+            for entry in result.by_rate
+        ],
+        total_taxable=result.total_taxable,
+        total_tax=result.total_tax,
+        total_amount=result.total_amount,
+    )
+
+
 @router.get("/invoices/{invoice_id}", response_model=InvoiceResponse)
 async def get_invoice(
     invoice_id: UUID,
-    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),
-    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
-    db: AsyncSession = Depends(get_db),
+    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> InvoiceResponse:
     """請求書詳細を取得する。"""
     result = await db.execute(
@@ -218,10 +246,10 @@ async def get_invoice(
 @router.post("/invoices/{invoice_id}/transition", response_model=InvoiceResponse)
 async def transition_invoice(
     invoice_id: UUID,
-    action: str = Query(..., description="issued, paid, cancelled"),
-    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),
-    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_POST)),
-    db: AsyncSession = Depends(get_db),
+    action: str = Query(..., description="issued, paid, cancelled"),  # noqa: B008
+    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_POST)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> InvoiceResponse:
     """請求書のステータスを変更する。"""
     result = await db.execute(
@@ -246,7 +274,7 @@ async def transition_invoice(
 
     # Auto-generate journal entries on status transitions
     if action == "issued":
-        try:
+        with suppress(ValueError):
             await generate_invoice_issue_journal(
                 db,
                 company_id=inv.company_id,
@@ -257,10 +285,8 @@ async def transition_invoice(
                 total_amount=inv.total_amount,
                 created_by=current_user.user_id,
             )
-        except ValueError:
-            pass  # Account not found — skip auto-journal
     elif action == "paid":
-        try:
+        with suppress(ValueError):
             await generate_invoice_payment_journal(
                 db,
                 company_id=inv.company_id,
@@ -269,22 +295,22 @@ async def transition_invoice(
                 total_amount=inv.total_amount,
                 created_by=current_user.user_id,
             )
-        except ValueError:
-            pass
 
     # Notify on invoice transition
     action_labels = {"issued": "発行", "paid": "入金確認", "cancelled": "キャンセル"}
-    try:
-        await create_notification(db, current_user.tenant_id, NotificationCreate(
-            company_id=inv.company_id,
-            category="invoice",
-            priority="high" if action == "paid" else "normal",
-            title=f"請求書 {inv.invoice_number} {action_labels[action]}",
-            body=f"請求書 {inv.invoice_number} を{action_labels[action]}しました。",
-            action_url="/invoices",
-        ))
-    except Exception:
-        pass
+    with suppress(Exception):
+        await create_notification(
+            db,
+            current_user.tenant_id,
+            NotificationCreate(
+                company_id=inv.company_id,
+                category="invoice",
+                priority="high" if action == "paid" else "normal",
+                title=f"請求書 {inv.invoice_number} {action_labels[action]}",
+                body=f"請求書 {inv.invoice_number} を{action_labels[action]}しました。",
+                action_url="/invoices",
+            ),
+        )
 
     await db.commit()
     await db.refresh(inv, attribute_names=["lines"])
@@ -294,8 +320,8 @@ async def transition_invoice(
 @router.get("/invoices/{invoice_id}/export", response_class=PlainTextResponse)
 async def export_invoice(
     invoice_id: UUID,
-    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
-    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> str:
     """請求書をCSV形式で出力する。"""
     result = await db.execute(
@@ -336,10 +362,10 @@ async def export_invoice(
 
 @router.get("/stats", response_model=dict)
 async def invoice_stats(
-    company_id: UUID = Query(...),
-    year: int = Query(...),
-    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
-    db: AsyncSession = Depends(get_db),
+    company_id: UUID = Query(...),  # noqa: B008
+    year: int = Query(...),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> dict:
     """年次の請求書統計を取得する。"""
     result = await db.execute(

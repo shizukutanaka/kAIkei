@@ -431,6 +431,15 @@ class InvoiceCreate(BaseModel):
     lines: list[InvoiceLineCreate]
 
 
+class InvoiceTaxLineInput(BaseModel):
+    amount: Decimal = Field(ge=0)
+    tax_rate: Decimal
+
+
+class InvoiceTaxComputeRequest(BaseModel):
+    lines: list[InvoiceTaxLineInput]
+
+
 class InvoiceLineResponse(BaseModel):
     line_id: UUID
     line_number: int
@@ -493,6 +502,21 @@ class TaxReturnResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Paginated Response Types (ページネーション統一)
 # ---------------------------------------------------------------------------
+
+class InvoiceTaxRateBreakdownResponse(BaseModel):
+    tax_rate: Decimal
+    taxable_base: Decimal
+    tax: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class InvoiceTaxComputeResponse(BaseModel):
+    by_rate: list[InvoiceTaxRateBreakdownResponse]
+    total_taxable: Decimal
+    total_tax: Decimal
+    total_amount: Decimal
+
 
 class InvoiceListResponse(BaseModel):
     items: list[InvoiceResponse]
