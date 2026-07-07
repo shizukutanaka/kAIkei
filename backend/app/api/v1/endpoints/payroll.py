@@ -279,6 +279,28 @@ async def calculate_social_insurance_premium(
     return SocialInsurancePremiumResponse.model_validate(result)
 
 
+@router.get("/bonus-social-insurance-premium")
+async def calculate_bonus_social_insurance_premium(
+    health_standard_bonus: Decimal = Query(..., description="健康保険用標準賞与額"),  # noqa: B008
+    pension_standard_bonus: Decimal = Query(..., description="厚生年金保険用標準賞与額"),  # noqa: B008
+    health_rate: Decimal = Query(Decimal("0.0998"), description="健康保険料率"),  # noqa: B008
+    care_rate: Decimal = Query(Decimal("0.016"), description="介護保険料率"),  # noqa: B008
+    care_applicable: bool = Query(False, description="40〜64歳の介護保険適用有無"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> SocialInsurancePremiumResponse:
+    try:
+        result = SocialInsurancePremiumService.compute_bonus(
+            health_standard_bonus=health_standard_bonus,
+            pension_standard_bonus=pension_standard_bonus,
+            health_rate=health_rate,
+            care_rate=care_rate,
+            care_applicable=care_applicable,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return SocialInsurancePremiumResponse.model_validate(result)
+
+
 @router.get("/labor-insurance/installment")
 async def calculate_labor_insurance_installment(
     estimated_premium: Decimal = Query(..., description="概算保険料額"),  # noqa: B008

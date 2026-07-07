@@ -66,3 +66,53 @@ class TestSocialInsurancePremiumService:
                 Decimal("1"),
                 care_rate=Decimal("-0.1"),
             )
+
+    def test_compute_bonus_defaults_without_care(self):
+        result = SocialInsurancePremiumService.compute_bonus(
+            Decimal("500000"),
+            Decimal("500000"),
+        )
+
+        assert result.health.total == Decimal("49900")
+        assert result.health.employee == Decimal("24950")
+        assert result.health.employer == Decimal("24950")
+        assert result.pension.total == Decimal("91500")
+        assert result.pension.employee == Decimal("45750")
+        assert result.pension.employer == Decimal("45750")
+        assert result.care.total == Decimal("0")
+        assert result.total_employee == Decimal("70700")
+        assert result.total_employer == Decimal("70700")
+        assert result.total_premium == Decimal("141400")
+
+    def test_compute_bonus_differing_bases_and_care(self):
+        result = SocialInsurancePremiumService.compute_bonus(
+            Decimal("5730000"),
+            Decimal("1500000"),
+            care_applicable=True,
+        )
+
+        assert result.health.total == Decimal("571854")
+        assert result.health.employee == Decimal("285927")
+        assert result.health.employer == Decimal("285927")
+        assert result.care.total == Decimal("91680")
+        assert result.care.employee == Decimal("45840")
+        assert result.care.employer == Decimal("45840")
+        assert result.pension.total == Decimal("274500")
+        assert result.pension.employee == Decimal("137250")
+        assert result.pension.employer == Decimal("137250")
+        assert result.total_employee == Decimal("469017")
+        assert result.total_employer == Decimal("469017")
+        assert result.total_premium == Decimal("938034")
+
+    def test_compute_bonus_negative_inputs_raise(self):
+        with pytest.raises(ValueError):
+            SocialInsurancePremiumService.compute_bonus(Decimal("-1"), Decimal("1"))
+        with pytest.raises(ValueError):
+            SocialInsurancePremiumService.compute_bonus(Decimal("1"), Decimal("-1"))
+
+    def test_monthly_compute_regression_after_split_helper(self):
+        result = SocialInsurancePremiumService.compute(Decimal("300000"))
+
+        assert result.pension.total == Decimal("54900")
+        assert result.health.total == Decimal("29940")
+        assert result.total_employee == Decimal("42420")

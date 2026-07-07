@@ -34,7 +34,7 @@ class SocialInsuranceResult:
 
 class SocialInsurancePremiumService:
     @staticmethod
-    def _split_premium(total: Decimal) -> SocialInsuranceBreakdown:
+    def split_premium(total: Decimal) -> SocialInsuranceBreakdown:
         employee = (total / Decimal("2")).quantize(Decimal("1"), rounding=ROUND_HALF_DOWN)
         employer = total - employee
         return SocialInsuranceBreakdown(total=total, employee=employee, employer=employer)
@@ -58,9 +58,9 @@ class SocialInsurancePremiumService:
         care_total = standard_monthly_remuneration * care_rate if care_applicable else Decimal("0")
         pension_total = standard_monthly_remuneration * PENSION_INSURANCE_RATE
 
-        health = cls._split_premium(health_total)
-        care = cls._split_premium(care_total)
-        pension = cls._split_premium(pension_total)
+        health = cls.split_premium(health_total)
+        care = cls.split_premium(care_total)
+        pension = cls.split_premium(pension_total)
 
         total_employee = health.employee + care.employee + pension.employee
         total_employer = health.employer + care.employer + pension.employer
@@ -68,6 +68,48 @@ class SocialInsurancePremiumService:
 
         return SocialInsuranceResult(
             standard_monthly_remuneration=standard_monthly_remuneration,
+            health_rate=health_rate,
+            care_rate=care_rate,
+            care_applicable=care_applicable,
+            health=health,
+            care=care,
+            pension=pension,
+            total_employee=total_employee,
+            total_employer=total_employer,
+            total_premium=total_premium,
+        )
+
+    @classmethod
+    def compute_bonus(
+        cls,
+        health_standard_bonus: Decimal,
+        pension_standard_bonus: Decimal,
+        health_rate: Decimal = DEFAULT_HEALTH_INSURANCE_RATE,
+        care_rate: Decimal = DEFAULT_CARE_INSURANCE_RATE,
+        care_applicable: bool = False,
+    ) -> SocialInsuranceResult:
+        if (
+            health_standard_bonus < 0
+            or pension_standard_bonus < 0
+            or health_rate < 0
+            or care_rate < 0
+        ):
+            raise ValueError("standard bonuses and rates must be non-negative")
+
+        health_total = health_standard_bonus * health_rate
+        care_total = health_standard_bonus * care_rate if care_applicable else Decimal("0")
+        pension_total = pension_standard_bonus * PENSION_INSURANCE_RATE
+
+        health = cls.split_premium(health_total)
+        care = cls.split_premium(care_total)
+        pension = cls.split_premium(pension_total)
+
+        total_employee = health.employee + care.employee + pension.employee
+        total_employer = health.employer + care.employer + pension.employer
+        total_premium = health.total + care.total + pension.total
+
+        return SocialInsuranceResult(
+            standard_monthly_remuneration=health_standard_bonus,
             health_rate=health_rate,
             care_rate=care_rate,
             care_applicable=care_applicable,
