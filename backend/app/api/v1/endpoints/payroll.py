@@ -27,6 +27,7 @@ from app.schemas.schemas import (
     PayrollRecordResponse,
     BonusEmploymentInsuranceResponse,
     BonusWithholdingTaxResponse,
+    BonusNetPayResponse,
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     QualificationAcquisitionExportRequest,
@@ -41,6 +42,7 @@ from app.services.labor_insurance import (
 from app.services.labor_insurance_annual import LaborInsuranceAnnualUpdateService
 from app.services.bonus_employment_insurance import BonusEmploymentInsuranceService
 from app.services.bonus_withholding_tax import BonusWithholdingTaxService
+from app.services.bonus_net_pay import BonusNetPayService
 from app.services.labor_insurance_installment import LaborInsuranceInstallmentService
 from app.services.overtime_pay import OvertimePayService
 from app.services.santei_export import SanteiEmployee, SanteiKisoService, SanteiMonth
@@ -48,7 +50,11 @@ from app.services.notification_service import create_notification
 from app.services.standard_remuneration import RemunerationMonth
 from app.services.standard_bonus import BonusEmployee, StandardBonusService
 from app.services.qualification_acquisition import AcquisitionEmployee, QualificationAcquisitionService
-from app.services.social_insurance import SocialInsurancePremiumService
+from app.services.social_insurance import (
+    DEFAULT_CARE_INSURANCE_RATE,
+    DEFAULT_HEALTH_INSURANCE_RATE,
+    SocialInsurancePremiumService,
+)
 from app.services.monthly_revision import MonthlyRevisionService, RevisionEmployee
 
 router = APIRouter()
@@ -300,6 +306,34 @@ async def calculate_bonus_employment_insurance(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return BonusEmploymentInsuranceResponse.model_validate(result)
+
+
+@router.get("/bonus-net-pay")
+async def calculate_bonus_net_pay(
+    gross_bonus: Decimal = Query(..., description="賞与額"),  # noqa: B008
+    business_type: str = Query(BUSINESS_TYPE_GENERAL, description="事業区分"),  # noqa: B008
+    health_rate: Decimal = Query(DEFAULT_HEALTH_INSURANCE_RATE, description="健康保険料率"),  # noqa: B008
+    care_rate: Decimal = Query(DEFAULT_CARE_INSURANCE_RATE, description="介護保険料率"),  # noqa: B008
+    care_applicable: bool = Query(False, description="40〜64歳の介護保険適用有無"),  # noqa: B008
+    bonus_tax_rate: Decimal = Query(..., description="賞与に対する源泉徴収税率"),  # noqa: B008
+    prior_month_salary_after_social_insurance: Decimal | None = Query(None, description="前月給与(社会保険料等控除後)"),  # noqa: B008
+    cumulative_health_standard_bonus_ytd: Decimal = Query(Decimal("0"), description="当年度の既支給累計標準賞与額"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> BonusNetPayResponse:
+    try:
+        result = BonusNetPayService.compute(
+            gross_bonus=gross_bonus,
+            business_type=business_type,
+            health_rate=health_rate,
+            care_rate=care_rate,
+            care_applicable=care_applicable,
+            bonus_tax_rate=bonus_tax_rate,
+            prior_month_salary_after_social_insurance=prior_month_salary_after_social_insurance,
+            cumulative_health_standard_bonus_ytd=cumulative_health_standard_bonus_ytd,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return BonusNetPayResponse.model_validate(result)
 
 
 @router.get("/bonus-withholding-tax")

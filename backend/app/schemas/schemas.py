@@ -737,6 +737,21 @@ class BonusWithholdingTaxResponse(BaseModel):
     reason: str
 
 
+class BonusNetPayResponse(BaseModel):
+    gross_bonus: Decimal
+    standard_bonus: Decimal
+    health_standard_bonus: Decimal
+    pension_standard_bonus: Decimal
+    social_insurance: SocialInsurancePremiumResponse
+    employment_insurance_employee: Decimal
+    bonus_after_social_insurance: Decimal
+    withholding_tax: Decimal | None = None
+    requires_monthly_table: bool
+    reason: str
+    total_employee_deductions: Decimal
+    net_pay: Decimal | None = None
+
+
 class LaborInsuranceInstallmentResponse(BaseModel):
     estimated_premium: Decimal
     threshold: Decimal
