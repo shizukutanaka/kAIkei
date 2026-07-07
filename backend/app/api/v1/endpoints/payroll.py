@@ -18,6 +18,7 @@ from app.schemas.schemas import (
     EmployeeResponse,
     LaborInsuranceEmployeeResponse,
     LaborInsuranceSummaryResponse,
+    LaborInsuranceAnnualUpdateRequest,
     NotificationCreate,
     PayrollCalculateRequest,
     PayrollListResponse,
@@ -29,6 +30,7 @@ from app.services.labor_insurance import (
     DEFAULT_WORKERS_COMPENSATION_RATE,
     LaborInsuranceService,
 )
+from app.services.labor_insurance_annual import LaborInsuranceAnnualUpdateService
 from app.services.overtime_pay import OvertimePayService
 from app.services.santei_export import SanteiEmployee, SanteiKisoService, SanteiMonth
 from app.services.notification_service import create_notification
@@ -246,6 +248,29 @@ async def calculate_payroll(
     return [_to_payroll_response(r) for r in records]
 
 
+
+
+@router.post("/labor-insurance/annual-update/export")
+async def export_labor_insurance_annual_update(
+    payload: LaborInsuranceAnnualUpdateRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> Response:
+    try:
+        result = LaborInsuranceAnnualUpdateService.compute(
+            prior_wage_total=payload.prior_wage_total,
+            estimated_wage_total=payload.estimated_wage_total,
+            business_type=payload.business_type,
+            declared_prior_estimate=payload.declared_prior_estimate,
+            workers_comp_rate=payload.workers_comp_rate,
+        )
+        csv_content = LaborInsuranceAnnualUpdateService.build_csv(result)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="rodo_hoken_nendo_koushin.csv"'},
+    )
 
 
 @router.get("/labor-insurance", response_model=LaborInsuranceSummaryResponse)

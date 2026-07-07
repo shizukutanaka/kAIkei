@@ -64,6 +64,11 @@ class LaborInsuranceService:
         except KeyError as exc:
             raise ValueError(f"Unsupported business_type: {business_type}") from exc
 
+    @classmethod
+    def combined_rate(cls, business_type: str, workers_comp_rate: Decimal) -> Decimal:
+        employee_rate, employer_rate = cls._employment_rates(business_type)
+        return employee_rate + employer_rate + workers_comp_rate
+
     @staticmethod
     def calculate_employee_premium(
         *,

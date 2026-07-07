@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.services.labor_insurance import DEFAULT_WORKERS_COMPENSATION_RATE
+
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -718,6 +720,14 @@ class SanteiEmployeeInput(BaseModel):
 
 class SanteiExportRequest(BaseModel):
     employees: list[SanteiEmployeeInput]
+
+
+class LaborInsuranceAnnualUpdateRequest(BaseModel):
+    prior_wage_total: Decimal
+    estimated_wage_total: Decimal
+    business_type: str
+    declared_prior_estimate: Decimal
+    workers_comp_rate: Decimal = DEFAULT_WORKERS_COMPENSATION_RATE
 
 
 class EmployeeListResponse(BaseModel):
