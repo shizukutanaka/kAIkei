@@ -701,6 +701,25 @@ class TaxForecastResponse(BaseModel):
     tax_risk_warnings: list[str]
 
 
+class SocialInsuranceBreakdownResponse(BaseModel):
+    total: Decimal
+    employee: Decimal
+    employer: Decimal
+
+
+class SocialInsurancePremiumResponse(BaseModel):
+    standard_monthly_remuneration: Decimal
+    health_rate: Decimal
+    care_rate: Decimal
+    care_applicable: bool
+    health: SocialInsuranceBreakdownResponse
+    care: SocialInsuranceBreakdownResponse
+    pension: SocialInsuranceBreakdownResponse
+    total_employee: Decimal
+    total_employer: Decimal
+    total_premium: Decimal
+
+
 class SanteiMonthInput(BaseModel):
     payment_basis_days: int
     currency_remuneration: Decimal

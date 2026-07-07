@@ -26,6 +26,7 @@ from app.schemas.schemas import (
     PayrollListResponse,
     PayrollRecordResponse,
     SanteiExportRequest,
+    SocialInsurancePremiumResponse,
 )
 from app.services.auto_journal import generate_payroll_journal
 from app.services.labor_insurance import (
@@ -38,6 +39,7 @@ from app.services.santei_export import SanteiEmployee, SanteiKisoService, Santei
 from app.services.notification_service import create_notification
 from app.services.standard_remuneration import RemunerationMonth
 from app.services.standard_bonus import BonusEmployee, StandardBonusService
+from app.services.social_insurance import SocialInsurancePremiumService
 from app.services.monthly_revision import MonthlyRevisionService, RevisionEmployee
 
 router = APIRouter()
@@ -253,6 +255,26 @@ async def calculate_payroll(
     return [_to_payroll_response(r) for r in records]
 
 
+
+
+@router.get("/social-insurance-premium")
+async def calculate_social_insurance_premium(
+    standard_monthly_remuneration: Decimal = Query(..., description="標準報酬月額"),  # noqa: B008
+    health_rate: Decimal = Query(Decimal("0.0998"), description="健康保険料率"),  # noqa: B008
+    care_rate: Decimal = Query(Decimal("0.016"), description="介護保険料率"),  # noqa: B008
+    care_applicable: bool = Query(False, description="40〜64歳の介護保険適用有無"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> SocialInsurancePremiumResponse:
+    try:
+        result = SocialInsurancePremiumService.compute(
+            standard_monthly_remuneration=standard_monthly_remuneration,
+            health_rate=health_rate,
+            care_rate=care_rate,
+            care_applicable=care_applicable,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return SocialInsurancePremiumResponse.model_validate(result)
 
 
 @router.post("/monthly-revision/export")
