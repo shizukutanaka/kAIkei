@@ -25,6 +25,7 @@ from app.schemas.schemas import (
     PayrollCalculateRequest,
     PayrollListResponse,
     PayrollRecordResponse,
+    BonusEmploymentInsuranceResponse,
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     QualificationAcquisitionExportRequest,
@@ -32,10 +33,12 @@ from app.schemas.schemas import (
 )
 from app.services.auto_journal import generate_payroll_journal
 from app.services.labor_insurance import (
+    BUSINESS_TYPE_GENERAL,
     DEFAULT_WORKERS_COMPENSATION_RATE,
     LaborInsuranceService,
 )
 from app.services.labor_insurance_annual import LaborInsuranceAnnualUpdateService
+from app.services.bonus_employment_insurance import BonusEmploymentInsuranceService
 from app.services.labor_insurance_installment import LaborInsuranceInstallmentService
 from app.services.overtime_pay import OvertimePayService
 from app.services.santei_export import SanteiEmployee, SanteiKisoService, SanteiMonth
@@ -279,6 +282,22 @@ async def calculate_social_insurance_premium(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return SocialInsurancePremiumResponse.model_validate(result)
+
+
+@router.get("/bonus-employment-insurance")
+async def calculate_bonus_employment_insurance(
+    bonus_amount: Decimal = Query(..., description="賞与額"),  # noqa: B008
+    business_type: str = Query(BUSINESS_TYPE_GENERAL, description="事業区分"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> BonusEmploymentInsuranceResponse:
+    try:
+        result = BonusEmploymentInsuranceService.compute(
+            bonus_amount=bonus_amount,
+            business_type=business_type,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return BonusEmploymentInsuranceResponse.model_validate(result)
 
 
 @router.get("/bonus-social-insurance-premium")

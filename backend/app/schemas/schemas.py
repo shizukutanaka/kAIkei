@@ -720,6 +720,14 @@ class SocialInsurancePremiumResponse(BaseModel):
     total_premium: Decimal
 
 
+class BonusEmploymentInsuranceResponse(BaseModel):
+    employee_premium: Decimal
+    employer_premium: Decimal
+    total_premium: Decimal
+    employee_rate: Decimal
+    employer_rate: Decimal
+
+
 class LaborInsuranceInstallmentResponse(BaseModel):
     estimated_premium: Decimal
     threshold: Decimal
