@@ -26,6 +26,7 @@ from app.schemas.schemas import (
     PayrollListResponse,
     PayrollRecordResponse,
     BonusEmploymentInsuranceResponse,
+    BonusWithholdingTaxResponse,
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     QualificationAcquisitionExportRequest,
@@ -39,6 +40,7 @@ from app.services.labor_insurance import (
 )
 from app.services.labor_insurance_annual import LaborInsuranceAnnualUpdateService
 from app.services.bonus_employment_insurance import BonusEmploymentInsuranceService
+from app.services.bonus_withholding_tax import BonusWithholdingTaxService
 from app.services.labor_insurance_installment import LaborInsuranceInstallmentService
 from app.services.overtime_pay import OvertimePayService
 from app.services.santei_export import SanteiEmployee, SanteiKisoService, SanteiMonth
@@ -298,6 +300,24 @@ async def calculate_bonus_employment_insurance(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return BonusEmploymentInsuranceResponse.model_validate(result)
+
+
+@router.get("/bonus-withholding-tax")
+async def calculate_bonus_withholding_tax(
+    bonus_after_social_insurance: Decimal = Query(..., description="社会保険料等控除後の賞与額"),  # noqa: B008
+    bonus_tax_rate: Decimal = Query(..., description="賞与に対する源泉徴収税率"),  # noqa: B008
+    prior_month_salary_after_social_insurance: Decimal | None = Query(None, description="前月給与(社会保険料等控除後)"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> BonusWithholdingTaxResponse:
+    try:
+        result = BonusWithholdingTaxService.compute(
+            bonus_after_social_insurance=bonus_after_social_insurance,
+            bonus_tax_rate=bonus_tax_rate,
+            prior_month_salary_after_social_insurance=prior_month_salary_after_social_insurance,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return BonusWithholdingTaxResponse.model_validate(result)
 
 
 @router.get("/bonus-social-insurance-premium")

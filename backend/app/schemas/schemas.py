@@ -728,6 +728,15 @@ class BonusEmploymentInsuranceResponse(BaseModel):
     employer_rate: Decimal
 
 
+class BonusWithholdingTaxResponse(BaseModel):
+    bonus_after_social_insurance: Decimal
+    bonus_tax_rate: Decimal
+    prior_month_salary_after_social_insurance: Decimal | None = None
+    withholding_tax: Decimal | None = None
+    requires_monthly_table: bool
+    reason: str
+
+
 class LaborInsuranceInstallmentResponse(BaseModel):
     estimated_premium: Decimal
     threshold: Decimal
