@@ -730,6 +730,19 @@ class LaborInsuranceAnnualUpdateRequest(BaseModel):
     workers_comp_rate: Decimal = DEFAULT_WORKERS_COMPENSATION_RATE
 
 
+class BonusEmployeeInput(BaseModel):
+    insured_number: str
+    name: str
+    payment_date: date
+    bonus_amount: Decimal
+    fiscal_ytd_standard_bonus: Decimal = Decimal("0")
+    same_month_prior_standard_bonus: Decimal = Decimal("0")
+
+
+class BonusExportRequest(BaseModel):
+    employees: list[BonusEmployeeInput]
+
+
 class EmployeeListResponse(BaseModel):
     items: list[EmployeeResponse]
     total: int

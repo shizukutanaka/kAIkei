@@ -20,6 +20,7 @@ from app.schemas.schemas import (
     LaborInsuranceSummaryResponse,
     LaborInsuranceAnnualUpdateRequest,
     NotificationCreate,
+    BonusExportRequest,
     PayrollCalculateRequest,
     PayrollListResponse,
     PayrollRecordResponse,
@@ -34,6 +35,7 @@ from app.services.labor_insurance_annual import LaborInsuranceAnnualUpdateServic
 from app.services.overtime_pay import OvertimePayService
 from app.services.santei_export import SanteiEmployee, SanteiKisoService, SanteiMonth
 from app.services.notification_service import create_notification
+from app.services.standard_bonus import BonusEmployee, StandardBonusService
 
 router = APIRouter()
 
@@ -248,6 +250,33 @@ async def calculate_payroll(
     return [_to_payroll_response(r) for r in records]
 
 
+
+
+@router.post("/bonus/export")
+async def export_bonus(
+    payload: BonusExportRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> Response:
+    try:
+        employees = [
+            BonusEmployee(
+                insured_number=employee.insured_number,
+                name=employee.name,
+                payment_date=employee.payment_date,
+                bonus_amount=employee.bonus_amount,
+                fiscal_ytd_standard_bonus=employee.fiscal_ytd_standard_bonus,
+                same_month_prior_standard_bonus=employee.same_month_prior_standard_bonus,
+            )
+            for employee in payload.employees
+        ]
+        csv_content = StandardBonusService.build_csv(employees)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="bonus.csv"'},
+    )
 
 
 @router.post("/labor-insurance/annual-update/export")
@@ -624,4 +653,3 @@ async def calculate_overtime_premium(
         "holiday_pay": result.holiday_pay,
         "total_premium": result.total_premium,
     }
-
