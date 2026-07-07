@@ -27,6 +27,7 @@ from app.schemas.schemas import (
     PayrollRecordResponse,
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
+    QualificationAcquisitionExportRequest,
     SocialInsurancePremiumResponse,
 )
 from app.services.auto_journal import generate_payroll_journal
@@ -41,6 +42,7 @@ from app.services.santei_export import SanteiEmployee, SanteiKisoService, Santei
 from app.services.notification_service import create_notification
 from app.services.standard_remuneration import RemunerationMonth
 from app.services.standard_bonus import BonusEmployee, StandardBonusService
+from app.services.qualification_acquisition import AcquisitionEmployee, QualificationAcquisitionService
 from app.services.social_insurance import SocialInsurancePremiumService
 from app.services.monthly_revision import MonthlyRevisionService, RevisionEmployee
 
@@ -570,6 +572,32 @@ VALID_PAYROLL_TRANSITIONS: dict[str, set[str]] = {
 }
 
 
+
+
+@router.post("/qualification-acquisition/export")
+async def export_qualification_acquisition(
+    payload: QualificationAcquisitionExportRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> Response:
+    try:
+        employees = [
+            AcquisitionEmployee(
+                insured_number=employee.insured_number,
+                name=employee.name,
+                birth_date=employee.birth_date,
+                qualification_date=employee.qualification_date,
+                estimated_monthly_remuneration=employee.estimated_monthly_remuneration,
+            )
+            for employee in payload.employees
+        ]
+        csv_content = QualificationAcquisitionService.build_csv(employees)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="shikaku_shutoku.csv"'},
+    )
 
 
 @router.post("/santei/export")

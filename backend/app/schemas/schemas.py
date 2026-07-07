@@ -752,6 +752,18 @@ class SanteiExportRequest(BaseModel):
     employees: list[SanteiEmployeeInput]
 
 
+class QualificationAcquisitionEmployeeInput(BaseModel):
+    insured_number: str
+    name: str
+    birth_date: date
+    qualification_date: date
+    estimated_monthly_remuneration: Decimal
+
+
+class QualificationAcquisitionExportRequest(BaseModel):
+    employees: list[QualificationAcquisitionEmployeeInput]
+
+
 class LaborInsuranceAnnualUpdateRequest(BaseModel):
     prior_wage_total: Decimal
     estimated_wage_total: Decimal
