@@ -720,6 +720,17 @@ class SocialInsurancePremiumResponse(BaseModel):
     total_premium: Decimal
 
 
+class LaborInsuranceInstallmentResponse(BaseModel):
+    estimated_premium: Decimal
+    threshold: Decimal
+    both_insurances: bool
+    entrusted: bool
+    eligible: bool
+    installment_count: int
+    installments: list[Decimal]
+    note: str
+
+
 class SanteiMonthInput(BaseModel):
     payment_basis_days: int
     currency_remuneration: Decimal

@@ -25,6 +25,7 @@ from app.schemas.schemas import (
     PayrollCalculateRequest,
     PayrollListResponse,
     PayrollRecordResponse,
+    LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     SocialInsurancePremiumResponse,
 )
@@ -34,6 +35,7 @@ from app.services.labor_insurance import (
     LaborInsuranceService,
 )
 from app.services.labor_insurance_annual import LaborInsuranceAnnualUpdateService
+from app.services.labor_insurance_installment import LaborInsuranceInstallmentService
 from app.services.overtime_pay import OvertimePayService
 from app.services.santei_export import SanteiEmployee, SanteiKisoService, SanteiMonth
 from app.services.notification_service import create_notification
@@ -275,6 +277,24 @@ async def calculate_social_insurance_premium(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return SocialInsurancePremiumResponse.model_validate(result)
+
+
+@router.get("/labor-insurance/installment")
+async def calculate_labor_insurance_installment(
+    estimated_premium: Decimal = Query(..., description="概算保険料額"),  # noqa: B008
+    both_insurances: bool = Query(True, description="労災・雇用の両保険成立"),  # noqa: B008
+    entrusted: bool = Query(False, description="労働保険事務組合への委託有無"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> LaborInsuranceInstallmentResponse:
+    try:
+        result = LaborInsuranceInstallmentService.compute(
+            estimated_premium=estimated_premium,
+            both_insurances=both_insurances,
+            entrusted=entrusted,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return LaborInsuranceInstallmentResponse.model_validate(result)
 
 
 @router.post("/monthly-revision/export")
