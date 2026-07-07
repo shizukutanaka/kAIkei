@@ -21,6 +21,7 @@ from app.schemas.schemas import (
     LaborInsuranceAnnualUpdateRequest,
     NotificationCreate,
     BonusExportRequest,
+    MonthlyRevisionExportRequest,
     PayrollCalculateRequest,
     PayrollListResponse,
     PayrollRecordResponse,
@@ -35,7 +36,9 @@ from app.services.labor_insurance_annual import LaborInsuranceAnnualUpdateServic
 from app.services.overtime_pay import OvertimePayService
 from app.services.santei_export import SanteiEmployee, SanteiKisoService, SanteiMonth
 from app.services.notification_service import create_notification
+from app.services.standard_remuneration import RemunerationMonth
 from app.services.standard_bonus import BonusEmployee, StandardBonusService
+from app.services.monthly_revision import MonthlyRevisionService, RevisionEmployee
 
 router = APIRouter()
 
@@ -250,6 +253,39 @@ async def calculate_payroll(
     return [_to_payroll_response(r) for r in records]
 
 
+
+
+@router.post("/monthly-revision/export")
+async def export_monthly_revision(
+    payload: MonthlyRevisionExportRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> Response:
+    try:
+        employees = [
+            RevisionEmployee(
+                insured_number=employee.insured_number,
+                name=employee.name,
+                previous_health_standard=employee.previous_health_standard,
+                previous_pension_standard=employee.previous_pension_standard,
+                fixed_wage_changed=employee.fixed_wage_changed,
+                months=[
+                    RemunerationMonth(
+                        payment_basis_days=month.payment_basis_days,
+                        remuneration=month.remuneration,
+                    )
+                    for month in employee.months
+                ],
+            )
+            for employee in payload.employees
+        ]
+        csv_content = MonthlyRevisionService.build_csv(employees)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="getsugaku_henkou.csv"'},
+    )
 
 
 @router.post("/bonus/export")

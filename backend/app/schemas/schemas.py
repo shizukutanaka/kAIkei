@@ -743,6 +743,24 @@ class BonusExportRequest(BaseModel):
     employees: list[BonusEmployeeInput]
 
 
+class MonthlyRevisionMonthInput(BaseModel):
+    payment_basis_days: int
+    remuneration: Decimal
+
+
+class MonthlyRevisionEmployeeInput(BaseModel):
+    insured_number: str
+    name: str
+    previous_health_standard: Decimal
+    previous_pension_standard: Decimal
+    fixed_wage_changed: bool
+    months: list[MonthlyRevisionMonthInput]
+
+
+class MonthlyRevisionExportRequest(BaseModel):
+    employees: list[MonthlyRevisionEmployeeInput]
+
+
 class EmployeeListResponse(BaseModel):
     items: list[EmployeeResponse]
     total: int
