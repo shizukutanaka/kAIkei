@@ -4,7 +4,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, Response
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +22,7 @@ from app.schemas.schemas import (
     PayrollCalculateRequest,
     PayrollListResponse,
     PayrollRecordResponse,
+    SanteiExportRequest,
 )
 from app.services.auto_journal import generate_payroll_journal
 from app.services.labor_insurance import (
@@ -29,6 +30,7 @@ from app.services.labor_insurance import (
     LaborInsuranceService,
 )
 from app.services.overtime_pay import OvertimePayService
+from app.services.santei_export import SanteiEmployee, SanteiKisoService, SanteiMonth
 from app.services.notification_service import create_notification
 
 router = APIRouter()
@@ -413,6 +415,43 @@ VALID_PAYROLL_TRANSITIONS: dict[str, set[str]] = {
     "paid": set(),
 }
 
+
+
+
+@router.post("/santei/export")
+async def export_santei(
+    payload: SanteiExportRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> Response:
+    try:
+        employees = [
+            SanteiEmployee(
+                insured_number=employee.insured_number,
+                name=employee.name,
+                birth_date=employee.birth_date,
+                previous_health_standard=employee.previous_health_standard,
+                previous_pension_standard=employee.previous_pension_standard,
+                applicable_year=employee.applicable_year,
+                applicable_month=employee.applicable_month,
+                months=[
+                    SanteiMonth(
+                        payment_basis_days=month.payment_basis_days,
+                        currency_remuneration=month.currency_remuneration,
+                        in_kind_remuneration=month.in_kind_remuneration,
+                    )
+                    for month in employee.months
+                ],
+            )
+            for employee in payload.employees
+        ]
+        csv_content = SanteiKisoService.build_csv(employees)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="santei.csv"'},
+    )
 
 @router.post("/records/{payroll_id}/transition", response_model=PayrollRecordResponse)
 async def transition_payroll_status(

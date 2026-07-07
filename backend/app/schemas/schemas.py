@@ -699,6 +699,27 @@ class TaxForecastResponse(BaseModel):
     tax_risk_warnings: list[str]
 
 
+class SanteiMonthInput(BaseModel):
+    payment_basis_days: int
+    currency_remuneration: Decimal
+    in_kind_remuneration: Decimal
+
+
+class SanteiEmployeeInput(BaseModel):
+    insured_number: str
+    name: str
+    birth_date: date
+    previous_health_standard: Decimal
+    previous_pension_standard: Decimal
+    applicable_year: int
+    applicable_month: int
+    months: list[SanteiMonthInput]
+
+
+class SanteiExportRequest(BaseModel):
+    employees: list[SanteiEmployeeInput]
+
+
 class EmployeeListResponse(BaseModel):
     items: list[EmployeeResponse]
     total: int
