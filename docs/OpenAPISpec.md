@@ -12,8 +12,8 @@
 | 環境 | ベースURL |
 |------|----------|
 | 開発 | `http://localhost:8000/api/v1` |
-| ステージング | `https://staging-api.cotton-erp.com/api/v1` |
-| 本番 | `https://api.cotton-erp.com/api/v1` |
+| ステージング | `https://staging-api.example.com/api/v1` |
+| 本番 | `https://api.example.com/api/v1` |
 
 ### 1.2 認証
 
@@ -39,7 +39,7 @@ components:
 
 ```json
 {
-  "type": "https://cotton-erp.com/errors/validation",
+  "type": "https://example.com/errors/validation",
   "title": "Validation Error",
   "status": 400,
   "detail": "貸借の合計金額が一致しません。",
