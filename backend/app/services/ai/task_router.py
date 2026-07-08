@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from app.services.ai.base_provider import AIProvider, InferenceRequest, InferenceResult
+from app.services.ai.base_provider import AIProvider, InferenceRequest
 
 logger = logging.getLogger(__name__)
 
@@ -91,16 +91,19 @@ class TaskRouter:
 
         判定基準:
         - document_textが長い（>1000文字）→ HEAVY
-        - descriptionが短く金額が単純 → LIGHT
-        - それ以外 → MEDIUM
+        - descriptionが短く区切りの無い単純な摘要で金額が単純 → LIGHT
+        - それ以外（構造化された摘要・長い摘要・添付テキスト有り）→ MEDIUM
         """
         text_len = len(request.document_text or "")
-        desc_len = len(request.description)
+        description = request.description or ""
+        desc_len = len(description)
 
         if text_len > 1000:
             return TaskComplexity.HEAVY
 
-        if text_len == 0 and desc_len < 50 and request.amount > 0:
+        has_structure = any(sep in description for sep in (" - ", "-", "/", "、", ",", "："))
+
+        if text_len == 0 and request.amount > 0 and desc_len < 10 and not has_structure:
             return TaskComplexity.LIGHT
 
         return TaskComplexity.MEDIUM
