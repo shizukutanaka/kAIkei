@@ -22,6 +22,10 @@ class PdfTextExtractor:
         Returns:
             抽出されたテキスト。抽出失敗時は空文字。
         """
+        # PDFマジックナンバーを持たないデータは解析せず空文字を返す。
+        if not PdfTextExtractor.is_pdf(file_bytes):
+            return ""
+
         try:
             return PdfTextExtractor._extract_with_pdfplumber(file_bytes)
         except ImportError:

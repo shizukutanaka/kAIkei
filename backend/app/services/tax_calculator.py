@@ -17,8 +17,12 @@ class TaxCalculator:
             Tuple of (tax_excluded_amount, tax_amount)
         """
         if is_inclusive:
-            tax_excluded = (amount / (Decimal("1") + tax_rate)).quantize(Decimal("1"), rounding=ROUND_DOWN)
-            tax_amount = amount - tax_excluded
+            # Japanese consumption tax: extract tax directly from the tax-included
+            # amount (税込金額 × 税率 / (1 + 税率)) and truncate, per NTA rounding rules.
+            tax_amount = (amount * tax_rate / (Decimal("1") + tax_rate)).quantize(
+                Decimal("1"), rounding=ROUND_DOWN
+            )
+            tax_excluded = amount - tax_amount
         else:
             tax_amount = (amount * tax_rate).quantize(Decimal("1"), rounding=ROUND_DOWN)
             tax_excluded = amount
