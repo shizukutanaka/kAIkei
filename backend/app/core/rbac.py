@@ -34,6 +34,8 @@ class Permission(str, Enum):
     # Integrations
     INTEGRATION_IMPORT = "integration:import"
     INTEGRATION_CONFIG = "integration:config"
+    # Webhooks
+    WEBHOOK_MANAGE = "webhook:manage"
     # Knowledge
     KNOWLEDGE_SEARCH = "knowledge:search"
     # User

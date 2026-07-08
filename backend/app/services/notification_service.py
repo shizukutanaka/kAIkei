@@ -89,6 +89,33 @@ async def create_notification(
                 notif.notification_id,
                 ", ".join(external),
             )
+        # Webhookチャネルが有効なら、購読中エンドポイントへ配信キューへ投入する。
+        # 配信の失敗が通知作成自体を妨げないよう防御的に扱う。
+        if "webhook" in external:
+            try:
+                from app.services import webhook_service
+
+                await webhook_service.enqueue_event(
+                    db,
+                    tenant_id=tenant_id,
+                    event_type=f"notification.{payload.category}",
+                    data={
+                        "notification_id": str(notif.notification_id),
+                        "category": notif.category,
+                        "priority": notif.priority,
+                        "title": notif.title,
+                        "body": notif.body,
+                        "action_url": notif.action_url,
+                        "company_id": str(notif.company_id) if notif.company_id else None,
+                    },
+                    company_id=payload.company_id,
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.warning(
+                    "Failed to enqueue webhook delivery for notification %s: %s",
+                    notif.notification_id,
+                    e,
+                )
 
     return notif
 

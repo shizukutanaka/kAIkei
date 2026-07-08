@@ -635,3 +635,39 @@ class NotificationPreferenceUpdate(BaseModel):
     channel_email: bool | None = None
     channel_push: bool | None = None
     channel_webhook: bool | None = None
+
+
+class WebhookEndpointCreate(BaseModel):
+    url: str = Field(max_length=500)
+    secret: str = Field(min_length=8, max_length=200)
+    subscribed_events: list[str] = Field(default_factory=lambda: ["*"])
+    company_id: UUID | None = None
+    description: str | None = Field(default=None, max_length=200)
+
+
+class WebhookEndpointResponse(BaseModel):
+    webhook_endpoint_id: UUID
+    company_id: UUID | None = None
+    url: str
+    subscribed_events: list[str]
+    description: str | None = None
+    is_active: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class WebhookDeliveryResponse(BaseModel):
+    webhook_delivery_id: UUID
+    webhook_endpoint_id: UUID
+    event_type: str
+    status: str
+    attempt_count: int
+    max_attempts: int
+    last_status_code: int | None = None
+    last_error: str | None = None
+    next_retry_at: datetime | None = None
+    delivered_at: datetime | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
