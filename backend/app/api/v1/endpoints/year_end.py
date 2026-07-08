@@ -1,18 +1,24 @@
-from decimal import Decimal, ROUND_HALF_UP
+from contextlib import suppress
+from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
-from sqlalchemy import select, delete, func
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
-from app.models.models import Employee, PayrollRecord, BonusRecord, YearEndAdjustment
-from app.schemas.schemas import YearEndAdjustmentRequest, YearEndAdjustmentResponse, YearEndListResponse
+from app.models.models import BonusRecord, Employee, PayrollRecord, YearEndAdjustment
+from app.schemas.schemas import (
+    NotificationCreate,
+    YearEndAdjustmentRequest,
+    YearEndAdjustmentResponse,
+    YearEndListResponse,
+)
 from app.services.notification_service import create_notification
-from app.schemas.schemas import NotificationCreate
+from app.services.salary_deduction import SalaryIncomeDeductionService
 
 router = APIRouter()
 
@@ -71,8 +77,8 @@ def _calc_annual_tax(gross: Decimal, dependents: int) -> Decimal:
 @router.post("/calculate", response_model=list[YearEndAdjustmentResponse])
 async def calculate_year_end_adjustment(
     payload: YearEndAdjustmentRequest,
-    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_CREATE)),
-    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_CREATE)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> list[YearEndAdjustmentResponse]:
     """年末調整を計算する。"""
     await db.execute(
@@ -169,12 +175,12 @@ async def calculate_year_end_adjustment(
 
 @router.get("/records", response_model=YearEndListResponse)
 async def list_year_end_adjustments(
-    company_id: UUID = Query(...),
-    adjustment_year: int = Query(...),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=200),
-    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
-    db: AsyncSession = Depends(get_db),
+    company_id: UUID = Query(...),  # noqa: B008
+    adjustment_year: int = Query(...),  # noqa: B008
+    page: int = Query(1, ge=1),  # noqa: B008
+    page_size: int = Query(50, ge=1, le=200),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> YearEndListResponse:
     base_query = (
         select(YearEndAdjustment, Employee.employee_name)
@@ -201,6 +207,22 @@ async def list_year_end_adjustments(
     return YearEndListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
+@router.get("/salary-income-deduction")
+async def get_salary_income_deduction(
+    gross_salary: Decimal = Query(..., description="給与等の収入金額"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> dict[str, Decimal]:
+    try:
+        salary_income_deduction = SalaryIncomeDeductionService.compute(gross_salary)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "gross_salary": gross_salary,
+        "salary_income_deduction": salary_income_deduction,
+        "salary_income": gross_salary - salary_income_deduction,
+    }
+
+
 VALID_YE_TRANSITIONS: dict[str, set[str]] = {
     "calculated": {"approved"},
     "approved": set(),
@@ -209,11 +231,11 @@ VALID_YE_TRANSITIONS: dict[str, set[str]] = {
 
 @router.post("/records/batch-transition", response_model=list[YearEndAdjustmentResponse])
 async def batch_transition_year_end(
-    company_id: UUID = Query(...),
-    adjustment_year: int = Query(...),
-    action: str = Query(..., description="approved"),
-    current_user: CurrentUser = Depends(require_permission(Permission.PAYROLL_APPROVE)),
-    db: AsyncSession = Depends(get_db),
+    company_id: UUID = Query(...),  # noqa: B008
+    adjustment_year: int = Query(...),  # noqa: B008
+    action: str = Query(..., description="approved"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.PAYROLL_APPROVE)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> list[YearEndAdjustmentResponse]:
     """年末調整のステータスを一括遷移させる。"""
     if action not in {"approved"}:
@@ -245,17 +267,19 @@ async def batch_transition_year_end(
         updated.append(_to_response(rec, emp_name))
 
     # Notify on batch transition
-    try:
-        await create_notification(db, current_user.tenant_id, NotificationCreate(
-            company_id=company_id,
-            category="tax",
-            priority="high",
-            title=f"年末調整 {adjustment_year}年 一括確定",
-            body=f"{len(updated)}件の年末調整を確定しました。",
-            action_url="/year-end",
-        ))
-    except Exception:
-        pass
+    with suppress(Exception):
+        await create_notification(
+            db,
+            current_user.tenant_id,
+            NotificationCreate(
+                company_id=company_id,
+                category="tax",
+                priority="high",
+                title=f"年末調整 {adjustment_year}年 一括確定",
+                body=f"{len(updated)}件の年末調整を確定しました。",
+                action_url="/year-end",
+            ),
+        )
 
     await db.commit()
     return updated
@@ -264,8 +288,8 @@ async def batch_transition_year_end(
 @router.get("/export/{adjustment_id}", response_class=PlainTextResponse)
 async def export_year_end_slip(
     adjustment_id: UUID,
-    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
-    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> str:
     """年末調整明細をCSV形式で出力する。"""
     result = await db.execute(

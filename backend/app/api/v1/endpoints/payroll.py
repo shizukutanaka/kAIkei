@@ -1,10 +1,11 @@
-from datetime import date
-from decimal import Decimal, ROUND_HALF_UP
+# ruff: noqa: B008, I001
+from contextlib import suppress
+from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import PlainTextResponse
-from sqlalchemy import select, delete, func
+from fastapi.responses import PlainTextResponse, Response
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -13,15 +14,48 @@ from app.core.rbac import Permission
 from app.models.models import Employee, PayrollRecord
 from app.schemas.schemas import (
     EmployeeCreate,
-    EmployeeResponse,
     EmployeeListResponse,
+    EmployeeResponse,
+    LaborInsuranceEmployeeResponse,
+    LaborInsuranceSummaryResponse,
+    LaborInsuranceAnnualUpdateRequest,
+    NotificationCreate,
+    BonusExportRequest,
+    MonthlyRevisionExportRequest,
     PayrollCalculateRequest,
-    PayrollRecordResponse,
     PayrollListResponse,
+    PayrollRecordResponse,
+    BonusEmploymentInsuranceResponse,
+    BonusWithholdingTaxResponse,
+    BonusNetPayResponse,
+    LaborInsuranceInstallmentResponse,
+    SanteiExportRequest,
+    QualificationAcquisitionExportRequest,
+    SocialInsurancePremiumResponse,
 )
 from app.services.auto_journal import generate_payroll_journal
+from app.services.labor_insurance import (
+    BUSINESS_TYPE_GENERAL,
+    DEFAULT_WORKERS_COMPENSATION_RATE,
+    LaborInsuranceService,
+)
+from app.services.labor_insurance_annual import LaborInsuranceAnnualUpdateService
+from app.services.bonus_employment_insurance import BonusEmploymentInsuranceService
+from app.services.bonus_withholding_tax import BonusWithholdingTaxService
+from app.services.bonus_net_pay import BonusNetPayService
+from app.services.labor_insurance_installment import LaborInsuranceInstallmentService
+from app.services.overtime_pay import OvertimePayService
+from app.services.santei_export import SanteiEmployee, SanteiKisoService, SanteiMonth
 from app.services.notification_service import create_notification
-from app.schemas.schemas import NotificationCreate
+from app.services.standard_remuneration import RemunerationMonth
+from app.services.standard_bonus import BonusEmployee, StandardBonusService
+from app.services.qualification_acquisition import AcquisitionEmployee, QualificationAcquisitionService
+from app.services.social_insurance import (
+    DEFAULT_CARE_INSURANCE_RATE,
+    DEFAULT_HEALTH_INSURANCE_RATE,
+    SocialInsurancePremiumService,
+)
+from app.services.monthly_revision import MonthlyRevisionService, RevisionEmployee
 
 router = APIRouter()
 
@@ -77,6 +111,14 @@ def _calc_social_insurance(gross: Decimal) -> Decimal:
         return Decimal("0")
     # 簡易: 総額の約15%
     return (gross * Decimal("0.15")).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+
+
+
+
+def _gross_for_labor_insurance(emp: Employee, payroll_record: PayrollRecord | None) -> Decimal:
+    if payroll_record is not None:
+        return Decimal(payroll_record.total_gross)
+    return Decimal(emp.base_salary)
 
 
 # --- Employee endpoints ---
@@ -228,6 +270,285 @@ async def calculate_payroll(
     return [_to_payroll_response(r) for r in records]
 
 
+
+
+@router.get("/social-insurance-premium")
+async def calculate_social_insurance_premium(
+    standard_monthly_remuneration: Decimal = Query(..., description="標準報酬月額"),  # noqa: B008
+    health_rate: Decimal = Query(Decimal("0.0998"), description="健康保険料率"),  # noqa: B008
+    care_rate: Decimal = Query(Decimal("0.016"), description="介護保険料率"),  # noqa: B008
+    care_applicable: bool = Query(False, description="40〜64歳の介護保険適用有無"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> SocialInsurancePremiumResponse:
+    try:
+        result = SocialInsurancePremiumService.compute(
+            standard_monthly_remuneration=standard_monthly_remuneration,
+            health_rate=health_rate,
+            care_rate=care_rate,
+            care_applicable=care_applicable,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return SocialInsurancePremiumResponse.model_validate(result)
+
+
+@router.get("/bonus-employment-insurance")
+async def calculate_bonus_employment_insurance(
+    bonus_amount: Decimal = Query(..., description="賞与額"),  # noqa: B008
+    business_type: str = Query(BUSINESS_TYPE_GENERAL, description="事業区分"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> BonusEmploymentInsuranceResponse:
+    try:
+        result = BonusEmploymentInsuranceService.compute(
+            bonus_amount=bonus_amount,
+            business_type=business_type,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return BonusEmploymentInsuranceResponse.model_validate(result)
+
+
+@router.get("/bonus-net-pay")
+async def calculate_bonus_net_pay(
+    gross_bonus: Decimal = Query(..., description="賞与額"),  # noqa: B008
+    business_type: str = Query(BUSINESS_TYPE_GENERAL, description="事業区分"),  # noqa: B008
+    health_rate: Decimal = Query(DEFAULT_HEALTH_INSURANCE_RATE, description="健康保険料率"),  # noqa: B008
+    care_rate: Decimal = Query(DEFAULT_CARE_INSURANCE_RATE, description="介護保険料率"),  # noqa: B008
+    care_applicable: bool = Query(False, description="40〜64歳の介護保険適用有無"),  # noqa: B008
+    bonus_tax_rate: Decimal = Query(..., description="賞与に対する源泉徴収税率"),  # noqa: B008
+    prior_month_salary_after_social_insurance: Decimal | None = Query(None, description="前月給与(社会保険料等控除後)"),  # noqa: B008
+    cumulative_health_standard_bonus_ytd: Decimal = Query(Decimal("0"), description="当年度の既支給累計標準賞与額"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> BonusNetPayResponse:
+    try:
+        result = BonusNetPayService.compute(
+            gross_bonus=gross_bonus,
+            business_type=business_type,
+            health_rate=health_rate,
+            care_rate=care_rate,
+            care_applicable=care_applicable,
+            bonus_tax_rate=bonus_tax_rate,
+            prior_month_salary_after_social_insurance=prior_month_salary_after_social_insurance,
+            cumulative_health_standard_bonus_ytd=cumulative_health_standard_bonus_ytd,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return BonusNetPayResponse.model_validate(result)
+
+
+@router.get("/bonus-withholding-tax")
+async def calculate_bonus_withholding_tax(
+    bonus_after_social_insurance: Decimal = Query(..., description="社会保険料等控除後の賞与額"),  # noqa: B008
+    bonus_tax_rate: Decimal = Query(..., description="賞与に対する源泉徴収税率"),  # noqa: B008
+    prior_month_salary_after_social_insurance: Decimal | None = Query(None, description="前月給与(社会保険料等控除後)"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> BonusWithholdingTaxResponse:
+    try:
+        result = BonusWithholdingTaxService.compute(
+            bonus_after_social_insurance=bonus_after_social_insurance,
+            bonus_tax_rate=bonus_tax_rate,
+            prior_month_salary_after_social_insurance=prior_month_salary_after_social_insurance,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return BonusWithholdingTaxResponse.model_validate(result)
+
+
+@router.get("/bonus-social-insurance-premium")
+async def calculate_bonus_social_insurance_premium(
+    health_standard_bonus: Decimal = Query(..., description="健康保険用標準賞与額"),  # noqa: B008
+    pension_standard_bonus: Decimal = Query(..., description="厚生年金保険用標準賞与額"),  # noqa: B008
+    health_rate: Decimal = Query(Decimal("0.0998"), description="健康保険料率"),  # noqa: B008
+    care_rate: Decimal = Query(Decimal("0.016"), description="介護保険料率"),  # noqa: B008
+    care_applicable: bool = Query(False, description="40〜64歳の介護保険適用有無"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> SocialInsurancePremiumResponse:
+    try:
+        result = SocialInsurancePremiumService.compute_bonus(
+            health_standard_bonus=health_standard_bonus,
+            pension_standard_bonus=pension_standard_bonus,
+            health_rate=health_rate,
+            care_rate=care_rate,
+            care_applicable=care_applicable,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return SocialInsurancePremiumResponse.model_validate(result)
+
+
+@router.get("/labor-insurance/installment")
+async def calculate_labor_insurance_installment(
+    estimated_premium: Decimal = Query(..., description="概算保険料額"),  # noqa: B008
+    both_insurances: bool = Query(True, description="労災・雇用の両保険成立"),  # noqa: B008
+    entrusted: bool = Query(False, description="労働保険事務組合への委託有無"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> LaborInsuranceInstallmentResponse:
+    try:
+        result = LaborInsuranceInstallmentService.compute(
+            estimated_premium=estimated_premium,
+            both_insurances=both_insurances,
+            entrusted=entrusted,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return LaborInsuranceInstallmentResponse.model_validate(result)
+
+
+@router.post("/monthly-revision/export")
+async def export_monthly_revision(
+    payload: MonthlyRevisionExportRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> Response:
+    try:
+        employees = [
+            RevisionEmployee(
+                insured_number=employee.insured_number,
+                name=employee.name,
+                previous_health_standard=employee.previous_health_standard,
+                previous_pension_standard=employee.previous_pension_standard,
+                fixed_wage_changed=employee.fixed_wage_changed,
+                months=[
+                    RemunerationMonth(
+                        payment_basis_days=month.payment_basis_days,
+                        remuneration=month.remuneration,
+                    )
+                    for month in employee.months
+                ],
+            )
+            for employee in payload.employees
+        ]
+        csv_content = MonthlyRevisionService.build_csv(employees)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="getsugaku_henkou.csv"'},
+    )
+
+
+@router.post("/bonus/export")
+async def export_bonus(
+    payload: BonusExportRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> Response:
+    try:
+        employees = [
+            BonusEmployee(
+                insured_number=employee.insured_number,
+                name=employee.name,
+                payment_date=employee.payment_date,
+                bonus_amount=employee.bonus_amount,
+                fiscal_ytd_standard_bonus=employee.fiscal_ytd_standard_bonus,
+                same_month_prior_standard_bonus=employee.same_month_prior_standard_bonus,
+            )
+            for employee in payload.employees
+        ]
+        csv_content = StandardBonusService.build_csv(employees)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="bonus.csv"'},
+    )
+
+
+@router.post("/labor-insurance/annual-update/export")
+async def export_labor_insurance_annual_update(
+    payload: LaborInsuranceAnnualUpdateRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> Response:
+    try:
+        result = LaborInsuranceAnnualUpdateService.compute(
+            prior_wage_total=payload.prior_wage_total,
+            estimated_wage_total=payload.estimated_wage_total,
+            business_type=payload.business_type,
+            declared_prior_estimate=payload.declared_prior_estimate,
+            workers_comp_rate=payload.workers_comp_rate,
+        )
+        csv_content = LaborInsuranceAnnualUpdateService.build_csv(result)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="rodo_hoken_nendo_koushin.csv"'},
+    )
+
+
+@router.get("/labor-insurance", response_model=LaborInsuranceSummaryResponse)
+async def calculate_labor_insurance(
+    company_id: UUID = Query(...),  # noqa: B008
+    target_year: int = Query(...),  # noqa: B008
+    target_month: int = Query(...),  # noqa: B008
+    business_type: str = Query(...),  # noqa: B008
+    workers_comp_rate: Decimal = Query(DEFAULT_WORKERS_COMPENSATION_RATE),  # noqa: B008
+    senior_employee_ids: list[UUID] | None = Query(None),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> LaborInsuranceSummaryResponse:
+    employees_result = await db.execute(
+        select(Employee).where(
+            Employee.company_id == company_id,
+            Employee.is_active == True,  # noqa: E712
+            Employee.is_deleted == False,  # noqa: E712
+        ).order_by(Employee.employee_code)
+    )
+    employees = employees_result.scalars().all()
+
+    payroll_result = await db.execute(
+        select(PayrollRecord).where(
+            PayrollRecord.company_id == company_id,
+            PayrollRecord.payroll_year == target_year,
+            PayrollRecord.payroll_month == target_month,
+        )
+    )
+    payroll_records = {record.employee_id: record for record in payroll_result.scalars().all()}
+
+    exempt_employee_ids = set(senior_employee_ids or [])
+
+    items: list[LaborInsuranceEmployeeResponse] = []
+    breakdowns = []
+    for emp in employees:
+        payroll_record = payroll_records.get(emp.employee_id)
+        gross = _gross_for_labor_insurance(emp, payroll_record)
+        is_exempt = emp.employee_id in exempt_employee_ids
+        breakdown = LaborInsuranceService.calculate_employee_premium(
+            gross_monthly_pay=gross,
+            business_type=business_type,
+            is_exempt=is_exempt,
+            workers_comp_rate=workers_comp_rate,
+        )
+        breakdowns.append(breakdown)
+        items.append(
+            LaborInsuranceEmployeeResponse(
+                employee_id=emp.employee_id,
+                employee_name=emp.employee_name,
+                gross_monthly_pay=gross,
+                employment_insurance_employee=breakdown.employment_insurance_employee,
+                employment_insurance_employer=breakdown.employment_insurance_employer,
+                workers_comp_employer=breakdown.workers_comp_employer,
+                total_employee=breakdown.total_employee,
+                total_employer=breakdown.total_employer,
+                total_premium=breakdown.total_premium,
+            )
+        )
+
+    summary = LaborInsuranceService.summarize_company_premiums(breakdowns)
+    return LaborInsuranceSummaryResponse(
+        company_id=company_id,
+        target_year=target_year,
+        target_month=target_month,
+        business_type=business_type,
+        workers_comp_rate=workers_comp_rate,
+        employee_count=summary.employee_count,
+        total_employee_premium=summary.total_employee_premium,
+        total_employer_premium=summary.total_employer_premium,
+        total_premium=summary.total_premium,
+        items=items,
+    )
+
 @router.get("/records", response_model=PayrollListResponse)
 async def list_payroll_records(
     company_id: UUID = Query(...),
@@ -324,6 +645,69 @@ VALID_PAYROLL_TRANSITIONS: dict[str, set[str]] = {
 }
 
 
+
+
+@router.post("/qualification-acquisition/export")
+async def export_qualification_acquisition(
+    payload: QualificationAcquisitionExportRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> Response:
+    try:
+        employees = [
+            AcquisitionEmployee(
+                insured_number=employee.insured_number,
+                name=employee.name,
+                birth_date=employee.birth_date,
+                qualification_date=employee.qualification_date,
+                estimated_monthly_remuneration=employee.estimated_monthly_remuneration,
+            )
+            for employee in payload.employees
+        ]
+        csv_content = QualificationAcquisitionService.build_csv(employees)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="shikaku_shutoku.csv"'},
+    )
+
+
+@router.post("/santei/export")
+async def export_santei(
+    payload: SanteiExportRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> Response:
+    try:
+        employees = [
+            SanteiEmployee(
+                insured_number=employee.insured_number,
+                name=employee.name,
+                birth_date=employee.birth_date,
+                previous_health_standard=employee.previous_health_standard,
+                previous_pension_standard=employee.previous_pension_standard,
+                applicable_year=employee.applicable_year,
+                applicable_month=employee.applicable_month,
+                months=[
+                    SanteiMonth(
+                        payment_basis_days=month.payment_basis_days,
+                        currency_remuneration=month.currency_remuneration,
+                        in_kind_remuneration=month.in_kind_remuneration,
+                    )
+                    for month in employee.months
+                ],
+            )
+            for employee in payload.employees
+        ]
+        csv_content = SanteiKisoService.build_csv(employees)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="santei.csv"'},
+    )
+
 @router.post("/records/{payroll_id}/transition", response_model=PayrollRecordResponse)
 async def transition_payroll_status(
     payroll_id: UUID,
@@ -415,7 +799,7 @@ async def batch_transition_payroll(
 
     # Auto-generate payroll journal on batch "paid" transition
     if action == "paid":
-        try:
+        with suppress(ValueError):
             await generate_payroll_journal(
                 db,
                 company_id=company_id,
@@ -426,12 +810,10 @@ async def batch_transition_payroll(
                 net_pay=net_pay_sum,
                 created_by=current_user.user_id,
             )
-        except ValueError:
-            pass  # Account not found — skip auto-journal
 
     # Notify on batch transition
     action_labels = {"approved": "承認", "rejected": "差戻し", "paid": "支払完了"}
-    try:
+    with suppress(Exception):
         await create_notification(db, current_user.tenant_id, NotificationCreate(
             company_id=company_id,
             category="payroll",
@@ -440,8 +822,35 @@ async def batch_transition_payroll(
             body=f"{len(updated)}件の給与レコードを{action_labels[action]}しました。",
             action_url="/payroll",
         ))
-    except Exception:
-        pass
 
     await db.commit()
     return updated
+
+@router.get("/overtime-premium")
+async def calculate_overtime_premium(
+    hourly_wage: Decimal = Query(..., description="時給"),  # noqa: B008
+    overtime_hours: Decimal = Query(Decimal("0"), description="法定時間外(月60時間以内)"),  # noqa: B008
+    overtime_over_60_hours: Decimal = Query(Decimal("0"), description="法定時間外(月60時間超)"),  # noqa: B008
+    late_night_hours: Decimal = Query(Decimal("0"), description="深夜時間"),  # noqa: B008
+    holiday_hours: Decimal = Query(Decimal("0"), description="法定休日時間"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> dict[str, Decimal]:
+    try:
+        result = OvertimePayService.compute(
+            hourly_wage=hourly_wage,
+            overtime_hours=overtime_hours,
+            overtime_over_60_hours=overtime_over_60_hours,
+            late_night_hours=late_night_hours,
+            holiday_hours=holiday_hours,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "hourly_wage": hourly_wage,
+        "overtime_pay": result.overtime_pay,
+        "overtime_over_60_pay": result.overtime_over_60_pay,
+        "late_night_pay": result.late_night_pay,
+        "holiday_pay": result.holiday_pay,
+        "total_premium": result.total_premium,
+    }
