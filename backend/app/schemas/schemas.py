@@ -671,3 +671,41 @@ class WebhookDeliveryResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class BankStatementLineResponse(BaseModel):
+    bank_statement_line_id: UUID
+    transaction_date: date
+    value_date: date | None = None
+    direction: str
+    amount: Decimal
+    balance: Decimal | None = None
+    description: str | None = None
+    counterparty_name: str | None = None
+    is_reconciled: bool
+    reconciled_journal_line_id: UUID | None = None
+    reconciled_at: datetime | None = None
+    source: str
+
+    model_config = {"from_attributes": True}
+
+
+class BankImportResponse(BaseModel):
+    imported: int
+    lines: list[BankStatementLineResponse]
+
+
+class AutoReconcileRequest(BaseModel):
+    bank_account_id: UUID
+    date_tolerance_days: int = Field(default=3, ge=0, le=31)
+    min_score: float = Field(default=0.6, ge=0.0, le=1.0)
+
+
+class AutoReconcileResponse(BaseModel):
+    total_unreconciled: int
+    matched: int
+    unmatched: int
+
+
+class ManualMatchRequest(BaseModel):
+    journal_line_id: UUID

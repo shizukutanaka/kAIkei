@@ -1,0 +1,129 @@
+from datetime import date
+from decimal import Decimal
+
+import pytest
+
+from app.services.bank_reconciliation import (
+    ReconciliationCandidate,
+    find_best_match,
+    match_score,
+    name_similarity,
+    normalize_name,
+    parse_bank_csv,
+)
+
+
+class TestNormalizeName:
+    def test_strips_corporate_tokens_and_spaces(self):
+        assert normalize_name("株式会社 カイケイ商事") == normalize_name("カイケイ商事")
+
+    def test_uppercases(self):
+        assert normalize_name("abc corp") == normalize_name("ABC CORP")
+
+    def test_none_and_empty(self):
+        assert normalize_name(None) == ""
+        assert normalize_name("") == ""
+
+    def test_strips_furikomi_marker(self):
+        assert normalize_name("カ)カイケイ") == normalize_name("カイケイ")
+
+
+class TestNameSimilarity:
+    def test_identical_after_normalization(self):
+        assert name_similarity("株式会社カイケイ", "カイケイ") == 1.0
+
+    def test_empty_is_zero(self):
+        assert name_similarity("", "カイケイ") == 0.0
+        assert name_similarity(None, None) == 0.0
+
+    def test_similar_scores_higher_than_different(self):
+        sim_close = name_similarity("カイケイショウジ", "カイケイショウカイ")
+        sim_far = name_similarity("カイケイ", "ゼンゼンチガウ")
+        assert sim_close > sim_far
+
+
+class TestMatchScore:
+    def _cand(self, amount, d, name=""):
+        return ReconciliationCandidate(ref_id="c1", amount=Decimal(amount), date=d, counterparty_name=name)
+
+    def test_amount_mismatch_returns_none(self):
+        cand = self._cand("10000", date(2026, 4, 15))
+        assert match_score(Decimal("9999"), date(2026, 4, 15), "", cand) is None
+
+    def test_date_beyond_tolerance_returns_none(self):
+        cand = self._cand("10000", date(2026, 4, 1))
+        assert match_score(Decimal("10000"), date(2026, 4, 15), "", cand, date_tolerance_days=3) is None
+
+    def test_same_day_same_name_scores_high(self):
+        cand = self._cand("10000", date(2026, 4, 15), "カイケイ商事")
+        score = match_score(Decimal("10000"), date(2026, 4, 15), "株式会社カイケイ商事", cand)
+        assert score == pytest.approx(1.0)
+
+    def test_date_proximity_reduces_score(self):
+        cand = self._cand("10000", date(2026, 4, 13), "カイケイ")
+        near = match_score(Decimal("10000"), date(2026, 4, 15), "カイケイ", self._cand("10000", date(2026, 4, 15), "カイケイ"))
+        far = match_score(Decimal("10000"), date(2026, 4, 15), "カイケイ", cand)
+        assert near > far
+
+    def test_zero_tolerance_requires_exact_date(self):
+        cand = self._cand("10000", date(2026, 4, 14), "カイケイ")
+        # 1日差は許容0では不一致
+        assert match_score(Decimal("10000"), date(2026, 4, 15), "カイケイ", cand, date_tolerance_days=0) is None
+        # 同日は一致
+        same = self._cand("10000", date(2026, 4, 15), "カイケイ")
+        assert match_score(Decimal("10000"), date(2026, 4, 15), "カイケイ", same, date_tolerance_days=0) is not None
+
+
+class TestFindBestMatch:
+    def test_picks_highest_score(self):
+        cands = [
+            ReconciliationCandidate("a", Decimal("10000"), date(2026, 4, 15), "チガウナマエ"),
+            ReconciliationCandidate("b", Decimal("10000"), date(2026, 4, 15), "カイケイ商事"),
+        ]
+        best = find_best_match(Decimal("10000"), date(2026, 4, 15), "カイケイ商事", cands)
+        assert best is not None
+        assert best[0].ref_id == "b"
+
+    def test_returns_none_when_all_below_min_score(self):
+        cands = [ReconciliationCandidate("a", Decimal("10000"), date(2026, 4, 15), "X")]
+        best = find_best_match(
+            Decimal("10000"), date(2026, 4, 15), "Y", cands, min_score=0.99, name_weight=1.0
+        )
+        assert best is None
+
+    def test_returns_none_when_no_amount_match(self):
+        cands = [ReconciliationCandidate("a", Decimal("500"), date(2026, 4, 15), "カイケイ")]
+        assert find_best_match(Decimal("10000"), date(2026, 4, 15), "カイケイ", cands) is None
+
+    def test_tie_break_prefers_closer_date(self):
+        # 同名・同スコアなら日付が近い方を選ぶ
+        cands = [
+            ReconciliationCandidate("far", Decimal("10000"), date(2026, 4, 12), "カイケイ"),
+            ReconciliationCandidate("near", Decimal("10000"), date(2026, 4, 15), "カイケイ"),
+        ]
+        best = find_best_match(Decimal("10000"), date(2026, 4, 15), "カイケイ", cands)
+        assert best[0].ref_id == "near"
+
+
+class TestParseBankCsv:
+    def test_parses_deposit_and_withdrawal(self):
+        csv_text = (
+            "取引日,入金額,出金額,残高,摘要,振込人名カナ\n"
+            "2026/04/15,\"10,000\",,\"110,000\",振込入金,カ)カイケイ\n"
+            "2026/04/16,,\"3,000\",\"107,000\",引落,デンキダイ\n"
+        )
+        rows = parse_bank_csv(csv_text)
+        assert len(rows) == 2
+        assert rows[0].direction == "deposit"
+        assert rows[0].amount == Decimal("10000")
+        assert rows[0].counterparty_name == "カ)カイケイ"
+        assert rows[1].direction == "withdrawal"
+        assert rows[1].amount == Decimal("3000")
+
+    def test_skips_bad_date(self):
+        csv_text = "取引日,入金額,出金額,残高,摘要,振込人名カナ\nNOTADATE,1000,,,x,y\n"
+        assert parse_bank_csv(csv_text) == []
+
+    def test_skips_row_with_no_amount(self):
+        csv_text = "取引日,入金額,出金額,残高,摘要,振込人名カナ\n2026/04/15,,,100,x,y\n"
+        assert parse_bank_csv(csv_text) == []
