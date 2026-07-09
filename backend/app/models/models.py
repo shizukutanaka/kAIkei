@@ -749,3 +749,23 @@ class TenantSecurityPolicy(Base):
     max_failed_attempts: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class AiInferenceLog(Base):
+    """AI推論監査証跡（推論元・提案内容・信頼度・適用状況・修正差分）。"""
+    __tablename__ = "ai_inference_logs"
+
+    ai_inference_log_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.tenant_id"), nullable=False)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(30), nullable=False)  # journal_suggest / tax_predict / anomaly
+    input_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    suggestion: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    confidence: Mapped[Decimal] = mapped_column(Numeric(4, 3), nullable=False)
+    provider: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    applied: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    correction_diff: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    journal_header_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("journal_headers.journal_header_id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

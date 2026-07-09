@@ -851,3 +851,42 @@ class SecurityPolicyResponse(BaseModel):
     max_failed_attempts: int
 
     model_config = {"from_attributes": True}
+
+
+class AiInferenceLogCreate(BaseModel):
+    company_id: UUID
+    source_type: str = Field(max_length=30)
+    suggestion: dict
+    confidence: Decimal = Field(ge=0, le=1)
+    input_summary: str | None = None
+    provider: str | None = None
+    journal_header_id: UUID | None = None
+
+
+class AiInferenceLogResponse(BaseModel):
+    ai_inference_log_id: UUID
+    company_id: UUID
+    source_type: str
+    input_summary: str | None = None
+    suggestion: dict
+    confidence: Decimal
+    provider: str | None = None
+    applied: bool
+    correction_diff: dict | None = None
+    journal_header_id: UUID | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AiInferenceApplyRequest(BaseModel):
+    final: dict | None = None
+
+
+class AiInferenceStatsResponse(BaseModel):
+    total: int
+    applied: int
+    acceptance_rate: float
+    corrected: int
+    correction_rate: float
+    avg_confidence: float

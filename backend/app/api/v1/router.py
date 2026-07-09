@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import ai, approval_policies, approvals, audit, audit_detection, auth, attendance, bank, bonus, companies, documents, expenses, fixed_assets, integrations, invoices, journals, knowledge, masters, notifications, partners, payroll, rbac, reports, security_policy, tax_adjustments, tax_returns, webhooks, year_end
+from app.api.v1.endpoints import ai, ai_inference_logs, approval_policies, approvals, audit, audit_detection, auth, attendance, bank, bonus, companies, documents, expenses, fixed_assets, integrations, invoices, journals, knowledge, masters, notifications, partners, payroll, rbac, reports, security_policy, tax_adjustments, tax_returns, webhooks, year_end
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
@@ -31,3 +31,4 @@ api_router.include_router(tax_adjustments.router, prefix="/tax-adjustments", tag
 api_router.include_router(documents.router, prefix="/documents", tags=["Document Archive"])
 api_router.include_router(approval_policies.router, prefix="/approval-policies", tags=["Approval Policies"])
 api_router.include_router(security_policy.router, prefix="/security-policy", tags=["Security Policy"])
+api_router.include_router(ai_inference_logs.router, prefix="/ai-inference-logs", tags=["AI Inference Logs"])
