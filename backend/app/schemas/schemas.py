@@ -734,3 +734,48 @@ class AuditScanResponse(BaseModel):
 
 class AuditDetectionStatusUpdate(BaseModel):
     status: str = Field(pattern="^(open|confirmed|dismissed)$")
+
+
+class TaxAdjustmentRuleCreate(BaseModel):
+    name: str = Field(max_length=100)
+    adjustment_type: str = Field(pattern="^(addition|subtraction)$")
+    calculation_method: str = Field(pattern="^(fixed|rate|excess_over_limit)$")
+    rate: Decimal | None = None
+    limit_amount: Decimal | None = None
+    fixed_amount: Decimal | None = None
+    target_account_code: str | None = Field(default=None, max_length=20)
+
+
+class TaxAdjustmentRuleResponse(BaseModel):
+    tax_adjustment_rule_id: UUID
+    company_id: UUID
+    name: str
+    adjustment_type: str
+    calculation_method: str
+    rate: Decimal | None = None
+    limit_amount: Decimal | None = None
+    fixed_amount: Decimal | None = None
+    target_account_code: str | None = None
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class TaxAdjustmentComputeRequest(BaseModel):
+    accounting_income: Decimal
+    base_amounts: dict[str, Decimal] = Field(default_factory=dict)
+
+
+class TaxAdjustmentLineResult(BaseModel):
+    rule_id: str
+    name: str
+    adjustment_type: str
+    amount: Decimal
+
+
+class TaxAdjustmentComputeResponse(BaseModel):
+    accounting_income: Decimal
+    taxable_income: Decimal
+    total_additions: Decimal
+    total_subtractions: Decimal
+    adjustments: list[TaxAdjustmentLineResult]

@@ -670,3 +670,24 @@ class AuditDetectionLog(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class TaxAdjustmentRule(Base):
+    """税務調整ルール（加算/減算・限度額計算式・対象科目）。"""
+    __tablename__ = "tax_adjustment_rules"
+
+    tax_adjustment_rule_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.tenant_id"), nullable=False)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    # "addition"（加算）または "subtraction"（減算）。
+    adjustment_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    # "fixed" | "rate" | "excess_over_limit"
+    calculation_method: Mapped[str] = mapped_column(String(30), nullable=False)
+    rate: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+    limit_amount: Mapped[Decimal | None] = mapped_column(Numeric(15, 4), nullable=True)
+    fixed_amount: Mapped[Decimal | None] = mapped_column(Numeric(15, 4), nullable=True)
+    target_account_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
