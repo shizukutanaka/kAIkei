@@ -890,3 +890,43 @@ class AiInferenceStatsResponse(BaseModel):
     corrected: int
     correction_rate: float
     avg_confidence: float
+
+
+class OfficeTaskCreate(BaseModel):
+    title: str = Field(max_length=200)
+    task_type: str = Field(max_length=40)
+    due_date: date | None = None
+    assigned_to: UUID | None = None
+    period: str | None = Field(default=None, max_length=7)
+
+
+class OfficeTaskResponse(BaseModel):
+    office_task_id: UUID
+    company_id: UUID
+    title: str
+    task_type: str
+    assigned_to: UUID | None = None
+    due_date: date | None = None
+    status: str
+    period: str | None = None
+    completed_at: datetime | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class OfficeTaskGenerateRequest(BaseModel):
+    year: int = Field(ge=2000, le=2100)
+    month: int = Field(ge=1, le=12)
+
+
+class OfficeTaskStatusUpdate(BaseModel):
+    status: str = Field(pattern="^(todo|in_progress|done)$")
+
+
+class OfficeTaskProgressResponse(BaseModel):
+    total: int
+    todo: int
+    in_progress: int
+    done: int
+    completion_rate: float
