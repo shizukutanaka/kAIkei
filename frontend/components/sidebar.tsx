@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, LayoutDashboard, FileText, Settings, Receipt, Users, Building2, Calculator, Sparkles, Globe, FileCheck, List, Menu, X, Handshake, Gift, CalendarClock, Clock, Wallet, FilePlus, Landmark, ScrollText, Banknote, ShieldAlert, Archive } from "lucide-react";
+import { BookOpen, LayoutDashboard, FileText, Settings, Receipt, Users, Building2, Calculator, Sparkles, Globe, FileCheck, List, Menu, X, Handshake, Gift, CalendarClock, Clock, Wallet, FilePlus, Landmark, ScrollText, Banknote, ShieldAlert, Archive, ListChecks } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import CompanySelector from "@/components/company-selector";
@@ -65,6 +65,7 @@ const navSections: NavSection[] = [
       { label: "操作証跡ログ", href: "/audit", icon: ScrollText, permissions: ["report:read"] },
       { label: "監査・リスク検知", href: "/audit-detection", icon: ShieldAlert, permissions: ["audit:review"] },
       { label: "証憑アーカイブ", href: "/documents", icon: Archive, permissions: ["document:manage"] },
+      { label: "月次業務タスク", href: "/office-tasks", icon: ListChecks },
       { label: "設定", href: "/settings", icon: Settings },
     ],
   },
