@@ -709,3 +709,28 @@ class AutoReconcileResponse(BaseModel):
 
 class ManualMatchRequest(BaseModel):
     journal_line_id: UUID
+
+
+class AuditDetectionResponse(BaseModel):
+    audit_detection_log_id: UUID
+    company_id: UUID
+    journal_header_id: UUID | None = None
+    risk_level: str
+    category: str
+    message: str
+    details: dict | None = None
+    status: str
+    reviewed_by: UUID | None = None
+    reviewed_at: datetime | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AuditScanResponse(BaseModel):
+    scanned: int
+    detections_created: int
+
+
+class AuditDetectionStatusUpdate(BaseModel):
+    status: str = Field(pattern="^(open|confirmed|dismissed)$")

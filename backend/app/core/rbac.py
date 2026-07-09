@@ -36,6 +36,8 @@ class Permission(str, Enum):
     INTEGRATION_CONFIG = "integration:config"
     # Webhooks
     WEBHOOK_MANAGE = "webhook:manage"
+    # Audit / risk detection
+    AUDIT_REVIEW = "audit:review"
     # Knowledge
     KNOWLEDGE_SEARCH = "knowledge:search"
     # User
@@ -70,6 +72,7 @@ ROLE_PERMISSIONS: dict[Role, set[Permission]] = {
         Permission.KNOWLEDGE_SEARCH,
         Permission.PAYROLL_APPROVE,
         Permission.PAYROLL_POST,
+        Permission.AUDIT_REVIEW,
     },
     Role.VIEWER: {
         Permission.JOURNAL_READ,

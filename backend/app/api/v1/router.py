@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import ai, approvals, audit, auth, attendance, bank, bonus, companies, expenses, fixed_assets, integrations, invoices, journals, knowledge, masters, notifications, partners, payroll, rbac, reports, tax_returns, webhooks, year_end
+from app.api.v1.endpoints import ai, approvals, audit, audit_detection, auth, attendance, bank, bonus, companies, expenses, fixed_assets, integrations, invoices, journals, knowledge, masters, notifications, partners, payroll, rbac, reports, tax_returns, webhooks, year_end
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
@@ -26,3 +26,4 @@ api_router.include_router(audit.router, prefix="/audit", tags=["Audit"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 api_router.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks"])
 api_router.include_router(bank.router, prefix="/bank", tags=["Bank Reconciliation"])
+api_router.include_router(audit_detection.router, prefix="/audit-detection", tags=["Audit Detection"])
