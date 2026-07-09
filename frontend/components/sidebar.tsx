@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, LayoutDashboard, FileText, Settings, Receipt, Users, Building2, Calculator, Sparkles, Globe, FileCheck, List, Menu, X, Handshake, Gift, CalendarClock, Clock, Wallet, FilePlus, Landmark, ScrollText, Banknote, ShieldAlert, Archive, ListChecks, ShieldCheck, Scale, GitBranch } from "lucide-react";
+import { BookOpen, LayoutDashboard, FileText, Settings, Receipt, Users, Building2, Calculator, Sparkles, Globe, FileCheck, List, Menu, X, Handshake, Gift, CalendarClock, Clock, Wallet, FilePlus, Landmark, ScrollText, Banknote, ShieldAlert, Archive, ListChecks, ShieldCheck, Scale, GitBranch, Webhook } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import CompanySelector from "@/components/company-selector";
@@ -33,6 +33,7 @@ const navSections: NavSection[] = [
       { label: "仕訳入力", href: "/journals/new", icon: Receipt, permissions: ["journal:create"] },
       { label: "仕訳一覧", href: "/journals", icon: List, permissions: ["journal:read"] },
       { label: "AI仕訳推論", href: "/ai-inference", icon: Sparkles, permissions: ["ai:infer", "ai:review"] },
+      { label: "AI推論証跡", href: "/ai-inference-logs", icon: Sparkles, permissions: ["ai:review"] },
       { label: "承認ワークフロー", href: "/approvals", icon: FileCheck, permissions: ["journal:approve", "journal:post", "journal:create"] },
       { label: "承認ポリシー", href: "/approval-policies", icon: GitBranch, permissions: ["master:read"] },
       { label: "マスタ", href: "/masters", icon: BookOpen, permissions: ["master:read", "master:create"] },
@@ -69,6 +70,7 @@ const navSections: NavSection[] = [
       { label: "証憑アーカイブ", href: "/documents", icon: Archive, permissions: ["document:manage"] },
       { label: "月次業務タスク", href: "/office-tasks", icon: ListChecks },
       { label: "セキュリティポリシー", href: "/security-policy", icon: ShieldCheck, permissions: ["user:manage"] },
+      { label: "Webhook管理", href: "/webhooks", icon: Webhook, permissions: ["webhook:manage"] },
       { label: "設定", href: "/settings", icon: Settings },
     ],
   },
