@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, LayoutDashboard, FileText, Settings, Receipt, Users, Building2, Calculator, Sparkles, Globe, FileCheck, List, Menu, X, Handshake, Gift, CalendarClock, Clock, Wallet, FilePlus, Landmark, ScrollText, Banknote, ShieldAlert, Archive, ListChecks, ShieldCheck, Scale } from "lucide-react";
+import { BookOpen, LayoutDashboard, FileText, Settings, Receipt, Users, Building2, Calculator, Sparkles, Globe, FileCheck, List, Menu, X, Handshake, Gift, CalendarClock, Clock, Wallet, FilePlus, Landmark, ScrollText, Banknote, ShieldAlert, Archive, ListChecks, ShieldCheck, Scale, GitBranch } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import CompanySelector from "@/components/company-selector";
@@ -34,6 +34,7 @@ const navSections: NavSection[] = [
       { label: "仕訳一覧", href: "/journals", icon: List, permissions: ["journal:read"] },
       { label: "AI仕訳推論", href: "/ai-inference", icon: Sparkles, permissions: ["ai:infer", "ai:review"] },
       { label: "承認ワークフロー", href: "/approvals", icon: FileCheck, permissions: ["journal:approve", "journal:post", "journal:create"] },
+      { label: "承認ポリシー", href: "/approval-policies", icon: GitBranch, permissions: ["master:read"] },
       { label: "マスタ", href: "/masters", icon: BookOpen, permissions: ["master:read", "master:create"] },
       { label: "取引先", href: "/partners", icon: Handshake, permissions: ["master:read", "master:create"] },
       { label: "帳票", href: "/reports", icon: FileText, permissions: ["report:read"] },
