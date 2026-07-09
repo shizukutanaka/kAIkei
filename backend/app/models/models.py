@@ -733,3 +733,19 @@ class ApprovalPolicy(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class TenantSecurityPolicy(Base):
+    """テナントセキュリティポリシー（認証方式・MFA・IP帯域CIDR配列）。"""
+    __tablename__ = "tenant_security_policies"
+
+    tenant_security_policy_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.tenant_id"), unique=True, nullable=False)
+    require_mfa: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # 許可IP帯域のCIDR文字列配列。空なら制限なし。
+    allowed_ip_cidrs: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    session_timeout_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
+    password_min_length: Mapped[int] = mapped_column(Integer, default=8, nullable=False)
+    max_failed_attempts: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

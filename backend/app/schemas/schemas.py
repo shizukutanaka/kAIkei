@@ -831,3 +831,23 @@ class ApprovalStepsResponse(BaseModel):
     document_type: str
     amount: Decimal
     required_steps: list[str]
+
+
+class SecurityPolicyUpdate(BaseModel):
+    require_mfa: bool | None = None
+    allowed_ip_cidrs: list[str] | None = None
+    session_timeout_minutes: int | None = Field(default=None, ge=5, le=1440)
+    password_min_length: int | None = Field(default=None, ge=8, le=128)
+    max_failed_attempts: int | None = Field(default=None, ge=1, le=20)
+
+
+class SecurityPolicyResponse(BaseModel):
+    tenant_security_policy_id: UUID
+    tenant_id: UUID
+    require_mfa: bool
+    allowed_ip_cidrs: list[str]
+    session_timeout_minutes: int
+    password_min_length: int
+    max_failed_attempts: int
+
+    model_config = {"from_attributes": True}
