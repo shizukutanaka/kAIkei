@@ -716,3 +716,20 @@ class ArchivedDocument(Base):
     registered_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True)
     registered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ApprovalPolicy(Base):
+    """承認ポリシー（文書種別・金額範囲・承認ロール・ステップ順序）。"""
+    __tablename__ = "approval_policies"
+
+    approval_policy_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.tenant_id"), nullable=False)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    document_type: Mapped[str] = mapped_column(String(30), nullable=False)  # journal / expense / invoice / payment
+    min_amount: Mapped[Decimal | None] = mapped_column(Numeric(15, 4), nullable=True)
+    max_amount: Mapped[Decimal | None] = mapped_column(Numeric(15, 4), nullable=True)
+    approver_role: Mapped[str] = mapped_column(String(50), nullable=False)
+    step_order: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

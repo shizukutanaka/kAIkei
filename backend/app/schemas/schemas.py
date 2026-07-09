@@ -804,3 +804,30 @@ class DocumentVerifyResponse(BaseModel):
     is_valid: bool
     expected_hash: str
     actual_hash: str
+
+
+class ApprovalPolicyCreate(BaseModel):
+    document_type: str = Field(max_length=30)
+    approver_role: str = Field(max_length=50)
+    step_order: int = Field(default=1, ge=1)
+    min_amount: Decimal | None = None
+    max_amount: Decimal | None = None
+
+
+class ApprovalPolicyResponse(BaseModel):
+    approval_policy_id: UUID
+    company_id: UUID
+    document_type: str
+    min_amount: Decimal | None = None
+    max_amount: Decimal | None = None
+    approver_role: str
+    step_order: int
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class ApprovalStepsResponse(BaseModel):
+    document_type: str
+    amount: Decimal
+    required_steps: list[str]
