@@ -779,3 +779,28 @@ class TaxAdjustmentComputeResponse(BaseModel):
     total_additions: Decimal
     total_subtractions: Decimal
     adjustments: list[TaxAdjustmentLineResult]
+
+
+class ArchivedDocumentResponse(BaseModel):
+    archived_document_id: UUID
+    company_id: UUID
+    document_type: str
+    file_name: str
+    file_hash: str
+    file_size: int
+    mime_type: str | None = None
+    storage_path: str
+    transaction_date: date
+    amount: Decimal | None = None
+    counterparty_name: str | None = None
+    linked_journal_header_id: UUID | None = None
+    registered_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class DocumentVerifyResponse(BaseModel):
+    archived_document_id: str
+    is_valid: bool
+    expected_hash: str
+    actual_hash: str

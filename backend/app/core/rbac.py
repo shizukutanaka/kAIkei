@@ -38,6 +38,8 @@ class Permission(str, Enum):
     WEBHOOK_MANAGE = "webhook:manage"
     # Audit / risk detection
     AUDIT_REVIEW = "audit:review"
+    # Document archive (電帳法)
+    DOCUMENT_MANAGE = "document:manage"
     # Knowledge
     KNOWLEDGE_SEARCH = "knowledge:search"
     # User
@@ -62,6 +64,7 @@ ROLE_PERMISSIONS: dict[Role, set[Permission]] = {
         Permission.REPORT_EXPORT,
         Permission.INTEGRATION_IMPORT,
         Permission.KNOWLEDGE_SEARCH,
+        Permission.DOCUMENT_MANAGE,
     },
     Role.APPROVER: {
         Permission.JOURNAL_READ,

@@ -1,0 +1,89 @@
+from datetime import date
+from decimal import Decimal
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.core.deps import CurrentUser, require_permission
+from app.core.rbac import Permission
+from app.schemas.schemas import ArchivedDocumentResponse, DocumentVerifyResponse
+from app.services import document_archive
+
+router = APIRouter()
+
+
+@router.post("", response_model=ArchivedDocumentResponse, status_code=status.HTTP_201_CREATED)
+async def archive(
+    company_id: UUID = Query(...),
+    document_type: str = Form(...),
+    transaction_date: date = Form(...),
+    amount: Decimal | None = Form(None),
+    counterparty_name: str | None = Form(None),
+    linked_journal_header_id: UUID | None = Form(None),
+    file: UploadFile = File(...),
+    current_user: CurrentUser = Depends(require_permission(Permission.DOCUMENT_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+) -> ArchivedDocumentResponse:
+    """証憑ファイルを電帳法アーカイブへ登録する（SHA-256ハッシュ付与）。"""
+    file_bytes = await file.read()
+    storage_path = f"{company_id}/{transaction_date.isoformat()}/{file.filename}"
+    document = await document_archive.archive_document(
+        db,
+        tenant_id=current_user.tenant_id,
+        company_id=company_id,
+        document_type=document_type,
+        file_name=file.filename or "document",
+        file_bytes=file_bytes,
+        transaction_date=transaction_date,
+        storage_path=storage_path,
+        amount=amount,
+        counterparty_name=counterparty_name,
+        mime_type=file.content_type,
+        linked_journal_header_id=linked_journal_header_id,
+        registered_by=current_user.user_id,
+    )
+    return ArchivedDocumentResponse.model_validate(document)
+
+
+@router.get("/search", response_model=list[ArchivedDocumentResponse])
+async def search(
+    company_id: UUID = Query(...),
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
+    amount_min: Decimal | None = Query(None),
+    amount_max: Decimal | None = Query(None),
+    counterparty: str | None = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    current_user: CurrentUser = Depends(require_permission(Permission.DOCUMENT_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+) -> list[ArchivedDocumentResponse]:
+    """電帳法の検索3軸（日付・金額・取引先）で証憑を検索する。"""
+    docs = await document_archive.search_documents(
+        db,
+        company_id=company_id,
+        date_from=date_from,
+        date_to=date_to,
+        amount_min=amount_min,
+        amount_max=amount_max,
+        counterparty=counterparty,
+        limit=limit,
+    )
+    return [ArchivedDocumentResponse.model_validate(d) for d in docs]
+
+
+@router.post("/{document_id}/verify", response_model=DocumentVerifyResponse)
+async def verify(
+    document_id: UUID,
+    company_id: UUID = Query(...),
+    file: UploadFile = File(...),
+    current_user: CurrentUser = Depends(require_permission(Permission.DOCUMENT_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+) -> DocumentVerifyResponse:
+    """再アップロードしたファイルが登録時ハッシュと一致するか検証する（改ざん検知）。"""
+    file_bytes = await file.read()
+    result = await document_archive.verify_document(db, document_id, company_id, file_bytes)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Archived document not found")
+    return DocumentVerifyResponse(**result)

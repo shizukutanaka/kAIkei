@@ -691,3 +691,28 @@ class TaxAdjustmentRule(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class ArchivedDocument(Base):
+    """電帳法証憑アーカイブ（SHA-256・3軸検索・タイムスタンプ）。"""
+    __tablename__ = "archived_documents"
+
+    archived_document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.tenant_id"), nullable=False)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    document_type: Mapped[str] = mapped_column(String(30), nullable=False)  # invoice / receipt / contract 等
+    file_name: Mapped[str] = mapped_column(String(300), nullable=False)
+    file_hash: Mapped[str] = mapped_column(String(64), nullable=False)  # SHA-256 hex（改ざん検知）
+    file_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    mime_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    storage_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    # 電帳法の検索3軸: 取引年月日・取引金額・取引先。
+    transaction_date: Mapped[date] = mapped_column(Date, nullable=False)
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(15, 4), nullable=True)
+    counterparty_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    linked_journal_header_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("journal_headers.journal_header_id"), nullable=True
+    )
+    registered_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True)
+    registered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
