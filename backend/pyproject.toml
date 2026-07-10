@@ -16,8 +16,12 @@ plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 addopts = "-v --cov=app --cov-report=term-missing"
+markers = [
+    "db: tests that require a Postgres database (deselect with -m 'not db')",
+]
 
 [tool.coverage.run]
 source = ["app"]
