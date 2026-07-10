@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -73,16 +73,35 @@ async def search(
     return [ArchivedDocumentResponse.model_validate(d) for d in docs]
 
 
+@router.get("/{document_id}/download")
+async def download(
+    document_id: UUID,
+    company_id: UUID = Query(...),
+    current_user: CurrentUser = Depends(require_permission(Permission.DOCUMENT_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """保存済み証憑ファイル本体をダウンロードする。"""
+    result = await document_archive.download_document(db, document_id, company_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Archived document not found")
+    document, data = result
+    return Response(
+        content=data,
+        media_type=document.mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{document.file_name}"'},
+    )
+
+
 @router.post("/{document_id}/verify", response_model=DocumentVerifyResponse)
 async def verify(
     document_id: UUID,
     company_id: UUID = Query(...),
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
     current_user: CurrentUser = Depends(require_permission(Permission.DOCUMENT_MANAGE)),
     db: AsyncSession = Depends(get_db),
 ) -> DocumentVerifyResponse:
-    """再アップロードしたファイルが登録時ハッシュと一致するか検証する（改ざん検知）。"""
-    file_bytes = await file.read()
+    """改ざん検知。ファイル未指定時は保存済み本体を、指定時は再アップロード分を照合する。"""
+    file_bytes = await file.read() if file is not None else None
     result = await document_archive.verify_document(db, document_id, company_id, file_bytes)
     if result is None:
         raise HTTPException(status_code=404, detail="Archived document not found")

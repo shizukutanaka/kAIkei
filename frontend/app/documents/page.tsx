@@ -6,7 +6,7 @@ import { apiGet, apiPostMultipart } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { SkeletonTable } from "@/components/skeleton";
-import { Archive, Upload, Search, Loader2, CheckCircle2, ShieldCheck } from "lucide-react";
+import { Archive, Upload, Search, Loader2, CheckCircle2, ShieldCheck, Download } from "lucide-react";
 
 interface ArchivedDocument {
   archived_document_id: string;
@@ -107,6 +107,29 @@ export default function DocumentArchivePage() {
       setError(err instanceof Error ? err.message : "登録に失敗しました");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleDownload = async (doc: ArchivedDocument) => {
+    if (!companyId) return;
+    setError("");
+    try {
+      const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const res = await fetch(
+        `${base}/documents/${doc.archived_document_id}/download?company_id=${encodeURIComponent(companyId)}`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
+      if (!res.ok) throw new Error("ダウンロードに失敗しました");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = doc.file_name;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "ダウンロードに失敗しました");
     }
   };
 
@@ -224,6 +247,7 @@ export default function DocumentArchivePage() {
                   <th scope="col" className="px-3 py-2 text-right font-medium">金額</th>
                   <th scope="col" className="px-3 py-2 text-left font-medium">取引先</th>
                   <th scope="col" className="px-3 py-2 text-left font-medium">ハッシュ(SHA-256)</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -238,6 +262,16 @@ export default function DocumentArchivePage() {
                         <ShieldCheck className="h-3 w-3 text-green-600" aria-hidden="true" />
                         {d.file_hash.slice(0, 12)}…
                       </span>
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleDownload(d)}
+                        className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+                        aria-label={`${d.file_name} をダウンロード`}
+                      >
+                        <Download className="h-3 w-3" aria-hidden="true" /> DL
+                      </button>
                     </td>
                   </tr>
                 ))}

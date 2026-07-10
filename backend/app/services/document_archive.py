@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.models import ArchivedDocument
+from app.services import storage as storage_module
 
 logger = logging.getLogger(__name__)
 
@@ -73,8 +74,15 @@ async def archive_document(
     mime_type: str | None = None,
     linked_journal_header_id: UUID | None = None,
     registered_by: UUID | None = None,
+    store=None,
 ) -> ArchivedDocument:
-    """証憑ファイルのメタデータをSHA-256ハッシュ付きで登録する。"""
+    """証憑ファイル本体をストレージへ保存し、SHA-256ハッシュ付きでメタデータを登録する。
+
+    ファイル保存に失敗した場合はメタデータを書き込まず例外を送出する（本体なしの
+    メタデータ行を残さないため）。
+    """
+    store = store or storage_module.storage
+    await store.put_object(storage_path, file_bytes, mime_type)
     document = ArchivedDocument(
         tenant_id=tenant_id,
         company_id=company_id,
@@ -140,13 +148,32 @@ async def get_document(
     return result.scalar_one_or_none()
 
 
-async def verify_document(
-    db: AsyncSession, document_id: UUID, company_id: UUID, file_bytes: bytes
-) -> dict | None:
-    """アップロードし直したファイルが登録時ハッシュと一致するか検証する。"""
+async def download_document(
+    db: AsyncSession, document_id: UUID, company_id: UUID, store=None
+) -> tuple[ArchivedDocument, bytes] | None:
+    """保存済み証憑のメタデータと本体バイト列を取得する。"""
+    store = store or storage_module.storage
     document = await get_document(db, document_id, company_id)
     if document is None:
         return None
+    data = await store.get_object(document.storage_path)
+    return document, data
+
+
+async def verify_document(
+    db: AsyncSession,
+    document_id: UUID,
+    company_id: UUID,
+    file_bytes: bytes | None = None,
+    store=None,
+) -> dict | None:
+    """証憑の改ざん検知。file_bytes未指定時は保存済み本体を取得して照合する。"""
+    document = await get_document(db, document_id, company_id)
+    if document is None:
+        return None
+    if file_bytes is None:
+        store = store or storage_module.storage
+        file_bytes = await store.get_object(document.storage_path)
     ok = verify_integrity(file_bytes, document.file_hash)
     return {
         "archived_document_id": str(document.archived_document_id),
