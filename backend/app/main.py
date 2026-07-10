@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.middleware.audit_log import AuditLogMiddleware
+from app.middleware.ip_restriction import IpRestrictionMiddleware
 from app.middleware.idempotency import IdempotencyMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 
@@ -43,6 +44,7 @@ app.add_middleware(
 app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
 app.add_middleware(IdempotencyMiddleware)
 app.add_middleware(AuditLogMiddleware)
+app.add_middleware(IpRestrictionMiddleware)
 
 
 @app.get("/health")
