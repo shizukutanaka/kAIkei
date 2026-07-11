@@ -23,9 +23,19 @@ from app.services.auto_journal import (
     generate_invoice_payment_journal,
 )
 from app.services.notification_service import create_notification
+from app.services.invoice_number import is_valid_registration_number, normalize
 from app.schemas.schemas import NotificationCreate
 
 router = APIRouter()
+
+
+@router.get("/validate-registration-number")
+async def validate_registration_number(
+    number: str = Query(..., description="インボイス登録番号（例: T1234567890123）"),
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
+) -> dict:
+    """適格請求書発行事業者番号の書式・検査用数字をローカル検証する。"""
+    return {"number": normalize(number), "is_valid": is_valid_registration_number(number)}
 
 VALID_INVOICE_TRANSITIONS: dict[str, set[str]] = {
     "draft": {"issued"},

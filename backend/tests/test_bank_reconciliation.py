@@ -127,3 +127,32 @@ class TestParseBankCsv:
     def test_skips_row_with_no_amount(self):
         csv_text = "取引日,入金額,出金額,残高,摘要,振込人名カナ\n2026/04/15,,,100,x,y\n"
         assert parse_bank_csv(csv_text) == []
+
+class TestFeeTolerance:
+    def _cand(self, amount, d=None, name="カイケイ"):
+        from datetime import date as _date
+        return ReconciliationCandidate(ref_id="c1", amount=Decimal(amount), date=d or _date(2026, 4, 15), counterparty_name=name)
+
+    def test_no_tolerance_rejects_fee_difference(self):
+        from datetime import date as _date
+        cand = self._cand("10000")
+        # 手数料880円引かれた入金は、許容0では不一致
+        assert match_score(Decimal("9120"), _date(2026, 4, 15), "カイケイ", cand) is None
+
+    def test_tolerance_allows_fee_difference(self):
+        from datetime import date as _date
+        cand = self._cand("10000")
+        score = match_score(Decimal("9120"), _date(2026, 4, 15), "カイケイ", cand, amount_tolerance=Decimal("880"))
+        assert score is not None
+
+    def test_tolerance_still_rejects_beyond_fee(self):
+        from datetime import date as _date
+        cand = self._cand("10000")
+        assert match_score(Decimal("9000"), _date(2026, 4, 15), "カイケイ", cand, amount_tolerance=Decimal("880")) is None
+
+    def test_exact_match_preferred_over_fee_match(self):
+        from datetime import date as _date
+        exact = ReconciliationCandidate(ref_id="exact", amount=Decimal("9120"), date=_date(2026, 4, 15), counterparty_name="カイケイ")
+        feeish = ReconciliationCandidate(ref_id="fee", amount=Decimal("10000"), date=_date(2026, 4, 15), counterparty_name="カイケイ")
+        best = find_best_match(Decimal("9120"), _date(2026, 4, 15), "カイケイ", [feeish, exact], amount_tolerance=Decimal("880"))
+        assert best is not None and best[0].ref_id == "exact"

@@ -66,6 +66,7 @@ async def auto_reconcile(
         bank_account_id=payload.bank_account_id,
         date_tolerance_days=payload.date_tolerance_days,
         min_score=payload.min_score,
+        max_fee=payload.max_fee,
     )
     return AutoReconcileResponse(**result)
 

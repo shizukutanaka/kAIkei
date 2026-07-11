@@ -26,6 +26,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_DATE_TOLERANCE_DAYS = 3
 DEFAULT_MIN_SCORE = 0.6
 DEFAULT_NAME_WEIGHT = 0.4
+# 振込手数料の許容差（この額まで金額差を許して消込を成立させる）。
+DEFAULT_MAX_FEE = Decimal("0")
 
 # 名称正規化で除去する法人格・振込種別トークン。
 _NORMALIZE_TOKENS = (
@@ -91,14 +93,17 @@ def match_score(
     candidate: ReconciliationCandidate,
     date_tolerance_days: int = DEFAULT_DATE_TOLERANCE_DAYS,
     name_weight: float = DEFAULT_NAME_WEIGHT,
+    amount_tolerance: Decimal = DEFAULT_MAX_FEE,
 ) -> float | None:
     """銀行明細と候補の突合スコアを返す。一致不能ならNone。
 
-    - 金額は完全一致が必須（不一致ならNone）。
+    - 金額差がamount_tolerance（振込手数料相当）を超えたらNone。完全一致は満点、
+      手数料差のある一致は軽くペナルティを与え、完全一致が優先されるようにする。
     - 日付差が許容日数を超えたらNone。
     - スコア = (1-name_weight)*日付近接スコア + name_weight*名称類似度。
     """
-    if Decimal(amount) != Decimal(candidate.amount):
+    amount_diff = abs(Decimal(amount) - Decimal(candidate.amount))
+    if amount_diff > Decimal(amount_tolerance):
         return None
 
     date_diff = abs((txn_date - candidate.date).days)
@@ -111,7 +116,11 @@ def match_score(
         date_score = 1.0 - (date_diff / date_tolerance_days)
 
     name_score = name_similarity(counterparty_name, candidate.counterparty_name)
-    return (1.0 - name_weight) * date_score + name_weight * name_score
+    score = (1.0 - name_weight) * date_score + name_weight * name_score
+    if amount_diff > 0 and Decimal(amount_tolerance) > 0:
+        # 手数料差のある一致は最大50%減点し、完全一致を優先する。
+        score *= 1.0 - 0.5 * (float(amount_diff) / float(amount_tolerance))
+    return score
 
 
 def find_best_match(
@@ -122,6 +131,7 @@ def find_best_match(
     min_score: float = DEFAULT_MIN_SCORE,
     date_tolerance_days: int = DEFAULT_DATE_TOLERANCE_DAYS,
     name_weight: float = DEFAULT_NAME_WEIGHT,
+    amount_tolerance: Decimal = DEFAULT_MAX_FEE,
 ) -> tuple[ReconciliationCandidate, float] | None:
     """最良の候補と、そのスコアを返す。min_score未満しかなければNone。
 
@@ -130,7 +140,8 @@ def find_best_match(
     best: tuple[ReconciliationCandidate, float, int] | None = None
     for cand in candidates:
         score = match_score(
-            amount, txn_date, counterparty_name, cand, date_tolerance_days, name_weight
+            amount, txn_date, counterparty_name, cand, date_tolerance_days, name_weight,
+            amount_tolerance,
         )
         if score is None or score < min_score:
             continue
@@ -293,6 +304,7 @@ async def auto_reconcile(
     bank_account_id: UUID,
     date_tolerance_days: int = DEFAULT_DATE_TOLERANCE_DAYS,
     min_score: float = DEFAULT_MIN_SCORE,
+    max_fee: Decimal = DEFAULT_MAX_FEE,
 ) -> dict:
     """未消込の銀行明細を仕訳明細に対して自動消込する。
 
@@ -314,6 +326,7 @@ async def auto_reconcile(
             available,
             min_score=min_score,
             date_tolerance_days=date_tolerance_days,
+            amount_tolerance=max_fee,
         )
         if best is None:
             continue

@@ -699,6 +699,7 @@ class AutoReconcileRequest(BaseModel):
     bank_account_id: UUID
     date_tolerance_days: int = Field(default=3, ge=0, le=31)
     min_score: float = Field(default=0.6, ge=0.0, le=1.0)
+    max_fee: Decimal = Field(default=Decimal("0"), ge=0, le=100000)
 
 
 class AutoReconcileResponse(BaseModel):
