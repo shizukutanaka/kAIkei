@@ -55,11 +55,12 @@ async def search(
     amount_min: Decimal | None = Query(None),
     amount_max: Decimal | None = Query(None),
     counterparty: str | None = Query(None),
+    include_superseded: bool = Query(False),
     limit: int = Query(100, ge=1, le=500),
     current_user: CurrentUser = Depends(require_permission(Permission.DOCUMENT_MANAGE)),
     db: AsyncSession = Depends(get_db),
 ) -> list[ArchivedDocumentResponse]:
-    """電帳法の検索3軸（日付・金額・取引先）で証憑を検索する。"""
+    """電帳法の検索3軸（日付・金額・取引先）で証憑を検索する。既定は現行版のみ。"""
     docs = await document_archive.search_documents(
         db,
         company_id=company_id,
@@ -68,9 +69,48 @@ async def search(
         amount_min=amount_min,
         amount_max=amount_max,
         counterparty=counterparty,
+        include_superseded=include_superseded,
         limit=limit,
     )
     return [ArchivedDocumentResponse.model_validate(d) for d in docs]
+
+
+@router.post("/{document_id}/supersede", response_model=ArchivedDocumentResponse, status_code=status.HTTP_201_CREATED)
+async def supersede(
+    document_id: UUID,
+    company_id: UUID = Query(...),
+    document_type: str = Form(...),
+    transaction_date: date = Form(...),
+    amount: Decimal | None = Form(None),
+    counterparty_name: str | None = Form(None),
+    linked_journal_header_id: UUID | None = Form(None),
+    file: UploadFile = File(...),
+    current_user: CurrentUser = Depends(require_permission(Permission.DOCUMENT_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+) -> ArchivedDocumentResponse:
+    """既存証憑を差し替える。旧版は残し、新版へのリンク（訂正削除履歴）を張る。"""
+    file_bytes = await file.read()
+    storage_path = f"{company_id}/{transaction_date.isoformat()}/{file.filename}"
+    result = await document_archive.supersede_document(
+        db,
+        tenant_id=current_user.tenant_id,
+        company_id=company_id,
+        old_document_id=document_id,
+        document_type=document_type,
+        file_name=file.filename or "document",
+        file_bytes=file_bytes,
+        transaction_date=transaction_date,
+        storage_path=storage_path,
+        amount=amount,
+        counterparty_name=counterparty_name,
+        mime_type=file.content_type,
+        linked_journal_header_id=linked_journal_header_id,
+        registered_by=current_user.user_id,
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Archived document not found")
+    _old, new = result
+    return ArchivedDocumentResponse.model_validate(new)
 
 
 @router.get("/{document_id}/download")

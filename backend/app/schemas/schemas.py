@@ -795,6 +795,7 @@ class ArchivedDocumentResponse(BaseModel):
     amount: Decimal | None = None
     counterparty_name: str | None = None
     linked_journal_header_id: UUID | None = None
+    superseded_by_id: UUID | None = None
     registered_at: datetime
 
     model_config = {"from_attributes": True}

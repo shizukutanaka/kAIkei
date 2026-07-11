@@ -112,10 +112,13 @@ async def search_documents(
     amount_min: Decimal | None = None,
     amount_max: Decimal | None = None,
     counterparty: str | None = None,
+    include_superseded: bool = False,
     limit: int = 100,
 ) -> list[ArchivedDocument]:
-    """電帳法の検索3軸で証憑を検索する。"""
+    """電帳法の検索3軸で証憑を検索する。既定では現行版（未差替え）のみ返す。"""
     conditions = [ArchivedDocument.company_id == company_id]
+    if not include_superseded:
+        conditions.append(ArchivedDocument.superseded_by_id.is_(None))
     if date_from is not None:
         conditions.append(ArchivedDocument.transaction_date >= date_from)
     if date_to is not None:
@@ -181,3 +184,49 @@ async def verify_document(
         "expected_hash": document.file_hash,
         "actual_hash": compute_file_hash(file_bytes),
     }
+
+
+async def supersede_document(
+    db: AsyncSession,
+    tenant_id: UUID,
+    company_id: UUID,
+    old_document_id: UUID,
+    document_type: str,
+    file_name: str,
+    file_bytes: bytes,
+    transaction_date: date,
+    storage_path: str,
+    amount: Decimal | None = None,
+    counterparty_name: str | None = None,
+    mime_type: str | None = None,
+    linked_journal_header_id: UUID | None = None,
+    registered_by: UUID | None = None,
+    store=None,
+) -> tuple[ArchivedDocument, ArchivedDocument] | None:
+    """既存証憑を差し替える。新版を登録し、旧版は残して新版へリンクする。
+
+    旧版は削除せず superseded_by_id で新版を指す（電帳法の訂正削除履歴）。
+    """
+    old = await get_document(db, old_document_id, company_id)
+    if old is None:
+        return None
+    new = await archive_document(
+        db,
+        tenant_id=tenant_id,
+        company_id=company_id,
+        document_type=document_type,
+        file_name=file_name,
+        file_bytes=file_bytes,
+        transaction_date=transaction_date,
+        storage_path=storage_path,
+        amount=amount,
+        counterparty_name=counterparty_name,
+        mime_type=mime_type,
+        linked_journal_header_id=linked_journal_header_id,
+        registered_by=registered_by,
+        store=store,
+    )
+    old.superseded_by_id = new.archived_document_id
+    await db.commit()
+    await db.refresh(old)
+    return old, new

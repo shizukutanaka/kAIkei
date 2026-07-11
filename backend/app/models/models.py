@@ -710,6 +710,10 @@ class ArchivedDocument(Base):
     transaction_date: Mapped[date] = mapped_column(Date, nullable=False)
     amount: Mapped[Decimal | None] = mapped_column(Numeric(15, 4), nullable=True)
     counterparty_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # 訂正・差替え時、旧版は残し新版へのリンクを持つ（電帳法の訂正削除履歴）。
+    superseded_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("archived_documents.archived_document_id"), nullable=True
+    )
     linked_journal_header_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("journal_headers.journal_header_id"), nullable=True
     )
