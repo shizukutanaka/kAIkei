@@ -56,3 +56,29 @@ async def test_delete_endpoint(db_session, seed_company):
     )
     assert await webhook_service.delete_endpoint(db_session, ep.webhook_endpoint_id, tid) is True
     assert await webhook_service.list_endpoints(db_session, tid) == []
+
+
+async def test_replay_resets_failed_delivery(db_session, seed_company):
+    tid, cid = seed_company["tenant_id"], seed_company["company_id"]
+    await webhook_service.create_endpoint(
+        db_session, tenant_id=tid, url="https://example.com/hook", secret="s3cr3t!!",
+        subscribed_events=["*"], company_id=cid,
+    )
+    created = await webhook_service.enqueue_event(db_session, tenant_id=tid, event_type="x.y", data={})
+    delivery = created[0]
+    # 失敗状態（DLQ相当）を模擬
+    delivery.status = "failed"
+    delivery.attempt_count = 5
+    delivery.last_error = "boom"
+    delivery.last_status_code = 500
+    await db_session.commit()
+
+    replayed = await webhook_service.replay_delivery(db_session, delivery.webhook_delivery_id, tid)
+    assert replayed is not None
+    assert replayed.status == "pending"
+    assert replayed.attempt_count == 0
+    assert replayed.last_error is None
+
+    # 他テナントからは不可
+    from uuid import uuid4
+    assert await webhook_service.replay_delivery(db_session, delivery.webhook_delivery_id, uuid4()) is None

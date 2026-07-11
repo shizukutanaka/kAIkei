@@ -5,7 +5,7 @@ import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { useUser } from "@/lib/use-user";
 import { SkeletonTable } from "@/components/skeleton";
-import { Webhook, Plus, Trash2, Loader2, CheckCircle2, ListTree } from "lucide-react";
+import { Webhook, Plus, Trash2, Loader2, CheckCircle2, ListTree, RefreshCw } from "lucide-react";
 
 interface Endpoint {
   webhook_endpoint_id: string;
@@ -121,6 +121,16 @@ export default function WebhooksPage() {
     }
   };
 
+  const handleReplay = async (deliveryId: string) => {
+    setError("");
+    try {
+      await apiPost(`/webhooks/deliveries/${deliveryId}/replay`, {});
+      if (selectedId) await viewDeliveries(selectedId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "再送に失敗しました");
+    }
+  };
+
   if (!canManage) {
     return (
       <PageLayout title="Webhook管理">
@@ -230,6 +240,7 @@ export default function WebhooksPage() {
                       <th scope="col" className="px-3 py-2 text-center font-medium">状態</th>
                       <th scope="col" className="px-3 py-2 text-center font-medium">試行</th>
                       <th scope="col" className="px-3 py-2 text-left font-medium">直近結果</th>
+                      <th scope="col" className="px-3 py-2 text-right font-medium">操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -241,6 +252,18 @@ export default function WebhooksPage() {
                         </td>
                         <td className="px-3 py-2 text-center">{d.attempt_count}/{d.max_attempts}</td>
                         <td className="px-3 py-2 text-xs text-muted-foreground">{d.last_error ?? (d.last_status_code ? `HTTP ${d.last_status_code}` : "-")}</td>
+                        <td className="px-3 py-2 text-right">
+                          {d.status === "failed" && (
+                            <button
+                              type="button"
+                              onClick={() => handleReplay(d.webhook_delivery_id)}
+                              className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+                              aria-label={`配信 ${d.event_type} を再送`}
+                            >
+                              <RefreshCw className="h-3 w-3" aria-hidden="true" /> 再送
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

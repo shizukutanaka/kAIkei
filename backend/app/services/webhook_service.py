@@ -322,3 +322,35 @@ async def process_due_deliveries(db: AsyncSession, limit: int = 50) -> int:
         await attempt_delivery(db, delivery, endpoint)
         processed += 1
     return processed
+
+
+async def replay_delivery(
+    db: AsyncSession, delivery_id: UUID, tenant_id: UUID
+) -> WebhookDelivery | None:
+    """失敗（DLQ相当）または保留中の配信を再キューする。
+
+    次回のprocess_due_deliveriesで再送されるよう、状態をpendingへ戻し試行回数と
+    エラーをリセットする。テナント境界はエンドポイント経由で強制する。
+    """
+    result = await db.execute(
+        select(WebhookDelivery)
+        .join(
+            WebhookEndpoint,
+            WebhookDelivery.webhook_endpoint_id == WebhookEndpoint.webhook_endpoint_id,
+        )
+        .where(
+            WebhookDelivery.webhook_delivery_id == delivery_id,
+            WebhookEndpoint.tenant_id == tenant_id,
+        )
+    )
+    delivery = result.scalar_one_or_none()
+    if delivery is None:
+        return None
+    delivery.status = "pending"
+    delivery.attempt_count = 0
+    delivery.next_retry_at = datetime.now(timezone.utc)
+    delivery.last_error = None
+    delivery.last_status_code = None
+    await db.commit()
+    await db.refresh(delivery)
+    return delivery

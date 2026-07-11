@@ -86,3 +86,16 @@ async def process_due_deliveries(
     """再試行時刻を過ぎた保留中の配信を処理する（配信ワーカーの手動トリガー）。"""
     processed = await webhook_service.process_due_deliveries(db, limit=limit)
     return {"processed": processed}
+
+
+@router.post("/deliveries/{delivery_id}/replay", response_model=WebhookDeliveryResponse)
+async def replay_delivery(
+    delivery_id: UUID,
+    current_user: CurrentUser = Depends(require_permission(Permission.WEBHOOK_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+) -> WebhookDeliveryResponse:
+    """失敗した配信を再キューする（再送）。"""
+    delivery = await webhook_service.replay_delivery(db, delivery_id, current_user.tenant_id)
+    if delivery is None:
+        raise HTTPException(status_code=404, detail="Webhook delivery not found")
+    return WebhookDeliveryResponse.model_validate(delivery)
