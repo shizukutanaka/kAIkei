@@ -103,3 +103,37 @@ class TestBuildEventPayload:
         assert payload["event_type"] == "notification.approval"
         assert payload["occurred_at"] == "2026-07-08T00:00:00+00:00"
         assert payload["data"]["title"] == "承認依頼"
+
+class TestTimestampedSigning:
+    """リプレイ防止（タイムスタンプ込み署名）のテスト。"""
+
+    def test_timestamp_changes_signature(self):
+        body = serialize_payload({"a": 1})
+        assert sign_payload("s", body) != sign_payload("s", body, 1700000000)
+        assert sign_payload("s", body, 1700000000) != sign_payload("s", body, 1700000001)
+
+    def test_verify_within_window(self):
+        body = serialize_payload({"a": 1})
+        ts = 1700000000
+        sig = sign_payload("s", body, ts)
+        assert verify_signature("s", body, sig, timestamp=ts, now=ts + 200) is True
+
+    def test_verify_rejects_expired(self):
+        body = serialize_payload({"a": 1})
+        ts = 1700000000
+        sig = sign_payload("s", body, ts)
+        assert verify_signature("s", body, sig, timestamp=ts, now=ts + 301) is False
+
+    def test_verify_rejects_future_timestamp(self):
+        body = serialize_payload({"a": 1})
+        now = 1700000000
+        ts = now + 301
+        sig = sign_payload("s", body, ts)
+        assert verify_signature("s", body, sig, timestamp=ts, now=now) is False
+
+    def test_verify_rejects_mismatched_timestamp(self):
+        body = serialize_payload({"a": 1})
+        ts = 1700000000
+        sig = sign_payload("s", body, ts)
+        # ウィンドウ内でもタイムスタンプが署名と食い違えば拒否される
+        assert verify_signature("s", body, sig, timestamp=ts + 1, now=ts + 2) is False

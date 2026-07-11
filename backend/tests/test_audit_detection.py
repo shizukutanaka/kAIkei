@@ -4,7 +4,12 @@ from decimal import Decimal
 import pytest
 
 from app.services.audit_detection import (
+    BENFORD_CHI2_CRITICAL,
     JournalSnapshot,
+    benford_chi_squared,
+    detect_benford_deviation,
+    detect_period_end_concentration,
+    first_significant_digit,
     detect_backdated,
     detect_duplicate,
     detect_high_amount,
@@ -133,3 +138,60 @@ class TestRunRulesAndRisk:
 
     def test_highest_risk_none_when_empty(self):
         assert highest_risk([]) is None
+
+class TestFirstSignificantDigit:
+    def test_basic(self):
+        assert first_significant_digit(Decimal("532")) == 5
+        assert first_significant_digit(Decimal("0.042")) == 4
+        assert first_significant_digit(Decimal("-9100")) == 9
+
+    def test_zero_is_none(self):
+        assert first_significant_digit(Decimal("0")) is None
+
+
+class TestBenford:
+    def _benford_sample(self, n=100):
+        """Benford分布に概ね従う金額列を生成する。"""
+        import math
+        amounts = []
+        for d in range(1, 10):
+            count = round(n * math.log10(1 + 1 / d))
+            amounts.extend([Decimal(d) * 1000 + 17] * count)
+        return amounts
+
+    def test_insufficient_samples_returns_none(self):
+        assert benford_chi_squared([Decimal("100")] * 10) is None
+        assert detect_benford_deviation([Decimal("100")] * 10) is None
+
+    def test_conforming_sample_not_flagged(self):
+        assert detect_benford_deviation(self._benford_sample()) is None
+
+    def test_uniform_digits_flagged(self):
+        # 第1桁が1〜9に均等分布 → Benfordから大きく乖離
+        amounts = [Decimal(d) * 1000 for d in range(1, 10)] * 12  # n=108
+        finding = detect_benford_deviation(amounts)
+        assert finding is not None
+        assert finding.category == "benford_deviation"
+        assert finding.details["chi_squared"] > BENFORD_CHI2_CRITICAL
+
+
+class TestPeriodEndConcentration:
+    def test_insufficient_samples_none(self):
+        assert detect_period_end_concentration([date(2026, 4, 30)] * 10) is None
+
+    def test_concentrated_flagged(self):
+        # 20件中12件（60%）が月末3日間
+        dates = [date(2026, 4, 29)] * 12 + [date(2026, 4, 10)] * 8
+        finding = detect_period_end_concentration(dates)
+        assert finding is not None
+        assert finding.category == "period_end_concentration"
+
+    def test_spread_not_flagged(self):
+        dates = [date(2026, 4, 10)] * 15 + [date(2026, 4, 30)] * 5  # 25%
+        assert detect_period_end_concentration(dates) is None
+
+    def test_february_month_end(self):
+        # 2月28日（平年月末）は月末3日間に含まれる
+        dates = [date(2026, 2, 27)] * 15 + [date(2026, 2, 10)] * 5
+        finding = detect_period_end_concentration(dates)
+        assert finding is not None

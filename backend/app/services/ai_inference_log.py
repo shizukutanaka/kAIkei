@@ -89,6 +89,49 @@ def compute_accuracy_stats(logs: list[dict]) -> dict:
     }
 
 
+def compute_calibration_stats(logs: list[dict]) -> dict:
+    """適用済みログから信頼度バンド別の実正答率と較正誤差(ECE)を集計する。
+
+    正答の定義: 適用され、かつ修正差分なし（AI提案がそのまま確定した）。
+    自動コミット閾値(AUTO_COMMIT_THRESHOLD)の妥当性検証に用いる。
+
+    Returns:
+        {"applied_total", "ece", "bands": [{band, count, avg_confidence,
+         observed_accuracy, gap}]}。ECEは件数加重した |平均信頼度-実正答率|。
+    """
+    applied = [l for l in logs if l.get("applied")]
+    total = len(applied)
+    band_specs = [
+        ("low", Decimal("0"), MEDIUM_CONFIDENCE),
+        ("medium", MEDIUM_CONFIDENCE, HIGH_CONFIDENCE),
+        ("high", HIGH_CONFIDENCE, Decimal("1.01")),
+    ]
+    bands: list[dict] = []
+    ece = 0.0
+    for name, lo, hi in band_specs:
+        rows = [l for l in applied if lo <= Decimal(str(l.get("confidence", 0))) < hi]
+        count = len(rows)
+        if count:
+            correct = sum(1 for l in rows if not l.get("correction_diff"))
+            accuracy = correct / count
+            avg_conf = sum(float(l.get("confidence", 0)) for l in rows) / count
+            gap = abs(avg_conf - accuracy)
+            ece += (count / total) * gap
+            bands.append({
+                "band": name,
+                "count": count,
+                "avg_confidence": round(avg_conf, 4),
+                "observed_accuracy": round(accuracy, 4),
+                "gap": round(gap, 4),
+            })
+        else:
+            bands.append({
+                "band": name, "count": 0,
+                "avg_confidence": None, "observed_accuracy": None, "gap": None,
+            })
+    return {"applied_total": total, "ece": round(ece, 4) if total else 0.0, "bands": bands}
+
+
 # --- 非同期サービス（DB依存） ------------------------------------------------
 
 async def log_inference(
@@ -171,6 +214,15 @@ async def get_stats(db: AsyncSession, company_id: UUID, limit: int = 1000) -> di
     """会社のAI推論精度指標を集計する。"""
     logs = await list_logs(db, company_id, limit=limit)
     return compute_accuracy_stats([
+        {"applied": l.applied, "correction_diff": l.correction_diff, "confidence": l.confidence}
+        for l in logs
+    ])
+
+
+async def get_calibration(db: AsyncSession, company_id: UUID, limit: int = 1000) -> dict:
+    """会社のAI推論の信頼度較正指標を集計する。"""
+    logs = await list_logs(db, company_id, limit=limit)
+    return compute_calibration_stats([
         {"applied": l.applied, "correction_diff": l.correction_diff, "confidence": l.confidence}
         for l in logs
     ])

@@ -33,6 +33,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   backdated: "バックデート",
   sod_conflict: "職務分掌違反",
   duplicate: "重複の疑い",
+  benford_deviation: "Benford分布乖離",
+  period_end_concentration: "期末集中起票",
 };
 const STATUS_LABELS: Record<string, string> = { open: "未確認", confirmed: "確認済", dismissed: "却下" };
 

@@ -7,6 +7,7 @@ from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.schemas.schemas import (
+    AiCalibrationResponse,
     AiInferenceApplyRequest,
     AiInferenceLogCreate,
     AiInferenceLogResponse,
@@ -63,6 +64,17 @@ async def stats(
     """AI推論の精度指標を集計する。"""
     result = await ai_inference_log.get_stats(db, company_id=company_id)
     return AiInferenceStatsResponse(**result)
+
+
+@router.get("/calibration", response_model=AiCalibrationResponse)
+async def calibration(
+    company_id: UUID = Query(...),
+    current_user: CurrentUser = Depends(require_permission(Permission.AI_REVIEW)),
+    db: AsyncSession = Depends(get_db),
+) -> AiCalibrationResponse:
+    """信頼度バンド別の実正答率と較正誤差(ECE)を集計する（自動コミット閾値の検証用）。"""
+    result = await ai_inference_log.get_calibration(db, company_id=company_id)
+    return AiCalibrationResponse(**result)
 
 
 @router.post("/{log_id}/apply", response_model=AiInferenceLogResponse)

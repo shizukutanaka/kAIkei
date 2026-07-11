@@ -5,7 +5,9 @@
 
 検知ルールの中核はDB非依存の純粋関数として切り出し、単体テスト可能にしている。
 """
+import calendar
 import logging
+import math
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from decimal import Decimal
@@ -23,6 +25,15 @@ HIGH_AMOUNT_THRESHOLD = Decimal("1000000")   # 高額判定（¥1,000,000以上�
 ROUND_AMOUNT_MIN = Decimal("100000")         # 丸め金額判定の下限
 ROUND_AMOUNT_MODULUS = Decimal("100000")     # この倍数なら「丸め」とみなす
 BACKDATED_MAX_LAG_DAYS = 30                   # 起票日から遡る許容日数
+
+# Benford分析: 第1桁分布のカイ二乗検定（自由度8・有意水準1%の臨界値）。
+BENFORD_MIN_SAMPLES = 30
+BENFORD_CHI2_CRITICAL = 20.09
+
+# 期末集中起票: 月末N日間への起票集中を検知する閾値。
+PERIOD_END_LAST_DAYS = 3
+PERIOD_END_MIN_SAMPLES = 20
+PERIOD_END_MAX_SHARE = 0.5
 
 RISK_ORDER = {"low": 0, "medium": 1, "high": 2}
 VALID_STATUSES = {"open", "confirmed", "dismissed"}
@@ -171,6 +182,89 @@ def run_rules(
     return [f for f in findings if f is not None]
 
 
+def first_significant_digit(amount: Decimal) -> int | None:
+    """金額の最上位有効桁（1〜9）を返す。0はNone。"""
+    value = abs(Decimal(amount))
+    if value == 0:
+        return None
+    while value < 1:
+        value *= 10
+    while value >= 10:
+        value /= 10
+    return int(value)
+
+
+def benford_chi_squared(
+    amounts: list[Decimal], min_samples: int = BENFORD_MIN_SAMPLES
+) -> tuple[float, int] | None:
+    """金額列の第1桁分布とBenford分布のカイ二乗統計量を返す。
+
+    Returns:
+        (カイ二乗統計量, 有効サンプル数)。サンプル不足の場合はNone。
+    """
+    digits = [d for d in (first_significant_digit(a) for a in amounts) if d is not None]
+    n = len(digits)
+    if n < min_samples:
+        return None
+    chi2 = 0.0
+    for digit in range(1, 10):
+        expected = n * math.log10(1 + 1 / digit)
+        observed = sum(1 for x in digits if x == digit)
+        chi2 += (observed - expected) ** 2 / expected
+    return chi2, n
+
+
+def detect_benford_deviation(
+    amounts: list[Decimal], critical: float = BENFORD_CHI2_CRITICAL
+) -> DetectionFinding | None:
+    """仕訳金額の第1桁分布がBenford分布から有意に乖離していないか検知する。
+
+    人為的な金額操作（架空計上・分割等）の統計的兆候として監査研究で定番の手法。
+    """
+    result = benford_chi_squared(amounts)
+    if result is None:
+        return None
+    chi2, n = result
+    if chi2 <= critical:
+        return None
+    return DetectionFinding(
+        category="benford_deviation",
+        risk_level="medium",
+        message=f"仕訳金額の第1桁分布がBenford分布から有意に乖離しています（χ²={chi2:.1f}）。",
+        details={"chi_squared": round(chi2, 2), "critical_value": critical, "sample_size": n},
+    )
+
+
+def detect_period_end_concentration(
+    dates: list[date],
+    last_days: int = PERIOD_END_LAST_DAYS,
+    min_samples: int = PERIOD_END_MIN_SAMPLES,
+    max_share: float = PERIOD_END_MAX_SHARE,
+) -> DetectionFinding | None:
+    """起票が月末N日間へ過度に集中していないか検知する（期末調整の兆候）。"""
+    if len(dates) < min_samples:
+        return None
+    hits = 0
+    for d in dates:
+        last_day = calendar.monthrange(d.year, d.month)[1]
+        if d.day > last_day - last_days:
+            hits += 1
+    share = hits / len(dates)
+    if share <= max_share:
+        return None
+    return DetectionFinding(
+        category="period_end_concentration",
+        risk_level="medium",
+        message=f"仕訳の{share:.0%}が月末{last_days}日間に集中しています。",
+        details={
+            "share": round(share, 4),
+            "threshold": max_share,
+            "sample_size": len(dates),
+            "last_days": last_days,
+        },
+    )
+
+
 def highest_risk(findings: list[DetectionFinding]) -> str | None:
     """検知結果中の最も高いリスクレベルを返す。"""
     if not findings:
@@ -260,6 +354,29 @@ async def scan_company(
             ))
             existing.add((snapshot.journal_header_id, finding.category))
             created += 1
+
+    # 会社レベルの統計的検知（特定の仕訳に紐づかないためjournal_header_id=None）。
+    company_findings = [
+        f for f in (
+            detect_benford_deviation([s.total_amount for s in snapshots]),
+            detect_period_end_concentration([s.transaction_date for s in snapshots]),
+        ) if f is not None
+    ]
+    for finding in company_findings:
+        if (None, finding.category) in existing:
+            continue
+        db.add(AuditDetectionLog(
+            tenant_id=tenant_id,
+            company_id=company_id,
+            journal_header_id=None,
+            risk_level=finding.risk_level,
+            category=finding.category,
+            message=finding.message,
+            details=finding.details,
+            status="open",
+        ))
+        existing.add((None, finding.category))
+        created += 1
 
     if created:
         await db.commit()

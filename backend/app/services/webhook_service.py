@@ -10,6 +10,7 @@ import hashlib
 import hmac
 import json
 import logging
+import random
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
@@ -27,7 +28,11 @@ BACKOFF_MAX_SECONDS = 3600
 DELIVERY_TIMEOUT_SECONDS = 10.0
 
 SIGNATURE_HEADER = "X-Kaikei-Signature"
+TIMESTAMP_HEADER = "X-Kaikei-Timestamp"
 EVENT_HEADER = "X-Kaikei-Event"
+
+# リプレイ防止: 署名タイムスタンプの許容ウィンドウ（秒）。
+SIGNATURE_TOLERANCE_SECONDS = 300
 
 
 # --- 純粋関数（DB非依存・テスト可能） ---------------------------------------
@@ -39,15 +44,36 @@ def serialize_payload(payload: dict) -> bytes:
     ).encode("utf-8")
 
 
-def sign_payload(secret: str, body: bytes) -> str:
-    """HMAC-SHA256でペイロードに署名する。返り値は "sha256=<hex>"。"""
-    digest = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+def sign_payload(secret: str, body: bytes, timestamp: int | None = None) -> str:
+    """HMAC-SHA256でペイロードに署名する。返り値は "sha256=<hex>"。
+
+    timestamp指定時は "{timestamp}.{body}" を署名対象にし、署名の再利用
+    （リプレイ攻撃）を防ぐ。Stripe/GitHub等と同方式。
+    """
+    message = body if timestamp is None else f"{timestamp}.".encode() + body
+    digest = hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
     return f"sha256={digest}"
 
 
-def verify_signature(secret: str, body: bytes, signature: str) -> bool:
-    """署名を定数時間比較で検証する。"""
-    expected = sign_payload(secret, body)
+def verify_signature(
+    secret: str,
+    body: bytes,
+    signature: str,
+    timestamp: int | None = None,
+    now: int | None = None,
+    tolerance_seconds: int = SIGNATURE_TOLERANCE_SECONDS,
+) -> bool:
+    """署名を定数時間比較で検証する。
+
+    timestamp/now指定時は許容ウィンドウ外（期限切れ・未来時刻）を拒否したうえで、
+    タイムスタンプ込みの署名を検証する。
+    """
+    if timestamp is not None and now is not None:
+        if timestamp > now + tolerance_seconds:
+            return False
+        if now - timestamp > tolerance_seconds:
+            return False
+    expected = sign_payload(secret, body, timestamp)
     return hmac.compare_digest(expected, signature or "")
 
 
@@ -223,12 +249,14 @@ async def attempt_delivery(
     指数バックオフでnext_retry_atを設定、上限到達で "failed" とする。
     """
     body = serialize_payload(delivery.payload)
+    now = datetime.now(timezone.utc)
+    timestamp = int(now.timestamp())
     headers = {
         "Content-Type": "application/json",
-        SIGNATURE_HEADER: sign_payload(endpoint.secret, body),
+        SIGNATURE_HEADER: sign_payload(endpoint.secret, body, timestamp),
+        TIMESTAMP_HEADER: str(timestamp),
         EVENT_HEADER: delivery.event_type,
     }
-    now = datetime.now(timezone.utc)
     delivery.attempt_count += 1
 
     try:
@@ -254,9 +282,10 @@ async def attempt_delivery(
         delivery.next_retry_at = None
     else:
         delivery.status = "pending"
-        delivery.next_retry_at = now + timedelta(
-            seconds=compute_backoff_seconds(delivery.attempt_count)
-        )
+        backoff = compute_backoff_seconds(delivery.attempt_count)
+        # 同時多発失敗時の再試行集中（thundering herd）を避けるため±20%のジッターを付与。
+        jitter = random.uniform(0.8, 1.2)
+        delivery.next_retry_at = now + timedelta(seconds=int(backoff * jitter))
     await db.commit()
     await db.refresh(delivery)
     return False

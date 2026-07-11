@@ -892,6 +892,20 @@ class AiInferenceStatsResponse(BaseModel):
     avg_confidence: float
 
 
+class AiCalibrationBand(BaseModel):
+    band: str
+    count: int
+    avg_confidence: float | None = None
+    observed_accuracy: float | None = None
+    gap: float | None = None
+
+
+class AiCalibrationResponse(BaseModel):
+    applied_total: int
+    ece: float
+    bands: list[AiCalibrationBand]
+
+
 class OfficeTaskCreate(BaseModel):
     title: str = Field(max_length=200)
     task_type: str = Field(max_length=40)
