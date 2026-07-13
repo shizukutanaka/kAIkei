@@ -37,6 +37,7 @@ from app.schemas.schemas import (
     MinimumWageCheckResponse,
     DependentEligibilityResponse,
     SocialInsuranceExemptionResponse,
+    YearEndAdjustmentResponse,
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     QualificationAcquisitionExportRequest,
@@ -75,8 +76,29 @@ from app.services.monthly_payslip import MonthlyPayslipService
 from app.services.minimum_wage import MinimumWageService, WAGE_TYPE_HOURLY
 from app.services.dependent_eligibility import DependentEligibilityService
 from app.services.social_insurance_exemption import LEAVE_CHILDCARE, SocialInsuranceExemptionService, TARGET_MONTHLY
+from app.services.year_end_adjustment import YearEndAdjustmentService
 
 router = APIRouter()
+
+
+@router.get("/year-end-adjustment")
+async def calculate_year_end_adjustment(
+    annual_gross_salary: Decimal = Query(..., description="年間給与収入"),  # noqa: B008
+    total_income_deductions: Decimal = Query(..., description="所得控除合計(社保・配偶者・扶養・基礎等)"),  # noqa: B008
+    withheld_tax_total: Decimal = Query(..., description="徴収済みの源泉徴収税額合計"),  # noqa: B008
+    housing_loan_credit: Decimal = Query(Decimal("0"), description="住宅借入金等特別控除(税額控除)"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> YearEndAdjustmentResponse:
+    try:
+        result = YearEndAdjustmentService.compute(
+            annual_gross_salary=annual_gross_salary,
+            total_income_deductions=total_income_deductions,
+            withheld_tax_total=withheld_tax_total,
+            housing_loan_credit=housing_loan_credit,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return YearEndAdjustmentResponse.model_validate(result)
 
 
 @router.get("/social-insurance/leave-exemption")

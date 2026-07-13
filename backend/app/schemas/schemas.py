@@ -737,6 +737,19 @@ class BonusWithholdingTaxResponse(BaseModel):
     reason: str
 
 
+class YearEndAdjustmentResponse(BaseModel):
+    salary_income_deduction: Decimal
+    salary_income: Decimal
+    taxable_income: Decimal
+    calculated_income_tax: Decimal
+    housing_loan_credit: Decimal
+    year_adjusted_income_tax: Decimal
+    year_tax: Decimal
+    withheld_tax_total: Decimal
+    refund: Decimal
+    additional_collection: Decimal
+
+
 class SocialInsuranceExemptionResponse(BaseModel):
     exempt: bool
     reason: str
