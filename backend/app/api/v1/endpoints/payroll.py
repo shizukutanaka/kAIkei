@@ -33,6 +33,7 @@ from app.schemas.schemas import (
     OvertimeLimitCheckRequest,
     OvertimeLimitCheckResponse,
     RetirementIncomeTaxResponse,
+    MonthlyPayslipResponse,
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     QualificationAcquisitionExportRequest,
@@ -67,8 +68,47 @@ from app.services.commute_allowance import CommuteAllowanceService, MODE_TRANSIT
 from app.services.paid_leave import PaidLeaveService
 from app.services.overtime_limit import MonthlyOvertime, OvertimeLimitService
 from app.services.retirement_income_tax import RetirementIncomeTaxService
+from app.services.monthly_payslip import MonthlyPayslipService
 
 router = APIRouter()
+
+
+@router.get("/monthly-payslip")
+async def calculate_monthly_payslip(
+    base_salary: Decimal = Query(..., description="基本給"),  # noqa: B008
+    standard_monthly_remuneration: Decimal = Query(..., description="標準報酬月額(社保計算の基礎)"),  # noqa: B008
+    overtime_pay: Decimal = Query(Decimal("0"), description="割増賃金"),  # noqa: B008
+    other_taxable_allowances: Decimal = Query(Decimal("0"), description="課税手当合計"),  # noqa: B008
+    non_taxable_commute_allowance: Decimal = Query(Decimal("0"), description="非課税通勤手当"),  # noqa: B008
+    income_tax: Decimal = Query(Decimal("0"), description="源泉所得税(月額表 甲欄)"),  # noqa: B008
+    residence_tax: Decimal = Query(Decimal("0"), description="住民税(特別徴収額)"),  # noqa: B008
+    other_deductions: Decimal = Query(Decimal("0"), description="その他控除"),  # noqa: B008
+    business_type: str = Query(BUSINESS_TYPE_GENERAL, description="事業区分(雇用保険料率)"),  # noqa: B008
+    health_rate: Decimal = Query(DEFAULT_HEALTH_INSURANCE_RATE, description="健康保険料率"),  # noqa: B008
+    care_rate: Decimal = Query(DEFAULT_CARE_INSURANCE_RATE, description="介護保険料率"),  # noqa: B008
+    care_applicable: bool = Query(False, description="40〜64歳の介護保険適用有無"),  # noqa: B008
+    employment_insurance_exempt: bool = Query(False, description="雇用保険料免除(65歳以上等)"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> MonthlyPayslipResponse:
+    try:
+        result = MonthlyPayslipService.compute(
+            base_salary=base_salary,
+            standard_monthly_remuneration=standard_monthly_remuneration,
+            overtime_pay=overtime_pay,
+            other_taxable_allowances=other_taxable_allowances,
+            non_taxable_commute_allowance=non_taxable_commute_allowance,
+            income_tax=income_tax,
+            residence_tax=residence_tax,
+            other_deductions=other_deductions,
+            business_type=business_type,
+            health_rate=health_rate,
+            care_rate=care_rate,
+            care_applicable=care_applicable,
+            employment_insurance_exempt=employment_insurance_exempt,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return MonthlyPayslipResponse.model_validate(result)
 
 
 @router.get("/retirement-income-tax")

@@ -737,6 +737,20 @@ class BonusWithholdingTaxResponse(BaseModel):
     reason: str
 
 
+class MonthlyPayslipResponse(BaseModel):
+    taxable_earnings: Decimal
+    non_taxable_commute_allowance: Decimal
+    total_earnings: Decimal
+    social_insurance: SocialInsurancePremiumResponse
+    social_insurance_employee: Decimal
+    employment_insurance_employee: Decimal
+    income_tax: Decimal
+    residence_tax: Decimal
+    other_deductions: Decimal
+    total_deductions: Decimal
+    net_pay: Decimal
+
+
 class RetirementIncomeTaxResponse(BaseModel):
     years_of_service: int
     retirement_income_deduction: Decimal
