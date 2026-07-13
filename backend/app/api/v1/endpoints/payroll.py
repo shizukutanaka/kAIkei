@@ -31,6 +31,7 @@ from app.schemas.schemas import (
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     QualificationAcquisitionExportRequest,
+    ResidenceTaxResponse,
     SocialInsurancePremiumResponse,
 )
 from app.services.auto_journal import generate_payroll_journal
@@ -56,8 +57,21 @@ from app.services.social_insurance import (
     SocialInsurancePremiumService,
 )
 from app.services.monthly_revision import MonthlyRevisionService, RevisionEmployee
+from app.services.residence_tax import ResidenceTaxSpecialCollectionService
 
 router = APIRouter()
+
+
+@router.get("/residence-tax/special-collection")
+async def calculate_residence_tax_special_collection(
+    annual_tax: Decimal = Query(..., description="市町村から通知された年税額"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> ResidenceTaxResponse:
+    try:
+        result = ResidenceTaxSpecialCollectionService.compute(annual_tax=annual_tax)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ResidenceTaxResponse.model_validate(result)
 
 
 def _to_employee_response(emp: Employee) -> EmployeeResponse:

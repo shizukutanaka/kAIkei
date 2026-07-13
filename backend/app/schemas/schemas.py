@@ -737,6 +737,19 @@ class BonusWithholdingTaxResponse(BaseModel):
     reason: str
 
 
+class ResidenceTaxMonthlyAmountResponse(BaseModel):
+    month: int
+    amount: Decimal
+
+
+class ResidenceTaxResponse(BaseModel):
+    annual_tax: Decimal
+    first_month_amount: Decimal
+    ordinary_month_amount: Decimal
+    monthly_amounts: list[ResidenceTaxMonthlyAmountResponse]
+    total: Decimal
+
+
 class BonusNetPayResponse(BaseModel):
     gross_bonus: Decimal
     standard_bonus: Decimal
