@@ -737,6 +737,26 @@ class BonusWithholdingTaxResponse(BaseModel):
     reason: str
 
 
+class MonthlyOvertimeInput(BaseModel):
+    overtime_hours: Decimal
+    holiday_work_hours: Decimal = Decimal("0")
+
+
+class OvertimeLimitCheckRequest(BaseModel):
+    months: list[MonthlyOvertimeInput]
+
+
+class OvertimeLimitCheckResponse(BaseModel):
+    annual_overtime_total: Decimal
+    annual_limit_exceeded: bool
+    months_over_45_count: int
+    months_over_45_limit_exceeded: bool
+    single_month_combined_exceeded: bool
+    multi_month_average_exceeded: bool
+    compliant: bool
+    violations: list[str]
+
+
 class PaidLeaveGrantResponse(BaseModel):
     granted_days: int
     is_proportional: bool

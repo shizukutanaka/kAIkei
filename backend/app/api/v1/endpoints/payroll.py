@@ -30,6 +30,8 @@ from app.schemas.schemas import (
     BonusNetPayResponse,
     CommuteAllowanceResponse,
     PaidLeaveGrantResponse,
+    OvertimeLimitCheckRequest,
+    OvertimeLimitCheckResponse,
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     QualificationAcquisitionExportRequest,
@@ -62,8 +64,26 @@ from app.services.monthly_revision import MonthlyRevisionService, RevisionEmploy
 from app.services.residence_tax import ResidenceTaxSpecialCollectionService
 from app.services.commute_allowance import CommuteAllowanceService, MODE_TRANSIT
 from app.services.paid_leave import PaidLeaveService
+from app.services.overtime_limit import MonthlyOvertime, OvertimeLimitService
 
 router = APIRouter()
+
+
+@router.post("/overtime-limit/check")
+async def check_overtime_limit(
+    payload: OvertimeLimitCheckRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> OvertimeLimitCheckResponse:
+    try:
+        result = OvertimeLimitService.check(
+            [
+                MonthlyOvertime(overtime_hours=m.overtime_hours, holiday_work_hours=m.holiday_work_hours)
+                for m in payload.months
+            ]
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return OvertimeLimitCheckResponse.model_validate(result)
 
 
 @router.get("/paid-leave/grant")
