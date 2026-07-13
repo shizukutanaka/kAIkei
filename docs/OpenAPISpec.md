@@ -2,6 +2,51 @@
 
 > 本ドキュメントはkAIkeiの主要APIエンドポイントをOpenAPI 3.1形式で定義する。
 > 実装時はこの仕様を基にコントラクトファースト開発を行う。
+>
+> **正準リファレンス**: 実装済みAPIの正確なスキーマはFastAPIが自動生成する
+> OpenAPIドキュメント（開発環境: `http://localhost:8000/docs` / `/openapi.json`）を
+> 参照すること。本書の個別エンドポイント記述は設計時のものであり、
+> パスが実装と異なる場合は下記の実装対応表と自動生成ドキュメントが優先される。
+
+---
+
+## 0. 実装済みルーター一覧（実装対応表）
+
+`backend/app/api/v1/router.py` に登録済みのルーター。本書に個別節がない
+グループは自動生成ドキュメントを参照。
+
+| プレフィックス | タグ | 概要 | 本書との差分 |
+|---------------|------|------|--------------|
+| `/auth` | Authentication | ログイン/リフレッシュ/MFA(TOTP) | MFA: `/auth/mfa/status`・`setup`・`enable`・`disable` を追加実装 |
+| `/rbac` | RBAC | ロール・権限 | — |
+| `/companies` | Companies | 会社マスタ | — |
+| `/journals` | Journals | 仕訳CRUD・承認・転記 | — |
+| `/approvals` | Approvals | 承認フロー | — |
+| `/masters` | Masters | 勘定科目等マスタ | — |
+| `/reports` | Reports | 帳票 | — |
+| `/ai` | AI | 仕訳推論・PDF推論 | 実装は `/ai/infer-journal`・`/ai/infer-from-pdf`（本書§4の `/ai/suggest-journal` から変更） |
+| `/integrations` | Integrations | 外部データ取込 | 本書§6の `/import/*` は `/integrations/*` として実装 |
+| `/knowledge` | Knowledge | ナレッジ検索 | — |
+| `/fixed-assets` | Fixed Assets | 固定資産・減価償却 | 本書§8の `/assets/*` は `/fixed-assets/*` として実装 |
+| `/payroll` | Payroll | 給与計算 | — |
+| `/partners` | Partners | 取引先 | — |
+| `/bonus` | Bonus | 賞与 | 本書に節なし |
+| `/year-end` | Year-End Adjustment | 年末調整 | 本書に節なし |
+| `/attendance` | Attendance | 勤怠 | 本書に節なし |
+| `/expenses` | Expenses | 経費精算 | 本書に節なし |
+| `/invoices` | Invoices | 請求書・登録番号検証・JP PINT XML | `/invoices/validate-registration-number`・`/invoices/invoices/{id}/peppol-xml` を追加実装 |
+| `/tax-returns` | Tax Returns | 税務申告 | 本書§10の `/tax/*` は `/tax-returns/*` として実装 |
+| `/audit` | Audit | 監査 | — |
+| `/notifications` | Notifications | 通知・通知設定 | 本書に節なし |
+| `/webhooks` | Webhooks | Webhook登録・配信・再送 | 配信は定期ワーカーが自動処理（OpsDesign参照） |
+| `/bank` | Bank Reconciliation | 銀行明細取込・自動消込 | 本書§7の `/bank/reconcile` 相当。明細テーブルは `bank_statement_lines` |
+| `/audit-detection` | Audit Detection | 異常検知（Benford・期末集中等） | 本書に節なし |
+| `/tax-adjustments` | Tax Adjustments | 税務調整ルール | 本書に節なし |
+| `/documents` | Document Archive | 電帳法証憑（3軸検索・差替履歴・自動抽出） | 実装は `POST /documents`（本書§5の `/documents/archive` から変更）。`/documents/extract`・`download`・`verify`・`supersede` を追加実装 |
+| `/approval-policies` | Approval Policies | 承認ポリシー | 本書に節なし |
+| `/security-policy` | Security Policy | テナントセキュリティ（IP制限・MFA要求） | 本書に節なし |
+| `/ai-inference-logs` | AI Inference Logs | AI推論ログ・較正指標 | 本書§4の `/ai/inference-logs` は独立ルーターとして実装 |
+| `/office-tasks` | Office Tasks | 月次業務タスク | 本書に節なし |
 
 ---
 

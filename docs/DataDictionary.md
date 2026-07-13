@@ -369,21 +369,26 @@
 | 作成日時 | created_at | TIMESTAMPTZ | ✅ | — |
 | 更新日時 | updated_at | TIMESTAMPTZ | ✅ | — |
 
-### 8.2 bank_statement_details
+### 8.2 bank_statement_lines
 
 | 論理名 | 物理名 | 型 | 必須 | 説明 |
 |--------|--------|-----|------|------|
-| 明細ID | statement_detail_id | UUID | ✅ PK | 一意識別子 |
+| 明細ID | bank_statement_line_id | UUID | ✅ PK | 一意識別子 |
+| テナントID | tenant_id | UUID | ✅ FK | 所属テナント |
 | 会社ID | company_id | UUID | ✅ FK | 所属会社 |
-| 口座ID | bank_account_id | UUID | ✅ FK | 対象口座 |
-| 勘定日 | value_date | DATE | ✅ | 取引日（値決日） |
-| 出金額 | withdraw_amount | NUMERIC(15,2) | ✅ | 支払額（0の場合あり） |
-| 入金額 | deposit_amount | NUMERIC(15,2) | ✅ | 入金額（0の場合あり） |
-| 振込人名カナ | sender_name_kana | VARCHAR(150) | ✅ | 振込人名（半角カナ） |
+| 取引日 | transaction_date | DATE | ✅ | 取引日 |
+| 勘定日 | value_date | DATE | — | 値決日 |
+| 入出金区分 | direction | VARCHAR(10) | ✅ | `deposit`（入金）/ `withdrawal`（出金） |
+| 金額 | amount | NUMERIC(15,4) | ✅ | 常に正の絶対値 |
+| 残高 | balance | NUMERIC(15,4) | — | 取引後残高 |
 | 摘要 | description | TEXT | — | 銀行明細の摘要 |
+| 相手先名 | counterparty_name | VARCHAR(200) | — | 振込人・支払先名 |
 | 消込済フラグ | is_reconciled | BOOLEAN | ✅ | 消込完了かどうか |
-| 消込先仕訳ID | reconciled_journal_header_id | UUID | — FK | 消込先の仕訳 |
+| 消込先仕訳明細ID | reconciled_journal_line_id | UUID | — FK | 消込先の仕訳明細 |
+| 消込日時 | reconciled_at | TIMESTAMPTZ | — | 消込実行日時 |
+| 取込元 | source | VARCHAR(30) | ✅ | `csv` 等の取込元種別 |
 | 作成日時 | created_at | TIMESTAMPTZ | ✅ | — |
+| 更新日時 | updated_at | TIMESTAMPTZ | ✅ | — |
 
 ### 8.3 payment_requests
 
