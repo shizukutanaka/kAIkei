@@ -69,6 +69,34 @@ class PdfTextExtractor:
         return file_bytes[:5] == b"%PDF-"
 
     @staticmethod
+    def pdf_to_images(file_bytes: bytes, max_pages: int = 1, dpi: int = 150) -> list[str]:
+        """PDFの各ページをbase64 PNG画像へ変換する（マルチモーダルLLM入力用）。
+
+        pymupdf（fitz）が未インストールの環境では空リストを返し、
+        呼び出し側はテキスト/regex抽出へフォールバックする。
+        """
+        if not PdfTextExtractor.is_pdf(file_bytes):
+            return []
+        try:
+            import fitz  # pymupdf
+        except ImportError:
+            logger.info("pymupdf not available; skipping PDF-to-image conversion")
+            return []
+
+        import base64
+
+        images: list[str] = []
+        try:
+            with fitz.open(stream=file_bytes, filetype="pdf") as doc:
+                for page in doc.pages(0, min(max_pages, doc.page_count)):
+                    pixmap = page.get_pixmap(dpi=dpi)
+                    images.append(base64.b64encode(pixmap.tobytes("png")).decode("ascii"))
+        except Exception as e:
+            logger.warning("PDF-to-image conversion failed: %s", e)
+            return []
+        return images
+
+    @staticmethod
     def extract_structured(file_bytes: bytes) -> dict[str, Any]:
         """PDFから構造化された情報を抽出する（金額・日付・取引先等）。
 

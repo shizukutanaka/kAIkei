@@ -126,6 +126,39 @@ class OpenAIProvider(AIProvider):
             logger.error("OpenAI tax prediction failed: %s", e)
             raise
 
+    async def extract_document_fields(
+        self, text: str, image_base64: str | None = None
+    ) -> dict:
+        from app.services.ai.document_extraction import (
+            DOCUMENT_EXTRACTION_PROMPT,
+            build_vision_messages,
+            parse_extraction_response,
+        )
+
+        if image_base64:
+            messages = build_vision_messages(image_base64, provider_format="openai")
+        else:
+            messages = [
+                {
+                    "role": "user",
+                    "content": f"{DOCUMENT_EXTRACTION_PROMPT}\n\n書類テキスト:\n{text[:6000]}",
+                }
+            ]
+
+        try:
+            client = self._get_client()
+            response = await client.chat.completions.create(
+                model=self._model,
+                messages=messages,
+                temperature=0.1,
+                max_tokens=500,
+            )
+            content = response.choices[0].message.content or "{}"
+            return parse_extraction_response(content)
+        except Exception as e:
+            logger.error("OpenAI document extraction failed: %s", e)
+            raise
+
     async def detect_anomaly(self, journal_data: dict) -> dict:
         prompt = f"以下の仕訳データの異常を検出してください:\n{json.dumps(journal_data, ensure_ascii=False)}"
 

@@ -6,7 +6,7 @@ import { apiGet, apiPostMultipart } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { SkeletonTable } from "@/components/skeleton";
-import { Archive, Upload, Search, Loader2, CheckCircle2, ShieldCheck, Download } from "lucide-react";
+import { Archive, Upload, Search, Loader2, CheckCircle2, ShieldCheck, Download, Sparkles } from "lucide-react";
 
 interface ArchivedDocument {
   archived_document_id: string;
@@ -18,6 +18,14 @@ interface ArchivedDocument {
   amount: string | null;
   counterparty_name: string | null;
   registered_at: string;
+}
+
+interface ExtractedFields {
+  transaction_date: string | null;
+  amount: number | null;
+  counterparty_name: string | null;
+  confidence: number;
+  ai_used: boolean;
 }
 
 const DOC_TYPES = [
@@ -50,6 +58,7 @@ export default function DocumentArchivePage() {
   const [amount, setAmount] = useState("");
   const [counterparty, setCounterparty] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [extracting, setExtracting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // 検索3軸
@@ -76,6 +85,29 @@ export default function DocumentArchivePage() {
       setError(err instanceof Error ? err.message : "検索に失敗しました");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFileSelected = async () => {
+    const file = fileRef.current?.files?.[0];
+    if (!file || !file.name.toLowerCase().endsWith(".pdf")) return;
+    setExtracting(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const data = await apiPostMultipart<ExtractedFields>("/documents/extract", {}, form);
+      if (data.transaction_date && !txnDate) setTxnDate(data.transaction_date);
+      if (data.amount !== null && !amount) setAmount(String(data.amount));
+      if (data.counterparty_name && !counterparty) setCounterparty(data.counterparty_name);
+      if (data.transaction_date || data.amount !== null || data.counterparty_name) {
+        setNotice(
+          `証憑から取引情報を自動抽出しました（${data.ai_used ? "AI抽出" : "テキスト抽出"}・信頼度${Math.round(data.confidence * 100)}%）。内容をご確認ください。`
+        );
+      }
+    } catch {
+      // 抽出失敗時は手入力にフォールバック（エラー表示しない）
+    } finally {
+      setExtracting(false);
     }
   };
 
@@ -188,7 +220,12 @@ export default function DocumentArchivePage() {
               <label htmlFor="doc-file" className="mb-1 block text-xs font-medium">
                 ファイル <span className="text-destructive" aria-hidden="true">*</span>
               </label>
-              <input id="doc-file" ref={fileRef} type="file" required className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-2 file:text-primary-foreground" />
+              <input id="doc-file" ref={fileRef} type="file" required onChange={handleFileSelected} className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-2 file:text-primary-foreground" />
+              {extracting && (
+                <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground" role="status">
+                  <Sparkles className="h-3 w-3" aria-hidden="true" /> 取引情報を自動抽出中…
+                </p>
+              )}
             </div>
           </div>
           <button type="submit" disabled={uploading} className="mt-3 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50">

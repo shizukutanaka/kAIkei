@@ -110,6 +110,38 @@ class AnthropicProvider(AIProvider):
             logger.error("Anthropic tax prediction failed: %s", e)
             raise
 
+    async def extract_document_fields(
+        self, text: str, image_base64: str | None = None
+    ) -> dict:
+        from app.services.ai.document_extraction import (
+            DOCUMENT_EXTRACTION_PROMPT,
+            build_vision_messages,
+            parse_extraction_response,
+        )
+
+        if image_base64:
+            messages = build_vision_messages(image_base64, provider_format="anthropic")
+        else:
+            messages = [
+                {
+                    "role": "user",
+                    "content": f"{DOCUMENT_EXTRACTION_PROMPT}\n\n書類テキスト:\n{text[:6000]}",
+                }
+            ]
+
+        try:
+            client = self._get_client()
+            response = await client.messages.create(
+                model=self._model,
+                max_tokens=500,
+                messages=messages,
+            )
+            content = response.content[0].text if response.content else "{}"
+            return parse_extraction_response(content)
+        except Exception as e:
+            logger.error("Anthropic document extraction failed: %s", e)
+            raise
+
     async def detect_anomaly(self, journal_data: dict) -> dict:
         prompt = f"以下の仕訳データの異常を検出してください:\n{json.dumps(journal_data, ensure_ascii=False)}"
 

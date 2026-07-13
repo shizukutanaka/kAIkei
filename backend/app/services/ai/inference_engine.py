@@ -82,6 +82,11 @@ class AIInferenceEngine:
     def router(self) -> TaskRouter:
         return self._router
 
+    @property
+    def primary_provider(self) -> AIProvider | None:
+        """文書抽出等、単一プロバイダで足りるタスク向けの先頭プロバイダ。"""
+        return self._providers[0] if self._providers else None
+
     async def infer_journal(self, request: InferenceRequest) -> dict[str, Any]:
         """Infer journal lines with task routing and provider fallback.
 

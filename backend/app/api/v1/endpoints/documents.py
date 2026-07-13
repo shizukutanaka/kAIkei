@@ -14,6 +14,26 @@ from app.services import document_archive
 router = APIRouter()
 
 
+@router.post("/extract")
+async def extract_fields(
+    file: UploadFile = File(...),
+    current_user: CurrentUser = Depends(require_permission(Permission.DOCUMENT_MANAGE)),
+) -> dict:
+    """アップロード証憑から検索3軸（取引年月日・金額・取引先）を自動抽出する。
+
+    AIプロバイダ設定時はマルチモーダル/テキストLLM抽出＋regexマージ、
+    未設定時はregex抽出のみで応答する（登録フォームのプリフィル用）。
+    """
+    from app.services.ai.document_extraction import extract_document_fields_from_pdf
+    from app.services.ai.inference_engine import ai_engine
+
+    file_bytes = await file.read()
+    provider = ai_engine.primary_provider
+    fields = await extract_document_fields_from_pdf(file_bytes, provider=provider)
+    fields["ai_used"] = provider is not None
+    return fields
+
+
 @router.post("", response_model=ArchivedDocumentResponse, status_code=status.HTTP_201_CREATED)
 async def archive(
     company_id: UUID = Query(...),
