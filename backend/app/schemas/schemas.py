@@ -737,7 +737,7 @@ class BonusWithholdingTaxResponse(BaseModel):
     reason: str
 
 
-class YearEndAdjustmentResponse(BaseModel):
+class YearEndAdjustmentCalcResponse(BaseModel):
     salary_income_deduction: Decimal
     salary_income: Decimal
     taxable_income: Decimal
@@ -748,6 +748,18 @@ class YearEndAdjustmentResponse(BaseModel):
     withheld_tax_total: Decimal
     refund: Decimal
     additional_collection: Decimal
+
+
+class LegalLedgerCheckRequest(BaseModel):
+    ledger_type: str
+    present_fields: list[str]
+
+
+class LegalLedgerCheckResponse(BaseModel):
+    ledger_type: str
+    required_fields: list[str]
+    missing_fields: list[str]
+    compliant: bool
 
 
 class SocialInsuranceExemptionResponse(BaseModel):

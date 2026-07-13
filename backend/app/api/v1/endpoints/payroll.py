@@ -37,7 +37,9 @@ from app.schemas.schemas import (
     MinimumWageCheckResponse,
     DependentEligibilityResponse,
     SocialInsuranceExemptionResponse,
-    YearEndAdjustmentResponse,
+    YearEndAdjustmentCalcResponse,
+    LegalLedgerCheckRequest,
+    LegalLedgerCheckResponse,
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     QualificationAcquisitionExportRequest,
@@ -77,8 +79,24 @@ from app.services.minimum_wage import MinimumWageService, WAGE_TYPE_HOURLY
 from app.services.dependent_eligibility import DependentEligibilityService
 from app.services.social_insurance_exemption import LEAVE_CHILDCARE, SocialInsuranceExemptionService, TARGET_MONTHLY
 from app.services.year_end_adjustment import YearEndAdjustmentService
+from app.services.legal_ledger import LegalLedgerService
 
 router = APIRouter()
+
+
+@router.post("/legal-ledger/check")
+async def check_legal_ledger(
+    payload: LegalLedgerCheckRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> LegalLedgerCheckResponse:
+    try:
+        result = LegalLedgerService.check(
+            ledger_type=payload.ledger_type,
+            present_fields=payload.present_fields,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return LegalLedgerCheckResponse.model_validate(result)
 
 
 @router.get("/year-end-adjustment")
@@ -88,7 +106,7 @@ async def calculate_year_end_adjustment(
     withheld_tax_total: Decimal = Query(..., description="徴収済みの源泉徴収税額合計"),  # noqa: B008
     housing_loan_credit: Decimal = Query(Decimal("0"), description="住宅借入金等特別控除(税額控除)"),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
-) -> YearEndAdjustmentResponse:
+) -> YearEndAdjustmentCalcResponse:
     try:
         result = YearEndAdjustmentService.compute(
             annual_gross_salary=annual_gross_salary,
@@ -98,7 +116,7 @@ async def calculate_year_end_adjustment(
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return YearEndAdjustmentResponse.model_validate(result)
+    return YearEndAdjustmentCalcResponse.model_validate(result)
 
 
 @router.get("/social-insurance/leave-exemption")
