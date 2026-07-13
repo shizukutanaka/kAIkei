@@ -737,6 +737,11 @@ class BonusWithholdingTaxResponse(BaseModel):
     reason: str
 
 
+class SocialInsuranceExemptionResponse(BaseModel):
+    exempt: bool
+    reason: str
+
+
 class DependentEligibilityResponse(BaseModel):
     income_limit: Decimal
     income_requirement_met: bool

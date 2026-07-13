@@ -36,6 +36,7 @@ from app.schemas.schemas import (
     MonthlyPayslipResponse,
     MinimumWageCheckResponse,
     DependentEligibilityResponse,
+    SocialInsuranceExemptionResponse,
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     QualificationAcquisitionExportRequest,
@@ -73,8 +74,31 @@ from app.services.retirement_income_tax import RetirementIncomeTaxService
 from app.services.monthly_payslip import MonthlyPayslipService
 from app.services.minimum_wage import MinimumWageService, WAGE_TYPE_HOURLY
 from app.services.dependent_eligibility import DependentEligibilityService
+from app.services.social_insurance_exemption import LEAVE_CHILDCARE, SocialInsuranceExemptionService, TARGET_MONTHLY
 
 router = APIRouter()
+
+
+@router.get("/social-insurance/leave-exemption")
+async def check_social_insurance_leave_exemption(
+    leave_type: str = Query(LEAVE_CHILDCARE, description="休業区分: maternity(産前産後) / childcare(育児)"),  # noqa: B008
+    target: str = Query(TARGET_MONTHLY, description="対象: monthly(月次) / bonus(賞与)"),  # noqa: B008
+    month_last_day_on_leave: bool = Query(False, description="その月の末日が休業期間中か"),  # noqa: B008
+    days_on_leave_in_month: int = Query(0, description="当月の育児休業日数(月次14日ルール)"),  # noqa: B008
+    continuous_leave_over_one_month: bool = Query(False, description="賞与月末を含む連続1か月超の育休か"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> SocialInsuranceExemptionResponse:
+    try:
+        result = SocialInsuranceExemptionService.check(
+            leave_type=leave_type,
+            target=target,
+            month_last_day_on_leave=month_last_day_on_leave,
+            days_on_leave_in_month=days_on_leave_in_month,
+            continuous_leave_over_one_month=continuous_leave_over_one_month,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return SocialInsuranceExemptionResponse.model_validate(result)
 
 
 @router.get("/dependent-eligibility/check")
