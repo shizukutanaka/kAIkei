@@ -737,6 +737,14 @@ class BonusWithholdingTaxResponse(BaseModel):
     reason: str
 
 
+class CommuteAllowanceResponse(BaseModel):
+    mode: str
+    monthly_allowance: Decimal
+    non_taxable_limit: Decimal
+    non_taxable: Decimal
+    taxable: Decimal
+
+
 class ResidenceTaxMonthlyAmountResponse(BaseModel):
     month: int
     amount: Decimal

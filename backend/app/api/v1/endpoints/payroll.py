@@ -28,6 +28,7 @@ from app.schemas.schemas import (
     BonusEmploymentInsuranceResponse,
     BonusWithholdingTaxResponse,
     BonusNetPayResponse,
+    CommuteAllowanceResponse,
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     QualificationAcquisitionExportRequest,
@@ -58,8 +59,27 @@ from app.services.social_insurance import (
 )
 from app.services.monthly_revision import MonthlyRevisionService, RevisionEmployee
 from app.services.residence_tax import ResidenceTaxSpecialCollectionService
+from app.services.commute_allowance import CommuteAllowanceService, MODE_TRANSIT
 
 router = APIRouter()
+
+
+@router.get("/commute-allowance/non-taxable")
+async def calculate_commute_allowance_non_taxable(
+    mode: str = Query(MODE_TRANSIT, description="通勤手段: transit(交通機関) / car(マイカー等)"),  # noqa: B008
+    monthly_allowance: Decimal = Query(..., description="1か月の通勤手当支給額"),  # noqa: B008
+    one_way_distance_km: Decimal | None = Query(None, description="片道通勤距離(km), car時に必須"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> CommuteAllowanceResponse:
+    try:
+        result = CommuteAllowanceService.compute(
+            mode=mode,
+            monthly_allowance=monthly_allowance,
+            one_way_distance_km=one_way_distance_km,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return CommuteAllowanceResponse.model_validate(result)
 
 
 @router.get("/residence-tax/special-collection")
