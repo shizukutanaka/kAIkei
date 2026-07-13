@@ -4,6 +4,9 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
+    # Environment ("development" / "staging" / "production")
+    ENVIRONMENT: str = "development"
+
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://kaikei:kaikei_dev@localhost:5432/kaikei"
 
