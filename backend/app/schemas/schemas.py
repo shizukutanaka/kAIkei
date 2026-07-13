@@ -737,6 +737,13 @@ class BonusWithholdingTaxResponse(BaseModel):
     reason: str
 
 
+class PaidLeaveGrantResponse(BaseModel):
+    granted_days: int
+    is_proportional: bool
+    meets_attendance_requirement: bool
+    mandatory_5day_designation: bool
+
+
 class CommuteAllowanceResponse(BaseModel):
     mode: str
     monthly_allowance: Decimal

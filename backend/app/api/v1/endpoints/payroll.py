@@ -29,6 +29,7 @@ from app.schemas.schemas import (
     BonusWithholdingTaxResponse,
     BonusNetPayResponse,
     CommuteAllowanceResponse,
+    PaidLeaveGrantResponse,
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     QualificationAcquisitionExportRequest,
@@ -60,8 +61,29 @@ from app.services.social_insurance import (
 from app.services.monthly_revision import MonthlyRevisionService, RevisionEmployee
 from app.services.residence_tax import ResidenceTaxSpecialCollectionService
 from app.services.commute_allowance import CommuteAllowanceService, MODE_TRANSIT
+from app.services.paid_leave import PaidLeaveService
 
 router = APIRouter()
+
+
+@router.get("/paid-leave/grant")
+async def calculate_paid_leave_grant(
+    months_of_service: int = Query(..., description="継続勤務月数"),  # noqa: B008
+    weekly_working_days: int = Query(5, description="週所定労働日数"),  # noqa: B008
+    weekly_working_hours: Decimal = Query(Decimal("40"), description="週所定労働時間"),  # noqa: B008
+    attendance_rate: Decimal = Query(Decimal("1"), description="全労働日に対する出勤率(0〜1)"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> PaidLeaveGrantResponse:
+    try:
+        result = PaidLeaveService.grant_days(
+            months_of_service=months_of_service,
+            weekly_working_days=weekly_working_days,
+            weekly_working_hours=weekly_working_hours,
+            attendance_rate=attendance_rate,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return PaidLeaveGrantResponse.model_validate(result)
 
 
 @router.get("/commute-allowance/non-taxable")
