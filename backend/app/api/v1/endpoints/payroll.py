@@ -35,6 +35,7 @@ from app.schemas.schemas import (
     RetirementIncomeTaxResponse,
     MonthlyPayslipResponse,
     MinimumWageCheckResponse,
+    DependentEligibilityResponse,
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     QualificationAcquisitionExportRequest,
@@ -71,8 +72,31 @@ from app.services.overtime_limit import MonthlyOvertime, OvertimeLimitService
 from app.services.retirement_income_tax import RetirementIncomeTaxService
 from app.services.monthly_payslip import MonthlyPayslipService
 from app.services.minimum_wage import MinimumWageService, WAGE_TYPE_HOURLY
+from app.services.dependent_eligibility import DependentEligibilityService
 
 router = APIRouter()
+
+
+@router.get("/dependent-eligibility/check")
+async def check_dependent_eligibility(
+    annual_income: Decimal = Query(..., description="被扶養者の年間収入見込み"),  # noqa: B008
+    is_senior_or_disabled: bool = Query(False, description="60歳以上または障害者"),  # noqa: B008
+    cohabiting: bool = Query(True, description="被保険者と同一世帯か"),  # noqa: B008
+    insured_annual_income: Decimal | None = Query(None, description="被保険者の年間収入(同居時)"),  # noqa: B008
+    remittance_amount: Decimal | None = Query(None, description="被保険者からの仕送り額(別居時)"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> DependentEligibilityResponse:
+    try:
+        result = DependentEligibilityService.check(
+            annual_income=annual_income,
+            is_senior_or_disabled=is_senior_or_disabled,
+            cohabiting=cohabiting,
+            insured_annual_income=insured_annual_income,
+            remittance_amount=remittance_amount,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return DependentEligibilityResponse.model_validate(result)
 
 
 @router.get("/minimum-wage/check")

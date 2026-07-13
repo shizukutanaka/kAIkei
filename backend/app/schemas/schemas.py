@@ -737,6 +737,14 @@ class BonusWithholdingTaxResponse(BaseModel):
     reason: str
 
 
+class DependentEligibilityResponse(BaseModel):
+    income_limit: Decimal
+    income_requirement_met: bool
+    relationship_requirement_met: bool
+    eligible: bool
+    reason: str
+
+
 class MinimumWageCheckResponse(BaseModel):
     effective_hourly_wage: Decimal
     minimum_hourly_wage: Decimal
