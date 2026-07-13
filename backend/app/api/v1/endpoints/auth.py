@@ -1,14 +1,20 @@
+import time
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.deps import CurrentUser, get_current_user
 from app.core.security import create_access_token, create_refresh_token, decode_token, hash_password, verify_password
 from app.models.models import Tenant, User
 from app.schemas.schemas import TokenRefreshRequest, TokenResponse, UserCreate, UserResponse
+from app.services import mfa as mfa_service
 
 router = APIRouter()
+
+MFA_REQUIRED_DETAIL = "MFA code required"
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -39,6 +45,7 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)) -> U
 class LoginRequest(BaseModel):
     email: str
     password: str
+    mfa_code: str | None = None
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -49,6 +56,12 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> To
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="User is inactive")
+
+    if user.mfa_enabled and user.mfa_secret:
+        if not payload.mfa_code:
+            raise HTTPException(status_code=401, detail=MFA_REQUIRED_DETAIL)
+        if not mfa_service.verify_totp(user.mfa_secret, payload.mfa_code, int(time.time())):
+            raise HTTPException(status_code=401, detail="Invalid MFA code")
 
     access_token = create_access_token(
         subject=str(user.user_id),
@@ -68,3 +81,68 @@ async def refresh_token(payload: TokenRefreshRequest) -> TokenResponse:
     access_token = create_access_token(subject=user_id)
     new_refresh = create_refresh_token(subject=user_id)
     return TokenResponse(access_token=access_token, refresh_token=new_refresh)
+
+
+class MfaSetupResponse(BaseModel):
+    secret: str
+    otpauth_uri: str
+
+
+class MfaCodeRequest(BaseModel):
+    code: str = Field(..., min_length=6, max_length=8)
+
+
+class MfaStatusResponse(BaseModel):
+    mfa_enabled: bool
+
+
+@router.get("/mfa/status", response_model=MfaStatusResponse)
+async def mfa_status(
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MfaStatusResponse:
+    """自ユーザーのMFA有効状態を返す。"""
+    result = await db.execute(select(User).where(User.user_id == current_user.user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return MfaStatusResponse(mfa_enabled=user.mfa_enabled)
+
+
+@router.post("/mfa/setup", response_model=MfaSetupResponse)
+async def mfa_setup(
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MfaSetupResponse:
+    """TOTP秘密鍵を発行する（認証アプリ登録用。enableで有効化するまで未適用）。"""
+    result = await mfa_service.setup_mfa(db, current_user.user_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    secret, otpauth_uri = result
+    return MfaSetupResponse(secret=secret, otpauth_uri=otpauth_uri)
+
+
+@router.post("/mfa/enable", response_model=MfaStatusResponse)
+async def mfa_enable(
+    payload: MfaCodeRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MfaStatusResponse:
+    """認証アプリのコードを検証してMFAを有効化する。"""
+    ok = await mfa_service.enable_mfa(db, current_user.user_id, payload.code, int(time.time()))
+    if not ok:
+        raise HTTPException(status_code=400, detail="Invalid MFA code (setup required first)")
+    return MfaStatusResponse(mfa_enabled=True)
+
+
+@router.post("/mfa/disable", response_model=MfaStatusResponse)
+async def mfa_disable(
+    payload: MfaCodeRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MfaStatusResponse:
+    """コードを検証してMFAを無効化し、秘密鍵を破棄する。"""
+    ok = await mfa_service.disable_mfa(db, current_user.user_id, payload.code, int(time.time()))
+    if not ok:
+        raise HTTPException(status_code=400, detail="Invalid MFA code")
+    return MfaStatusResponse(mfa_enabled=False)
