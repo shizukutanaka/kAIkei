@@ -83,6 +83,23 @@ def build_vision_messages(
     raise ValueError(f"Unknown provider_format: {provider_format}")
 
 
+def build_text_messages(
+    text: str,
+    prompt: str = DOCUMENT_EXTRACTION_PROMPT,
+    max_chars: int = 6000,
+) -> list[dict]:
+    """画像なし（テキストのみ）のLLMメッセージ構造を組み立てる。
+
+    Anthropic/OpenAIとも単純な単一ユーザーメッセージ形式のため共通化する。
+    """
+    return [
+        {
+            "role": "user",
+            "content": f"{prompt}\n\n書類テキスト:\n{text[:max_chars]}",
+        }
+    ]
+
+
 def parse_extraction_response(text: str) -> dict:
     """LLM応答テキストから抽出フィールドのJSONを取り出す。
 

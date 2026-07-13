@@ -55,6 +55,8 @@ export default function DocumentArchivePage() {
   const [uploading, setUploading] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // ファイル選択/フォームリセットのたびに増分し、後から届いた古い抽出結果を無視するための世代カウンタ
+  const extractionSeqRef = useRef(0);
 
   // 検索3軸
   const [dateFrom, setDateFrom] = useState("");
@@ -85,15 +87,20 @@ export default function DocumentArchivePage() {
 
   const handleFileSelected = async () => {
     const file = fileRef.current?.files?.[0];
+    // 新しいファイル選択のたびに前回の状態通知をクリアし、進行中の抽出を無効化する
+    setNotice("");
+    setError("");
+    const seq = ++extractionSeqRef.current;
     if (!file || !file.name.toLowerCase().endsWith(".pdf")) return;
     setExtracting(true);
     try {
       const form = new FormData();
       form.append("file", file);
       const data = await apiPostMultipart<ExtractedFields>("/documents/extract", {}, form);
-      if (data.transaction_date && !txnDate) setTxnDate(data.transaction_date);
-      if (data.amount !== null && !amount) setAmount(String(data.amount));
-      if (data.counterparty_name && !counterparty) setCounterparty(data.counterparty_name);
+      if (seq !== extractionSeqRef.current) return; // 別のファイル選択/フォームリセットで無効化済み
+      if (data.transaction_date) setTxnDate((prev) => prev || data.transaction_date!);
+      if (data.amount !== null) setAmount((prev) => prev || String(data.amount));
+      if (data.counterparty_name) setCounterparty((prev) => prev || data.counterparty_name!);
       if (data.transaction_date || data.amount !== null || data.counterparty_name) {
         setNotice(
           `証憑から取引情報を自動抽出しました（${data.ai_used ? "AI抽出" : "テキスト抽出"}・信頼度${Math.round(data.confidence * 100)}%）。内容をご確認ください。`
@@ -102,7 +109,7 @@ export default function DocumentArchivePage() {
     } catch {
       // 抽出失敗時は手入力にフォールバック（エラー表示しない）
     } finally {
-      setExtracting(false);
+      if (seq === extractionSeqRef.current) setExtracting(false);
     }
   };
 
@@ -125,6 +132,7 @@ export default function DocumentArchivePage() {
       form.append("file", file);
       await apiPostMultipart<ArchivedDocument>("/documents", { company_id: companyId }, form);
       setNotice("証憑を登録しました（SHA-256ハッシュを付与）。");
+      extractionSeqRef.current++; // 登録済みファイルの抽出結果が後から届いてもフォームへ反映させない
       setTxnDate("");
       setAmount("");
       setCounterparty("");

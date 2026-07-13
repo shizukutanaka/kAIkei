@@ -28,7 +28,7 @@ async def extract_fields(
     from app.services.ai.inference_engine import ai_engine
 
     file_bytes = await file.read()
-    provider = ai_engine.primary_provider
+    provider = ai_engine.document_extraction_provider
     fields = await extract_document_fields_from_pdf(file_bytes, provider=provider)
     fields["ai_used"] = provider is not None
     return fields

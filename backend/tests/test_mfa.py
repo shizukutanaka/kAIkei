@@ -4,6 +4,8 @@ import pytest
 
 from app.services.mfa import (
     build_otpauth_uri,
+    check_and_consume_step,
+    find_matching_step,
     generate_totp_secret,
     totp_code,
     verify_totp,
@@ -66,6 +68,38 @@ class TestGenerateTotpSecret:
         secret = generate_totp_secret()
         code = totp_code(secret, 1234567890)
         assert verify_totp(secret, code, 1234567890) is True
+
+
+class TestFindMatchingStep:
+    def test_returns_matching_counter(self):
+        assert find_matching_step(RFC6238_SECRET, "287082", 59) == 59 // 30
+
+    def test_returns_none_for_wrong_code(self):
+        assert find_matching_step(RFC6238_SECRET, "000000", 59) is None
+
+    def test_returns_none_for_malformed_code(self):
+        assert find_matching_step(RFC6238_SECRET, "abc", 59) is None
+
+
+class TestCheckAndConsumeStep:
+    def test_accepts_when_no_prior_step(self):
+        step = check_and_consume_step(RFC6238_SECRET, "287082", 59, last_used_step=None)
+        assert step == 59 // 30
+
+    def test_accepts_when_newer_than_prior_step(self):
+        step = check_and_consume_step(RFC6238_SECRET, "287082", 59, last_used_step=(59 // 30) - 1)
+        assert step == 59 // 30
+
+    def test_rejects_replay_of_same_step(self):
+        current_step = 59 // 30
+        assert check_and_consume_step(RFC6238_SECRET, "287082", 59, last_used_step=current_step) is None
+
+    def test_rejects_replay_of_earlier_step(self):
+        current_step = 59 // 30
+        assert check_and_consume_step(RFC6238_SECRET, "287082", 59, last_used_step=current_step + 5) is None
+
+    def test_rejects_wrong_code_regardless_of_last_step(self):
+        assert check_and_consume_step(RFC6238_SECRET, "000000", 59, last_used_step=None) is None
 
 
 class TestBuildOtpauthUri:

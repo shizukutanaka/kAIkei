@@ -110,8 +110,8 @@ export default function SettingsPage() {
       setMfaSetup(null);
       setMfaCode("");
       toast("MFAを有効化しました", "success");
-    } catch {
-      toast("認証コードが正しくありません", "error");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "MFAの有効化に失敗しました", "error");
     } finally {
       setMfaBusy(false);
     }
@@ -132,8 +132,8 @@ export default function SettingsPage() {
       setMfaEnabled(false);
       setMfaCode("");
       toast("MFAを無効化しました", "success");
-    } catch {
-      toast("認証コードが正しくありません", "error");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "MFAの無効化に失敗しました", "error");
     } finally {
       setMfaBusy(false);
     }

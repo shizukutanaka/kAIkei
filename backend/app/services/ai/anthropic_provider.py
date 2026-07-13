@@ -114,7 +114,7 @@ class AnthropicProvider(AIProvider):
         self, text: str, image_base64: str | None = None
     ) -> dict:
         from app.services.ai.document_extraction import (
-            DOCUMENT_EXTRACTION_PROMPT,
+            build_text_messages,
             build_vision_messages,
             parse_extraction_response,
         )
@@ -122,12 +122,7 @@ class AnthropicProvider(AIProvider):
         if image_base64:
             messages = build_vision_messages(image_base64, provider_format="anthropic")
         else:
-            messages = [
-                {
-                    "role": "user",
-                    "content": f"{DOCUMENT_EXTRACTION_PROMPT}\n\n書類テキスト:\n{text[:6000]}",
-                }
-            ]
+            messages = build_text_messages(text)
 
         try:
             client = self._get_client()

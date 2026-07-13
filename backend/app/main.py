@@ -56,7 +56,7 @@ async def validate_secrets() -> None:
     )
     if not issues:
         return
-    if settings.ENVIRONMENT == "production":
+    if settings.ENVIRONMENT.strip().lower() == "production":
         raise RuntimeError(
             "Refusing to start in production with insecure configuration: " + "; ".join(issues)
         )

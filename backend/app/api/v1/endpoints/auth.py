@@ -60,7 +60,7 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> To
     if user.mfa_enabled and user.mfa_secret:
         if not payload.mfa_code:
             raise HTTPException(status_code=401, detail=MFA_REQUIRED_DETAIL)
-        if not mfa_service.verify_totp(user.mfa_secret, payload.mfa_code, int(time.time())):
+        if not await mfa_service.verify_and_consume_totp(db, user, payload.mfa_code, int(time.time())):
             raise HTTPException(status_code=401, detail="Invalid MFA code")
 
     access_token = create_access_token(
@@ -83,6 +83,10 @@ async def refresh_token(payload: TokenRefreshRequest) -> TokenResponse:
     return TokenResponse(access_token=access_token, refresh_token=new_refresh)
 
 
+class MfaSetupRequest(BaseModel):
+    current_code: str | None = None
+
+
 class MfaSetupResponse(BaseModel):
     secret: str
     otpauth_uri: str
@@ -99,23 +103,29 @@ class MfaStatusResponse(BaseModel):
 @router.get("/mfa/status", response_model=MfaStatusResponse)
 async def mfa_status(
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ) -> MfaStatusResponse:
     """自ユーザーのMFA有効状態を返す。"""
-    result = await db.execute(select(User).where(User.user_id == current_user.user_id))
-    user = result.scalar_one_or_none()
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-    return MfaStatusResponse(mfa_enabled=user.mfa_enabled)
+    return MfaStatusResponse(mfa_enabled=current_user.mfa_enabled)
 
 
 @router.post("/mfa/setup", response_model=MfaSetupResponse)
 async def mfa_setup(
+    payload: MfaSetupRequest = MfaSetupRequest(),
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MfaSetupResponse:
-    """TOTP秘密鍵を発行する（認証アプリ登録用。enableで有効化するまで未適用）。"""
-    result = await mfa_service.setup_mfa(db, current_user.user_id)
+    """TOTP秘密鍵を発行する（認証アプリ登録用。enableで有効化するまで未適用）。
+
+    MFAが既に有効なアカウントで秘密鍵を再発行（ローテーション）する場合は、
+    現在のTOTPコード（current_code）の検証が必要（盗まれたアクセストークン
+    だけでMFAを無効化できてしまうことを防ぐため）。
+    """
+    try:
+        result = await mfa_service.setup_mfa(
+            db, current_user.user_id, payload.current_code, int(time.time())
+        )
+    except mfa_service.MfaReauthRequired:
+        raise HTTPException(status_code=403, detail="Current MFA code required to re-setup")
     if result is None:
         raise HTTPException(status_code=404, detail="User not found")
     secret, otpauth_uri = result

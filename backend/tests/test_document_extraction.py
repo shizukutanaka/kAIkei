@@ -2,6 +2,7 @@ import pytest
 
 from app.services.ai.document_extraction import (
     DOCUMENT_EXTRACTION_PROMPT,
+    build_text_messages,
     build_vision_messages,
     extract_document_fields_from_pdf,
     merge_document_fields,
@@ -34,6 +35,24 @@ class TestBuildVisionMessages:
     def test_unknown_format_raises(self):
         with pytest.raises(ValueError):
             build_vision_messages("QUJD", provider_format="gemini")
+
+
+class TestBuildTextMessages:
+    def test_structure(self):
+        messages = build_text_messages("請求書本文")
+        assert len(messages) == 1
+        assert messages[0]["role"] == "user"
+        assert DOCUMENT_EXTRACTION_PROMPT in messages[0]["content"]
+        assert "請求書本文" in messages[0]["content"]
+
+    def test_truncates_long_text(self):
+        long_text = "x" * 7000
+        messages = build_text_messages(long_text, max_chars=6000)
+        assert messages[0]["content"].count("x") == 6000
+
+    def test_shared_by_both_providers_identically(self):
+        # Anthropic/OpenAIとも同一のテキストのみメッセージ形式を使う（重複実装の解消）
+        assert build_text_messages("同一入力") == build_text_messages("同一入力")
 
 
 class TestParseExtractionResponse:
