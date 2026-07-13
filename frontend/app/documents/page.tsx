@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPostMultipart } from "@/lib/api";
+import { formatYen } from "@/lib/format";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { SkeletonTable } from "@/components/skeleton";
@@ -35,12 +36,6 @@ const DOC_TYPES = [
   { value: "quotation", label: "見積書" },
   { value: "other", label: "その他" },
 ];
-
-function formatYen(amount: string | null): string {
-  if (amount === null) return "-";
-  const n = Number(amount);
-  return Number.isNaN(n) ? amount : `¥${n.toLocaleString("ja-JP")}`;
-}
 
 export default function DocumentArchivePage() {
   const { companyId } = useCompany();
