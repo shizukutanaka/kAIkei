@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     S3_SECRET_KEY: str = "minioadmin"
     S3_BUCKET_NAME: str = "kaikei-documents"
 
+    # Background jobs（Webhook配信ワーカー等の定期実行）
+    BACKGROUND_JOBS_ENABLED: bool = True
+    WEBHOOK_WORKER_INTERVAL_SECONDS: float = 60.0
+
     # Application
     APP_NAME: str = "kAIkei"
     APP_VERSION: str = "0.1.0"

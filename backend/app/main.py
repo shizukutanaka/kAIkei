@@ -47,6 +47,26 @@ app.add_middleware(AuditLogMiddleware)
 app.add_middleware(IpRestrictionMiddleware)
 
 
+@app.on_event("startup")
+async def start_background_jobs() -> None:
+    """Webhook配信ワーカー等の定期ジョブを起動する。"""
+    if not settings.BACKGROUND_JOBS_ENABLED:
+        logger.info("Background jobs disabled (BACKGROUND_JOBS_ENABLED=false)")
+        return
+    from app.services import background_jobs
+
+    app.state.background_tasks = background_jobs.start_background_jobs()
+
+
+@app.on_event("shutdown")
+async def stop_background_jobs() -> None:
+    tasks = getattr(app.state, "background_tasks", None)
+    if tasks:
+        from app.services import background_jobs
+
+        await background_jobs.stop_background_jobs(tasks)
+
+
 @app.get("/health")
 async def health_check() -> dict[str, str]:
     """ヘルスチェックエンドポイント（DB接続確認付き）。"""
