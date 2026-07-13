@@ -32,6 +32,7 @@ from app.schemas.schemas import (
     PaidLeaveGrantResponse,
     OvertimeLimitCheckRequest,
     OvertimeLimitCheckResponse,
+    RetirementIncomeTaxResponse,
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     QualificationAcquisitionExportRequest,
@@ -65,8 +66,31 @@ from app.services.residence_tax import ResidenceTaxSpecialCollectionService
 from app.services.commute_allowance import CommuteAllowanceService, MODE_TRANSIT
 from app.services.paid_leave import PaidLeaveService
 from app.services.overtime_limit import MonthlyOvertime, OvertimeLimitService
+from app.services.retirement_income_tax import RetirementIncomeTaxService
 
 router = APIRouter()
+
+
+@router.get("/retirement-income-tax")
+async def calculate_retirement_income_tax(
+    severance_pay: Decimal = Query(..., description="退職手当等の額"),  # noqa: B008
+    months_of_service: int = Query(..., description="勤続月数(1年未満切上)"),  # noqa: B008
+    is_specified_officer_5yr_or_less: bool = Query(False, description="特定役員退職手当等(役員等・勤続5年以下)"),  # noqa: B008
+    is_short_term_5yr_or_less: bool = Query(False, description="短期退職手当等(役員等以外・勤続5年以下)"),  # noqa: B008
+    statement_submitted: bool = Query(True, description="退職所得の受給に関する申告書の提出有無"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> RetirementIncomeTaxResponse:
+    try:
+        result = RetirementIncomeTaxService.compute(
+            severance_pay=severance_pay,
+            months_of_service=months_of_service,
+            is_specified_officer_5yr_or_less=is_specified_officer_5yr_or_less,
+            is_short_term_5yr_or_less=is_short_term_5yr_or_less,
+            statement_submitted=statement_submitted,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return RetirementIncomeTaxResponse.model_validate(result)
 
 
 @router.post("/overtime-limit/check")

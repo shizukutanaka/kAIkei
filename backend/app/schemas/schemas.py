@@ -737,6 +737,16 @@ class BonusWithholdingTaxResponse(BaseModel):
     reason: str
 
 
+class RetirementIncomeTaxResponse(BaseModel):
+    years_of_service: int
+    retirement_income_deduction: Decimal
+    taxable_base: Decimal
+    taxable_retirement_income: Decimal
+    income_tax_base: Decimal
+    statement_submitted: bool
+    withholding_tax: Decimal
+
+
 class MonthlyOvertimeInput(BaseModel):
     overtime_hours: Decimal
     holiday_work_hours: Decimal = Decimal("0")
