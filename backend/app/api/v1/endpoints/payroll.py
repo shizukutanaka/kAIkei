@@ -34,6 +34,7 @@ from app.schemas.schemas import (
     OvertimeLimitCheckResponse,
     RetirementIncomeTaxResponse,
     MonthlyPayslipResponse,
+    MinimumWageCheckResponse,
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     QualificationAcquisitionExportRequest,
@@ -69,8 +70,31 @@ from app.services.paid_leave import PaidLeaveService
 from app.services.overtime_limit import MonthlyOvertime, OvertimeLimitService
 from app.services.retirement_income_tax import RetirementIncomeTaxService
 from app.services.monthly_payslip import MonthlyPayslipService
+from app.services.minimum_wage import MinimumWageService, WAGE_TYPE_HOURLY
 
 router = APIRouter()
+
+
+@router.get("/minimum-wage/check")
+async def check_minimum_wage(
+    minimum_hourly_wage: Decimal = Query(..., description="地域別最低賃金額(時間額)"),  # noqa: B008
+    wage_type: str = Query(WAGE_TYPE_HOURLY, description="賃金形態: hourly / monthly"),  # noqa: B008
+    hourly_wage: Decimal | None = Query(None, description="時給(hourly時)"),  # noqa: B008
+    monthly_wage: Decimal | None = Query(None, description="最低賃金対象の月額賃金(monthly時)"),  # noqa: B008
+    monthly_scheduled_hours: Decimal | None = Query(None, description="月平均所定労働時間(monthly時)"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> MinimumWageCheckResponse:
+    try:
+        result = MinimumWageService.check(
+            minimum_hourly_wage=minimum_hourly_wage,
+            wage_type=wage_type,
+            hourly_wage=hourly_wage,
+            monthly_wage=monthly_wage,
+            monthly_scheduled_hours=monthly_scheduled_hours,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return MinimumWageCheckResponse.model_validate(result)
 
 
 @router.get("/monthly-payslip")

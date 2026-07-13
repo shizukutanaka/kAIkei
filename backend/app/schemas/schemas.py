@@ -737,6 +737,13 @@ class BonusWithholdingTaxResponse(BaseModel):
     reason: str
 
 
+class MinimumWageCheckResponse(BaseModel):
+    effective_hourly_wage: Decimal
+    minimum_hourly_wage: Decimal
+    meets_minimum: bool
+    shortfall_per_hour: Decimal
+
+
 class MonthlyPayslipResponse(BaseModel):
     taxable_earnings: Decimal
     non_taxable_commute_allowance: Decimal
