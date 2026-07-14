@@ -5,8 +5,11 @@ from app.services.webhook_service import (
     build_event_payload,
     compute_backoff_seconds,
     event_matches,
+    is_unsafe_ip,
+    resolve_and_check_safe,
     serialize_payload,
     sign_payload,
+    validate_webhook_url_scheme,
     verify_signature,
 )
 
@@ -137,3 +140,93 @@ class TestTimestampedSigning:
         sig = sign_payload("s", body, ts)
         # ウィンドウ内でもタイムスタンプが署名と食い違えば拒否される
         assert verify_signature("s", body, sig, timestamp=ts + 1, now=ts + 2) is False
+
+
+class TestIsUnsafeIp:
+    def test_public_ip_is_safe(self):
+        assert is_unsafe_ip("8.8.8.8") is False
+        assert is_unsafe_ip("1.1.1.1") is False
+
+    def test_private_ranges_unsafe(self):
+        assert is_unsafe_ip("10.0.0.1") is True
+        assert is_unsafe_ip("192.168.1.1") is True
+        assert is_unsafe_ip("172.16.0.1") is True
+
+    def test_loopback_unsafe(self):
+        assert is_unsafe_ip("127.0.0.1") is True
+        assert is_unsafe_ip("::1") is True
+
+    def test_cloud_metadata_ip_unsafe(self):
+        # 169.254.169.254 はAWS/GCP/Azure等のインスタンスメタデータエンドポイント
+        assert is_unsafe_ip("169.254.169.254") is True
+
+    def test_unspecified_and_multicast_unsafe(self):
+        assert is_unsafe_ip("0.0.0.0") is True
+        assert is_unsafe_ip("224.0.0.1") is True
+
+    def test_unparseable_treated_as_unsafe(self):
+        assert is_unsafe_ip("not-an-ip") is True
+
+
+class TestValidateWebhookUrlScheme:
+    def test_http_and_https_allowed(self):
+        assert validate_webhook_url_scheme("https://example.com/hook") is None
+        assert validate_webhook_url_scheme("http://example.com/hook") is None
+
+    def test_other_schemes_rejected(self):
+        assert validate_webhook_url_scheme("file:///etc/passwd") is not None
+        assert validate_webhook_url_scheme("ftp://example.com") is not None
+        assert validate_webhook_url_scheme("gopher://example.com") is not None
+
+    def test_missing_hostname_rejected(self):
+        assert validate_webhook_url_scheme("https:///path") is not None
+
+
+class _FakeResolver:
+    """asyncio getaddrinfo互換の戻り値形状を模したフェイク名前解決。"""
+
+    def __init__(self, addresses: list[str]):
+        self._addresses = addresses
+
+    async def __call__(self, hostname, port):
+        return [(2, 1, 6, "", (addr, port)) for addr in self._addresses]
+
+
+class TestResolveAndCheckSafe:
+    async def test_public_address_allowed(self):
+        resolver = _FakeResolver(["8.8.8.8"])
+        assert await resolve_and_check_safe("https://example.com/hook", resolver=resolver) is None
+
+    async def test_private_address_blocked(self):
+        resolver = _FakeResolver(["10.0.0.5"])
+        reason = await resolve_and_check_safe("https://internal.example/hook", resolver=resolver)
+        assert reason is not None and "10.0.0.5" in reason
+
+    async def test_metadata_address_blocked(self):
+        resolver = _FakeResolver(["169.254.169.254"])
+        reason = await resolve_and_check_safe("http://169.254.169.254/latest/meta-data/", resolver=resolver)
+        assert reason is not None
+
+    async def test_mixed_addresses_blocked_if_any_unsafe(self):
+        # DNSラウンドロビンで複数アドレスが返る場合、1つでも危険なら拒否する
+        resolver = _FakeResolver(["8.8.8.8", "127.0.0.1"])
+        assert await resolve_and_check_safe("https://example.com/hook", resolver=resolver) is not None
+
+    async def test_bad_scheme_rejected_without_resolving(self):
+        called = False
+
+        async def resolver(hostname, port):
+            nonlocal called
+            called = True
+            return []
+
+        reason = await resolve_and_check_safe("ftp://example.com", resolver=resolver)
+        assert reason is not None
+        assert called is False  # スキーム不正の時点で名前解決を試みない
+
+    async def test_unresolvable_hostname_blocked(self):
+        async def resolver(hostname, port):
+            raise OSError("name resolution failed")
+
+        reason = await resolve_and_check_safe("https://does-not-exist.invalid/hook", resolver=resolver)
+        assert reason is not None

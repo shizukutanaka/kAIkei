@@ -1,10 +1,12 @@
 import hashlib
+import uuid
 from datetime import date
 from decimal import Decimal
 
 import pytest
 
 from app.services.document_archive import (
+    build_storage_key,
     compute_file_hash,
     matches_search,
     verify_integrity,
@@ -70,3 +72,37 @@ class TestMatchesSearch:
             amount_min=Decimal("1000"), amount_max=Decimal("10000"),
             counterparty="カイケイ",
         ) is True
+
+
+class TestBuildStorageKey:
+    TENANT = uuid.UUID("11111111-1111-1111-1111-111111111111")
+    COMPANY = uuid.UUID("22222222-2222-2222-2222-222222222222")
+    D = date(2026, 4, 15)
+
+    def test_includes_tenant_company_and_date(self):
+        key = build_storage_key(self.TENANT, self.COMPANY, self.D, "invoice.pdf")
+        assert key.startswith(f"{self.TENANT}/{self.COMPANY}/2026-04-15/")
+        assert key.endswith("_invoice.pdf")
+
+    def test_two_calls_with_identical_inputs_never_collide(self):
+        # 同一テナント・同一会社・同一日付・同一ファイル名の連続アップロードでも
+        # ストレージキーが衝突しない（既存オブジェクトの上書き事故を防ぐ）。
+        k1 = build_storage_key(self.TENANT, self.COMPANY, self.D, "invoice.pdf")
+        k2 = build_storage_key(self.TENANT, self.COMPANY, self.D, "invoice.pdf")
+        assert k1 != k2
+
+    def test_sanitizes_path_traversal_in_filename(self):
+        key = build_storage_key(self.TENANT, self.COMPANY, self.D, "../../etc/passwd")
+        # スラッシュはすべて除去され、日付より後ろは単一セグメントの末尾ファイル名になる
+        # （パス区切りが残らないため、経路逸脱に使えない）。
+        tail = key.split(f"{self.D.isoformat()}/", 1)[1]
+        assert "/" not in tail and "\\" not in tail
+
+    def test_sanitizes_backslash(self):
+        key = build_storage_key(self.TENANT, self.COMPANY, self.D, "..\\..\\windows\\win.ini")
+        tail = key.split(f"{self.D.isoformat()}/", 1)[1]
+        assert "\\" not in tail
+
+    def test_empty_filename_falls_back_to_document(self):
+        key = build_storage_key(self.TENANT, self.COMPANY, self.D, "")
+        assert key.endswith("_document")

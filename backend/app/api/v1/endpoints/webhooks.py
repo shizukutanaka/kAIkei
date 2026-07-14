@@ -23,15 +23,18 @@ async def register_endpoint(
     db: AsyncSession = Depends(get_db),
 ) -> WebhookEndpointResponse:
     """Webhook登録先を作成する。"""
-    endpoint = await webhook_service.create_endpoint(
-        db,
-        tenant_id=current_user.tenant_id,
-        url=payload.url,
-        secret=payload.secret,
-        subscribed_events=payload.subscribed_events,
-        company_id=payload.company_id,
-        description=payload.description,
-    )
+    try:
+        endpoint = await webhook_service.create_endpoint(
+            db,
+            tenant_id=current_user.tenant_id,
+            url=payload.url,
+            secret=payload.secret,
+            subscribed_events=payload.subscribed_events,
+            company_id=payload.company_id,
+            description=payload.description,
+        )
+    except webhook_service.UnsafeWebhookUrlError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return WebhookEndpointResponse.model_validate(endpoint)
 
 
@@ -83,8 +86,14 @@ async def process_due_deliveries(
     current_user: CurrentUser = Depends(require_permission(Permission.WEBHOOK_MANAGE)),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """再試行時刻を過ぎた保留中の配信を処理する（配信ワーカーの手動トリガー）。"""
-    processed = await webhook_service.process_due_deliveries(db, limit=limit)
+    """再試行時刻を過ぎた保留中の配信を処理する（配信ワーカーの手動トリガー）。
+
+    自テナントのエンドポイント宛ての配信のみを処理する（他テナントの配信を
+    強制送信できてしまわないよう、常にtenant_idでスコープする）。
+    """
+    processed = await webhook_service.process_due_deliveries(
+        db, limit=limit, tenant_id=current_user.tenant_id
+    )
     return {"processed": processed}
 
 

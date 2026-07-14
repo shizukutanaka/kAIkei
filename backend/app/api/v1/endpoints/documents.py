@@ -48,22 +48,27 @@ async def archive(
 ) -> ArchivedDocumentResponse:
     """証憑ファイルを電帳法アーカイブへ登録する（SHA-256ハッシュ付与）。"""
     file_bytes = await file.read()
-    storage_path = f"{company_id}/{transaction_date.isoformat()}/{file.filename}"
-    document = await document_archive.archive_document(
-        db,
-        tenant_id=current_user.tenant_id,
-        company_id=company_id,
-        document_type=document_type,
-        file_name=file.filename or "document",
-        file_bytes=file_bytes,
-        transaction_date=transaction_date,
-        storage_path=storage_path,
-        amount=amount,
-        counterparty_name=counterparty_name,
-        mime_type=file.content_type,
-        linked_journal_header_id=linked_journal_header_id,
-        registered_by=current_user.user_id,
+    storage_path = document_archive.build_storage_key(
+        current_user.tenant_id, company_id, transaction_date, file.filename or "document"
     )
+    try:
+        document = await document_archive.archive_document(
+            db,
+            tenant_id=current_user.tenant_id,
+            company_id=company_id,
+            document_type=document_type,
+            file_name=file.filename or "document",
+            file_bytes=file_bytes,
+            transaction_date=transaction_date,
+            storage_path=storage_path,
+            amount=amount,
+            counterparty_name=counterparty_name,
+            mime_type=file.content_type,
+            linked_journal_header_id=linked_journal_header_id,
+            registered_by=current_user.user_id,
+        )
+    except document_archive.CompanyNotFoundError:
+        raise HTTPException(status_code=404, detail="Company not found")
     return ArchivedDocumentResponse.model_validate(document)
 
 
@@ -84,6 +89,7 @@ async def search(
     docs = await document_archive.search_documents(
         db,
         company_id=company_id,
+        tenant_id=current_user.tenant_id,
         date_from=date_from,
         date_to=date_to,
         amount_min=amount_min,
@@ -110,23 +116,28 @@ async def supersede(
 ) -> ArchivedDocumentResponse:
     """既存証憑を差し替える。旧版は残し、新版へのリンク（訂正削除履歴）を張る。"""
     file_bytes = await file.read()
-    storage_path = f"{company_id}/{transaction_date.isoformat()}/{file.filename}"
-    result = await document_archive.supersede_document(
-        db,
-        tenant_id=current_user.tenant_id,
-        company_id=company_id,
-        old_document_id=document_id,
-        document_type=document_type,
-        file_name=file.filename or "document",
-        file_bytes=file_bytes,
-        transaction_date=transaction_date,
-        storage_path=storage_path,
-        amount=amount,
-        counterparty_name=counterparty_name,
-        mime_type=file.content_type,
-        linked_journal_header_id=linked_journal_header_id,
-        registered_by=current_user.user_id,
+    storage_path = document_archive.build_storage_key(
+        current_user.tenant_id, company_id, transaction_date, file.filename or "document"
     )
+    try:
+        result = await document_archive.supersede_document(
+            db,
+            tenant_id=current_user.tenant_id,
+            company_id=company_id,
+            old_document_id=document_id,
+            document_type=document_type,
+            file_name=file.filename or "document",
+            file_bytes=file_bytes,
+            transaction_date=transaction_date,
+            storage_path=storage_path,
+            amount=amount,
+            counterparty_name=counterparty_name,
+            mime_type=file.content_type,
+            linked_journal_header_id=linked_journal_header_id,
+            registered_by=current_user.user_id,
+        )
+    except document_archive.CompanyNotFoundError:
+        raise HTTPException(status_code=404, detail="Company not found")
     if result is None:
         raise HTTPException(status_code=404, detail="Archived document not found")
     _old, new = result
@@ -141,7 +152,7 @@ async def download(
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """保存済み証憑ファイル本体をダウンロードする。"""
-    result = await document_archive.download_document(db, document_id, company_id)
+    result = await document_archive.download_document(db, document_id, company_id, current_user.tenant_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Archived document not found")
     document, data = result
@@ -162,7 +173,9 @@ async def verify(
 ) -> DocumentVerifyResponse:
     """改ざん検知。ファイル未指定時は保存済み本体を、指定時は再アップロード分を照合する。"""
     file_bytes = await file.read() if file is not None else None
-    result = await document_archive.verify_document(db, document_id, company_id, file_bytes)
+    result = await document_archive.verify_document(
+        db, document_id, company_id, current_user.tenant_id, file_bytes
+    )
     if result is None:
         raise HTTPException(status_code=404, detail="Archived document not found")
     return DocumentVerifyResponse(**result)

@@ -7,17 +7,25 @@
 """
 import hashlib
 import logging
+import re
 from datetime import date
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.models import ArchivedDocument
+from app.models.models import ArchivedDocument, Company
 from app.services import storage as storage_module
 
 logger = logging.getLogger(__name__)
+
+
+class CompanyNotFoundError(Exception):
+    """company_idが指定tenant_idに属さない（または存在しない）場合に送出する。"""
+
+
+_UNSAFE_PATH_CHARS = re.compile(r"[/\\]")
 
 
 # --- 純粋関数（DB非依存・テスト可能） ---------------------------------------
@@ -25,6 +33,22 @@ logger = logging.getLogger(__name__)
 def compute_file_hash(file_bytes: bytes) -> str:
     """ファイルのSHA-256ハッシュ（16進）を計算する。"""
     return hashlib.sha256(file_bytes).hexdigest()
+
+
+def build_storage_key(
+    tenant_id: UUID, company_id: UUID, transaction_date: date, file_name: str
+) -> str:
+    """ストレージキー（オブジェクトパス）を組み立てる。
+
+    - tenant_idを接頭辞に含め、ストレージ層での取り違えに対する保険とする
+      （行レベルのtenant_id検証が主防御だが、キー自体もテナントで分離する）。
+    - ファイル名からパス区切り文字を除去し、ディレクトリトラバーサルや
+      別プレフィックスへの逸脱を防ぐ。
+    - UUIDを挟むことで同名ファイル・同日・同社の同時アップロードでも
+      キーが衝突しない（衝突は既存オブジェクトの上書き＝データ破損に直結する）。
+    """
+    safe_name = _UNSAFE_PATH_CHARS.sub("_", file_name or "document").lstrip(".")
+    return f"{tenant_id}/{company_id}/{transaction_date.isoformat()}/{uuid4()}_{safe_name or 'document'}"
 
 
 def verify_integrity(file_bytes: bytes, expected_hash: str) -> bool:
@@ -80,7 +104,18 @@ async def archive_document(
 
     ファイル保存に失敗した場合はメタデータを書き込まず例外を送出する（本体なしの
     メタデータ行を残さないため）。
+
+    Raises:
+        CompanyNotFoundError: company_idがtenant_idに属していない場合
+            （他テナントのcompany_idを指定して、自テナントの証憑として
+            登録しようとする不整合行の作成を防ぐ）。
     """
+    company_result = await db.execute(
+        select(Company).where(Company.company_id == company_id, Company.tenant_id == tenant_id)
+    )
+    if company_result.scalar_one_or_none() is None:
+        raise CompanyNotFoundError(f"Company {company_id} does not belong to tenant {tenant_id}")
+
     store = store or storage_module.storage
     await store.put_object(storage_path, file_bytes, mime_type)
     document = ArchivedDocument(
@@ -107,6 +142,7 @@ async def archive_document(
 async def search_documents(
     db: AsyncSession,
     company_id: UUID,
+    tenant_id: UUID,
     date_from: date | None = None,
     date_to: date | None = None,
     amount_min: Decimal | None = None,
@@ -115,8 +151,15 @@ async def search_documents(
     include_superseded: bool = False,
     limit: int = 100,
 ) -> list[ArchivedDocument]:
-    """電帳法の検索3軸で証憑を検索する。既定では現行版（未差替え）のみ返す。"""
-    conditions = [ArchivedDocument.company_id == company_id]
+    """電帳法の検索3軸で証憑を検索する。既定では現行版（未差替え）のみ返す。
+
+    tenant_idで境界を強制する（company_idだけでは、呼び出し側が他テナントの
+    company_idを渡した場合に他テナントの証憑が返ってしまう）。
+    """
+    conditions = [
+        ArchivedDocument.company_id == company_id,
+        ArchivedDocument.tenant_id == tenant_id,
+    ]
     if not include_superseded:
         conditions.append(ArchivedDocument.superseded_by_id.is_(None))
     if date_from is not None:
@@ -139,24 +182,25 @@ async def search_documents(
 
 
 async def get_document(
-    db: AsyncSession, document_id: UUID, company_id: UUID
+    db: AsyncSession, document_id: UUID, company_id: UUID, tenant_id: UUID
 ) -> ArchivedDocument | None:
-    """証憑を1件取得する。"""
+    """証憑を1件取得する（テナント境界を強制）。"""
     result = await db.execute(
         select(ArchivedDocument).where(
             ArchivedDocument.archived_document_id == document_id,
             ArchivedDocument.company_id == company_id,
+            ArchivedDocument.tenant_id == tenant_id,
         )
     )
     return result.scalar_one_or_none()
 
 
 async def download_document(
-    db: AsyncSession, document_id: UUID, company_id: UUID, store=None
+    db: AsyncSession, document_id: UUID, company_id: UUID, tenant_id: UUID, store=None
 ) -> tuple[ArchivedDocument, bytes] | None:
     """保存済み証憑のメタデータと本体バイト列を取得する。"""
     store = store or storage_module.storage
-    document = await get_document(db, document_id, company_id)
+    document = await get_document(db, document_id, company_id, tenant_id)
     if document is None:
         return None
     data = await store.get_object(document.storage_path)
@@ -167,11 +211,12 @@ async def verify_document(
     db: AsyncSession,
     document_id: UUID,
     company_id: UUID,
+    tenant_id: UUID,
     file_bytes: bytes | None = None,
     store=None,
 ) -> dict | None:
     """証憑の改ざん検知。file_bytes未指定時は保存済み本体を取得して照合する。"""
-    document = await get_document(db, document_id, company_id)
+    document = await get_document(db, document_id, company_id, tenant_id)
     if document is None:
         return None
     if file_bytes is None:
@@ -207,7 +252,7 @@ async def supersede_document(
 
     旧版は削除せず superseded_by_id で新版を指す（電帳法の訂正削除履歴）。
     """
-    old = await get_document(db, old_document_id, company_id)
+    old = await get_document(db, old_document_id, company_id, tenant_id)
     if old is None:
         return None
     new = await archive_document(

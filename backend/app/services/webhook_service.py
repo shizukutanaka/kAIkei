@@ -6,12 +6,15 @@ Webhook登録先(WebhookEndpoint)の管理と、イベント発生時の配信�
 署名・バックオフ・イベント突合などのコアロジックは純粋関数として切り出し、
 DB/ネットワークに依存せず単体テスト可能にしている。
 """
+import asyncio
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
 import random
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
 import httpx
@@ -33,6 +36,12 @@ EVENT_HEADER = "X-Kaikei-Event"
 
 # リプレイ防止: 署名タイムスタンプの許容ウィンドウ（秒）。
 SIGNATURE_TOLERANCE_SECONDS = 300
+
+ALLOWED_WEBHOOK_URL_SCHEMES = {"http", "https"}
+
+
+class UnsafeWebhookUrlError(Exception):
+    """Webhook URLがSSRF的に危険（内部/予約アドレス等）と判定された場合に送出する。"""
 
 
 # --- 純粋関数（DB非依存・テスト可能） ---------------------------------------
@@ -112,6 +121,76 @@ def build_event_payload(event_type: str, data: dict, event_id: str, occurred_at:
     }
 
 
+def is_unsafe_ip(ip_str: str) -> bool:
+    """SSRF標的として危険なIPアドレス（プライベート/ループバック/リンクローカル等）か判定する。
+
+    169.254.169.254（クラウドメタデータエンドポイント）は is_link_local に含まれる。
+    """
+    try:
+        ip = ipaddress.ip_address(ip_str)
+    except ValueError:
+        return True  # パースできないものは安全側に倒し危険扱いとする
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    )
+
+
+def validate_webhook_url_scheme(url: str) -> str | None:
+    """WebhookのURLがhttp/httpsスキーム・ホスト指定を持つか検証する（純粋・同期）。
+
+    問題があれば理由文字列、なければNoneを返す。
+    """
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return "Invalid webhook URL"
+    if parsed.scheme not in ALLOWED_WEBHOOK_URL_SCHEMES:
+        return "Webhook URL must use http or https"
+    if not parsed.hostname:
+        return "Webhook URL must include a hostname"
+    return None
+
+
+async def _default_resolver(hostname: str, port: int):
+    """既定の名前解決（実DNS）。テストではこの関数をmonkeypatchして差し替える。"""
+    return await asyncio.get_event_loop().getaddrinfo(hostname, port)
+
+
+async def resolve_and_check_safe(url: str, resolver=None) -> str | None:
+    """WebhookのURLがSSRF的に安全かを検証する（名前解決込み）。
+
+    登録時・配信直前の双方で呼び出す。配信直前にも呼ぶのは、登録後に
+    DNSの応答が変化する（DNSリバインディング）ことで安全なホスト名が
+    後から内部アドレスへ差し替わるケースへの対策。resolver省略時は
+    _default_resolver（実DNS）を使う。テストではresolver引数を渡すか、
+    モジュールの_default_resolverをmonkeypatchすることで実ネットワークに
+    依存せず検証できる。
+
+    Returns:
+        問題があれば理由文字列、なければNone。
+    """
+    reason = validate_webhook_url_scheme(url)
+    if reason:
+        return reason
+    parsed = urlparse(url)
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    resolve = resolver or _default_resolver
+    try:
+        infos = await resolve(parsed.hostname, port)
+    except OSError:
+        return "Webhook URL hostname could not be resolved"
+    for info in infos:
+        addr = info[4][0]
+        if is_unsafe_ip(addr):
+            return f"Webhook URL resolves to a disallowed address ({addr})"
+    return None
+
+
 # --- 非同期サービス（DB/ネットワーク依存） ----------------------------------
 
 async def create_endpoint(
@@ -123,7 +202,14 @@ async def create_endpoint(
     company_id: UUID | None = None,
     description: str | None = None,
 ) -> WebhookEndpoint:
-    """Webhook登録先を作成する。"""
+    """Webhook登録先を作成する。
+
+    Raises:
+        UnsafeWebhookUrlError: URLがSSRF的に危険（内部/予約アドレス等）な場合。
+    """
+    unsafe_reason = await resolve_and_check_safe(url)
+    if unsafe_reason:
+        raise UnsafeWebhookUrlError(unsafe_reason)
     endpoint = WebhookEndpoint(
         tenant_id=tenant_id,
         company_id=company_id,
@@ -259,23 +345,33 @@ async def attempt_delivery(
     }
     delivery.attempt_count += 1
 
-    try:
-        async with httpx.AsyncClient(timeout=DELIVERY_TIMEOUT_SECONDS) as client:
-            response = await client.post(endpoint.url, content=body, headers=headers)
-        delivery.last_status_code = response.status_code
-        if 200 <= response.status_code < 300:
-            delivery.status = "delivered"
-            delivery.delivered_at = now
-            delivery.next_retry_at = None
-            delivery.last_error = None
-            await db.commit()
-            await db.refresh(delivery)
-            return True
-        delivery.last_error = f"HTTP {response.status_code}"
-    except Exception as e:  # noqa: BLE001 - 送信失敗は種別を問わず再試行対象
+    # 配信直前にもURL安全性を再検証する（DNSリバインディング対策。登録時チェックだけでは
+    # 登録後にホスト名の解決結果が内部アドレスへ変化するケースを防げない）。
+    unsafe_reason = await resolve_and_check_safe(endpoint.url)
+    if unsafe_reason:
         delivery.last_status_code = None
-        delivery.last_error = str(e)[:500]
-        logger.warning("Webhook delivery %s failed: %s", delivery.webhook_delivery_id, e)
+        delivery.last_error = f"Blocked: {unsafe_reason}"
+        logger.warning(
+            "Webhook delivery %s blocked (unsafe URL): %s", delivery.webhook_delivery_id, unsafe_reason
+        )
+    else:
+        try:
+            async with httpx.AsyncClient(timeout=DELIVERY_TIMEOUT_SECONDS) as client:
+                response = await client.post(endpoint.url, content=body, headers=headers)
+            delivery.last_status_code = response.status_code
+            if 200 <= response.status_code < 300:
+                delivery.status = "delivered"
+                delivery.delivered_at = now
+                delivery.next_retry_at = None
+                delivery.last_error = None
+                await db.commit()
+                await db.refresh(delivery)
+                return True
+            delivery.last_error = f"HTTP {response.status_code}"
+        except Exception as e:  # noqa: BLE001 - 送信失敗は種別を問わず再試行対象
+            delivery.last_status_code = None
+            delivery.last_error = str(e)[:500]
+            logger.warning("Webhook delivery %s failed: %s", delivery.webhook_delivery_id, e)
 
     if delivery.attempt_count >= delivery.max_attempts:
         delivery.status = "failed"
@@ -291,26 +387,55 @@ async def attempt_delivery(
     return False
 
 
-async def process_due_deliveries(db: AsyncSession, limit: int = 50) -> int:
-    """再試行時刻を過ぎたpending配信を処理する（配信ワーカー用）。
+async def process_due_deliveries(
+    db: AsyncSession, limit: int = 50, tenant_id: UUID | None = None
+) -> int:
+    """再試行時刻を過ぎたpending配信を処理する。
+
+    tenant_id指定時はそのテナントのエンドポイント宛ての配信のみを対象とする
+    （テナント管理者が手動トリガーするAPI用。バックグラウンドワーカーは
+    tenant_id未指定で全テナントを対象に呼び出す）。
+
+    各配信は SELECT ... FOR UPDATE SKIP LOCKED で個別に確保してから送信する。
+    これにより、同時に複数のワーカー/手動トリガーが実行されても同一配信が
+    二重送信されない（確保できなかった配信は他の実行者が処理中とみなしスキップする）。
 
     Returns:
         送信を試行した件数。
     """
     now = datetime.now(timezone.utc)
-    result = await db.execute(
-        select(WebhookDelivery)
+    id_query = (
+        select(WebhookDelivery.webhook_delivery_id)
+        .join(
+            WebhookEndpoint,
+            WebhookDelivery.webhook_endpoint_id == WebhookEndpoint.webhook_endpoint_id,
+        )
         .where(
             WebhookDelivery.status == "pending",
             WebhookDelivery.next_retry_at <= now,
+            WebhookEndpoint.is_active == True,  # noqa: E712
         )
-        .order_by(WebhookDelivery.next_retry_at)
-        .limit(limit)
     )
-    due = list(result.scalars().all())
+    if tenant_id is not None:
+        id_query = id_query.where(WebhookEndpoint.tenant_id == tenant_id)
+    id_query = id_query.order_by(WebhookDelivery.next_retry_at).limit(limit)
+
+    due_ids = [row[0] for row in (await db.execute(id_query)).all()]
 
     processed = 0
-    for delivery in due:
+    for delivery_id in due_ids:
+        locked_result = await db.execute(
+            select(WebhookDelivery)
+            .where(
+                WebhookDelivery.webhook_delivery_id == delivery_id,
+                WebhookDelivery.status == "pending",
+            )
+            .with_for_update(skip_locked=True)
+        )
+        delivery = locked_result.scalar_one_or_none()
+        if delivery is None:
+            continue  # 他の実行者が既に確保済み、または状態が変化した
+
         endpoint_result = await db.execute(
             select(WebhookEndpoint).where(
                 WebhookEndpoint.webhook_endpoint_id == delivery.webhook_endpoint_id
@@ -344,7 +469,8 @@ async def replay_delivery(
         )
     )
     delivery = result.scalar_one_or_none()
-    if delivery is None:
+    if delivery is None or delivery.status == "delivered":
+        # 配信済み(delivered)は再キュー対象外（顧客側への重複配信を防ぐ）。
         return None
     delivery.status = "pending"
     delivery.attempt_count = 0

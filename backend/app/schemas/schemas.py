@@ -639,7 +639,8 @@ class NotificationPreferenceUpdate(BaseModel):
 
 class WebhookEndpointCreate(BaseModel):
     url: str = Field(max_length=500)
-    secret: str = Field(min_length=8, max_length=200)
+    # HMAC-SHA256の鍵として十分なエントロピーを持たせるため32文字以上を要求する。
+    secret: str = Field(min_length=32, max_length=200)
     subscribed_events: list[str] = Field(default_factory=lambda: ["*"])
     company_id: UUID | None = None
     description: str | None = Field(default=None, max_length=200)

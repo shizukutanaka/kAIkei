@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     BACKGROUND_JOBS_ENABLED: bool = True
     WEBHOOK_WORKER_INTERVAL_SECONDS: float = 60.0
 
+    # IP制限ミドルウェア: リバースプロキシ配下でのみtrueにする。
+    # X-Forwarded-Forはクライアントが自由に指定できるヘッダのため、
+    # 信頼できるプロキシが上書きすることが保証された構成でのみ有効化すること。
+    TRUST_PROXY_HEADERS: bool = False
+
     # Application
     APP_NAME: str = "kAIkei"
     APP_VERSION: str = "0.1.0"

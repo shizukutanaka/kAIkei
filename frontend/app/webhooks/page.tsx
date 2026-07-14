@@ -163,7 +163,7 @@ export default function WebhooksPage() {
             </div>
             <div>
               <label htmlFor="wh-secret" className="mb-1 block text-xs font-medium">署名シークレット <span className="text-destructive" aria-hidden="true">*</span></label>
-              <input id="wh-secret" type="text" required minLength={8} value={secret} onChange={(e) => setSecret(e.target.value)} placeholder="8文字以上" className="w-full rounded-md border px-3 py-2 text-sm" />
+              <input id="wh-secret" type="text" required minLength={32} value={secret} onChange={(e) => setSecret(e.target.value)} placeholder="32文字以上" className="w-full rounded-md border px-3 py-2 text-sm" />
             </div>
             <div>
               <label htmlFor="wh-events" className="mb-1 block text-xs font-medium">購読イベント（カンマ/改行区切り）</label>
