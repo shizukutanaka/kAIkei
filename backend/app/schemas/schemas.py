@@ -1352,3 +1352,53 @@ class CashflowForecastResponse(BaseModel):
     company_id: UUID
     as_of: date
     buckets: list[CashflowForecastBucket]
+
+
+class DenchouElectronicCheckRequest(BaseModel):
+    has_timestamp: bool = False
+    has_correction_deletion_history: bool = False
+    has_operational_rules: bool = False
+    has_display_device: bool = True
+    can_search_by_date: bool = False
+    can_search_by_amount: bool = False
+    can_search_by_counterparty: bool = False
+    can_search_by_range: bool = False
+    can_search_by_combination: bool = False
+    base_period_sales: Decimal = Decimal("0")
+    can_provide_download: bool = False
+
+
+class DenchouElectronicCheckResponse(BaseModel):
+    authenticity_met: bool
+    visibility_met: bool
+    required_search_level: str
+    search_requirement_met: bool
+    compliant: bool
+    missing_requirements: list[str]
+
+
+class DenchouScannerCheckRequest(BaseModel):
+    resolution_dpi: int
+    is_color: bool = True
+    is_general_document: bool = False
+    input_period_type: str = "prompt"
+    days_until_input: int = 0
+    has_operational_rules: bool = False
+    has_timestamp: bool = False
+    has_correction_deletion_history: bool = False
+    has_display_device: bool = True
+    can_search_by_date: bool = False
+    can_search_by_amount: bool = False
+    can_search_by_counterparty: bool = False
+    can_search_by_range: bool = False
+    can_search_by_combination: bool = False
+
+
+class DenchouScannerCheckResponse(BaseModel):
+    resolution_met: bool
+    color_met: bool
+    input_period_met: bool
+    authenticity_met: bool
+    visibility_met: bool
+    compliant: bool
+    missing_requirements: list[str]
