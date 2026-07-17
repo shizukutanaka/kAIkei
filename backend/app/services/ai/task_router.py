@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from app.services.ai.base_provider import AIProvider, InferenceRequest, InferenceResult
+from app.services.ai.base_provider import AIProvider, InferenceRequest
 
 logger = logging.getLogger(__name__)
 

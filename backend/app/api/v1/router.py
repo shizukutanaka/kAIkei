@@ -1,6 +1,43 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import ai, ai_inference_logs, approval_policies, approvals, audit, audit_detection, auth, attendance, bank, bonus, companies, documents, expenses, fixed_assets, integrations, invoices, journals, knowledge, masters, notifications, office_tasks, partners, payroll, rbac, reports, security_policy, tax_adjustments, tax_returns, webhooks, year_end
+from app.api.v1.endpoints import (
+    ai,
+    ai_inference_logs,
+    approval_policies,
+    approvals,
+    attendance,
+    audit,
+    audit_detection,
+    auth,
+    bank,
+    bonus,
+    budgets,
+    companies,
+    documents,
+    expenses,
+    fixed_assets,
+    integrations,
+    invoices,
+    jobs,
+    journals,
+    knowledge,
+    masters,
+    notifications,
+    office_tasks,
+    ops,
+    partners,
+    payments,
+    payroll,
+    rbac,
+    reports,
+    security_policy,
+    tax_adjustments,
+    tax_forecast,
+    tax_returns,
+    treasury,
+    webhooks,
+    year_end,
+)
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
@@ -10,6 +47,10 @@ api_router.include_router(journals.router, prefix="/journals", tags=["Journals"]
 api_router.include_router(approvals.router, prefix="/approvals", tags=["Approvals"])
 api_router.include_router(masters.router, prefix="/masters", tags=["Masters"])
 api_router.include_router(reports.router, prefix="/reports", tags=["Reports"])
+api_router.include_router(budgets.router, prefix="/budgets", tags=["Budgets"])
+api_router.include_router(bank.router, prefix="/bank", tags=["Bank Reconciliation"])
+api_router.include_router(payments.router, prefix="/payments", tags=["Payments"])
+api_router.include_router(documents.router, prefix="/documents", tags=["Document Archive"])
 api_router.include_router(ai.router, prefix="/ai", tags=["AI"])
 api_router.include_router(integrations.router, prefix="/integrations", tags=["Integrations"])
 api_router.include_router(knowledge.router, prefix="/knowledge", tags=["Knowledge"])
@@ -21,15 +62,17 @@ api_router.include_router(year_end.router, prefix="/year-end", tags=["Year-End A
 api_router.include_router(attendance.router, prefix="/attendance", tags=["Attendance"])
 api_router.include_router(expenses.router, prefix="/expenses", tags=["Expenses"])
 api_router.include_router(invoices.router, prefix="/invoices", tags=["Invoices"])
+api_router.include_router(tax_forecast.router, prefix="/tax", tags=["Tax"])
+api_router.include_router(jobs.router, prefix="/jobs", tags=["Jobs"])
 api_router.include_router(tax_returns.router, prefix="/tax-returns", tags=["Tax Returns"])
+api_router.include_router(treasury.router, prefix="/treasury", tags=["Treasury"])
+api_router.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks"])
 api_router.include_router(audit.router, prefix="/audit", tags=["Audit"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
-api_router.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks"])
-api_router.include_router(bank.router, prefix="/bank", tags=["Bank Reconciliation"])
 api_router.include_router(audit_detection.router, prefix="/audit-detection", tags=["Audit Detection"])
 api_router.include_router(tax_adjustments.router, prefix="/tax-adjustments", tags=["Tax Adjustments"])
-api_router.include_router(documents.router, prefix="/documents", tags=["Document Archive"])
 api_router.include_router(approval_policies.router, prefix="/approval-policies", tags=["Approval Policies"])
 api_router.include_router(security_policy.router, prefix="/security-policy", tags=["Security Policy"])
 api_router.include_router(ai_inference_logs.router, prefix="/ai-inference-logs", tags=["AI Inference Logs"])
 api_router.include_router(office_tasks.router, prefix="/office-tasks", tags=["Office Tasks"])
+api_router.include_router(ops.router, prefix="/ops", tags=["Operations"])

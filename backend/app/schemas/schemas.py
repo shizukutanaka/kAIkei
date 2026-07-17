@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.services.labor_insurance import DEFAULT_WORKERS_COMPENSATION_RATE
+
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -947,3 +949,521 @@ class OfficeTaskProgressResponse(BaseModel):
     in_progress: int
     done: int
     completion_rate: float
+
+
+# --- main由来の独立ドメイン用スキーマ（予算/銀行/支払/ジョブ/税務/賞与/社保等） ---
+
+class InvoiceTaxLineInput(BaseModel):
+    amount: Decimal = Field(ge=0)
+    tax_rate: Decimal
+
+
+class InvoiceTaxComputeRequest(BaseModel):
+    lines: list[InvoiceTaxLineInput]
+
+
+class InvoiceTaxRateBreakdownResponse(BaseModel):
+    tax_rate: Decimal
+    taxable_base: Decimal
+    tax: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class InvoiceTaxComputeResponse(BaseModel):
+    by_rate: list[InvoiceTaxRateBreakdownResponse]
+    total_taxable: Decimal
+    total_tax: Decimal
+    total_amount: Decimal
+
+
+class QualifiedInvoiceLineInput(BaseModel):
+    description: str
+    tax_rate: Decimal
+
+
+class QualifiedInvoiceTaxByRateInput(BaseModel):
+    tax_rate: Decimal
+    tax_amount: Decimal
+
+
+class QualifiedInvoiceCheckRequest(BaseModel):
+    issuer_name: str
+    registration_number: str
+    transaction_date: date | None = None
+    recipient_name: str
+    line_items: list[QualifiedInvoiceLineInput]
+    tax_by_rate: list[QualifiedInvoiceTaxByRateInput]
+
+
+class QualifiedInvoiceCheckResponse(BaseModel):
+    is_valid: bool
+    missing_fields: list[str]
+    registration_number_valid: bool
+
+
+class LaborInsuranceEmployeeResponse(BaseModel):
+    employee_id: UUID
+    employee_name: str
+    gross_monthly_pay: Decimal
+    employment_insurance_employee: Decimal
+    employment_insurance_employer: Decimal
+    workers_comp_employer: Decimal
+    total_employee: Decimal
+    total_employer: Decimal
+    total_premium: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class LaborInsuranceSummaryResponse(BaseModel):
+    company_id: UUID
+    target_year: int
+    target_month: int
+    business_type: str
+    workers_comp_rate: Decimal
+    employee_count: int
+    total_employee_premium: Decimal
+    total_employer_premium: Decimal
+    total_premium: Decimal
+    items: list[LaborInsuranceEmployeeResponse]
+
+
+class AuditLedgerImbalanceEntry(BaseModel):
+    journal_header_id: UUID
+    debit_sum: Decimal
+    credit_sum: Decimal
+    difference: Decimal
+
+
+class AuditLedgerBalanceCheckResponse(BaseModel):
+    headers_checked: int
+    imbalanced_count: int
+    total_debit: Decimal
+    total_credit: Decimal
+    imbalanced_entries: list[AuditLedgerImbalanceEntry]
+
+
+class AuditLedgerCacheDriftEntry(BaseModel):
+    account_id: UUID
+    year: int
+    month: int
+    expected_debit: Decimal
+    expected_credit: Decimal
+    cached_debit: Decimal
+    cached_credit: Decimal
+
+
+class AuditLedgerCacheDriftResponse(BaseModel):
+    rows_checked: int
+    drift_count: int
+    drift_entries: list[AuditLedgerCacheDriftEntry]
+
+
+class LedgerCheckRequest(BaseModel):
+    company_id: UUID
+    target_date: date
+
+
+class LedgerCheckResponse(BaseModel):
+    status: str
+    balance_check: AuditLedgerBalanceCheckResponse
+    cache_drift_check: AuditLedgerCacheDriftResponse
+
+
+class AuditInspectRequest(BaseModel):
+    journal_header_id: UUID
+
+
+class TaxForecastResponse(BaseModel):
+    forecasted_profit_before_tax: Decimal
+    estimated_taxable_income: Decimal
+    estimated_tax_amount: Decimal
+    tax_risk_warnings: list[str]
+
+
+class SocialInsuranceBreakdownResponse(BaseModel):
+    total: Decimal
+    employee: Decimal
+    employer: Decimal
+
+
+class SocialInsurancePremiumResponse(BaseModel):
+    standard_monthly_remuneration: Decimal
+    health_rate: Decimal
+    care_rate: Decimal
+    care_applicable: bool
+    health: SocialInsuranceBreakdownResponse
+    care: SocialInsuranceBreakdownResponse
+    pension: SocialInsuranceBreakdownResponse
+    total_employee: Decimal
+    total_employer: Decimal
+    total_premium: Decimal
+
+
+class BonusEmploymentInsuranceResponse(BaseModel):
+    employee_premium: Decimal
+    employer_premium: Decimal
+    total_premium: Decimal
+    employee_rate: Decimal
+    employer_rate: Decimal
+
+
+class BonusWithholdingTaxResponse(BaseModel):
+    bonus_after_social_insurance: Decimal
+    bonus_tax_rate: Decimal
+    prior_month_salary_after_social_insurance: Decimal | None = None
+    withholding_tax: Decimal | None = None
+    requires_monthly_table: bool
+    reason: str
+
+
+class BonusNetPayResponse(BaseModel):
+    gross_bonus: Decimal
+    standard_bonus: Decimal
+    health_standard_bonus: Decimal
+    pension_standard_bonus: Decimal
+    social_insurance: SocialInsurancePremiumResponse
+    employment_insurance_employee: Decimal
+    bonus_after_social_insurance: Decimal
+    withholding_tax: Decimal | None = None
+    requires_monthly_table: bool
+    reason: str
+    total_employee_deductions: Decimal
+    net_pay: Decimal | None = None
+
+
+class LaborInsuranceInstallmentResponse(BaseModel):
+    estimated_premium: Decimal
+    threshold: Decimal
+    both_insurances: bool
+    entrusted: bool
+    eligible: bool
+    installment_count: int
+    installments: list[Decimal]
+    note: str
+
+
+class SanteiMonthInput(BaseModel):
+    payment_basis_days: int
+    currency_remuneration: Decimal
+    in_kind_remuneration: Decimal
+
+
+class SanteiEmployeeInput(BaseModel):
+    insured_number: str
+    name: str
+    birth_date: date
+    previous_health_standard: Decimal
+    previous_pension_standard: Decimal
+    applicable_year: int
+    applicable_month: int
+    months: list[SanteiMonthInput]
+
+
+class SanteiExportRequest(BaseModel):
+    employees: list[SanteiEmployeeInput]
+
+
+class QualificationAcquisitionEmployeeInput(BaseModel):
+    insured_number: str
+    name: str
+    birth_date: date
+    qualification_date: date
+    estimated_monthly_remuneration: Decimal
+
+
+class QualificationAcquisitionExportRequest(BaseModel):
+    employees: list[QualificationAcquisitionEmployeeInput]
+
+
+class LaborInsuranceAnnualUpdateRequest(BaseModel):
+    prior_wage_total: Decimal
+    estimated_wage_total: Decimal
+    business_type: str
+    declared_prior_estimate: Decimal
+    workers_comp_rate: Decimal = DEFAULT_WORKERS_COMPENSATION_RATE
+
+
+class BonusEmployeeInput(BaseModel):
+    insured_number: str
+    name: str
+    payment_date: date
+    bonus_amount: Decimal
+    fiscal_ytd_standard_bonus: Decimal = Decimal("0")
+    same_month_prior_standard_bonus: Decimal = Decimal("0")
+
+
+class BonusExportRequest(BaseModel):
+    employees: list[BonusEmployeeInput]
+
+
+class MonthlyRevisionMonthInput(BaseModel):
+    payment_basis_days: int
+    remuneration: Decimal
+
+
+class MonthlyRevisionEmployeeInput(BaseModel):
+    insured_number: str
+    name: str
+    previous_health_standard: Decimal
+    previous_pension_standard: Decimal
+    fixed_wage_changed: bool
+    months: list[MonthlyRevisionMonthInput]
+
+
+class MonthlyRevisionExportRequest(BaseModel):
+    employees: list[MonthlyRevisionEmployeeInput]
+
+
+class ScheduledJobCreate(BaseModel):
+    company_id: UUID
+    job_type: str
+    frequency: str
+    run_hour: int = Field(ge=0, le=23)
+    run_day: int | None = None
+    priority: int = 100
+    payload: dict[str, object] | None = None
+
+
+class ScheduledJobResponse(BaseModel):
+    scheduled_job_id: UUID
+    company_id: UUID
+    job_type: str
+    frequency: str
+    run_hour: int
+    run_day: int | None = None
+    priority: int
+    payload: dict[str, object] | None = None
+    is_active: bool
+    last_run_at: datetime | None = None
+    next_run_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class JobExecutionResponse(BaseModel):
+    job_execution_id: UUID
+    scheduled_job_id: UUID | None = None
+    job_type: str
+    status: str
+    priority: int
+    attempt_count: int
+    scheduled_for: datetime | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    error_message: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class JobExecutionComplete(BaseModel):
+    success: bool
+    error_message: str | None = None
+
+
+class HealthSummaryResponse(BaseModel):
+    total: int
+    failed: int
+    dead: int
+    failure_rate: float
+    level: str
+
+
+class OperationsHealthResponse(BaseModel):
+    company_id: UUID
+    overall_level: str
+    jobs: HealthSummaryResponse
+    webhooks: HealthSummaryResponse
+    overdue_tasks: int
+
+
+class EventJournalDraftRequest(BaseModel):
+    event_type: str
+    amount: Decimal = Field(gt=0)
+    tax_rate: Decimal = Decimal("0.10")
+    is_tax_inclusive: bool = True
+
+
+class JournalLineDraftResponse(BaseModel):
+    account_role: str
+    debit: Decimal
+    credit: Decimal
+
+
+class EventJournalDraftResponse(BaseModel):
+    event_type: str
+    description: str
+    total_debit: Decimal
+    total_credit: Decimal
+    lines: list[JournalLineDraftResponse]
+
+
+class BudgetLineCreate(BaseModel):
+    account_id: UUID
+    month: int = Field(ge=1, le=12)
+    budgeted_amount: Decimal = Field(ge=0)
+
+
+class BudgetCreate(BaseModel):
+    company_id: UUID
+    fiscal_year: int = Field(ge=2000, le=2999)
+    name: str = Field(max_length=200)
+    lines: list[BudgetLineCreate] = Field(default_factory=list)
+
+
+class BudgetLineResponse(BaseModel):
+    budget_line_id: UUID
+    account_id: UUID
+    month: int
+    budgeted_amount: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class BudgetResponse(BaseModel):
+    budget_id: UUID
+    company_id: UUID
+    fiscal_year: int
+    name: str
+    status: str
+    lines: list[BudgetLineResponse] = Field(default_factory=list)
+
+    model_config = {"from_attributes": True}
+
+
+class BudgetVarianceLine(BaseModel):
+    account_id: UUID
+    account_code: str
+    account_name: str
+    budgeted_amount: Decimal
+    actual_amount: Decimal
+    variance_amount: Decimal
+    variance_rate: Decimal
+    execution_rate: Decimal
+    is_over_budget: bool
+
+
+class BudgetVarianceResponse(BaseModel):
+    budget_id: UUID
+    fiscal_year: int
+    budgeted_total: Decimal
+    actual_total: Decimal
+    variance_total: Decimal
+    execution_rate: Decimal
+    over_budget_count: int
+    line_count: int
+    lines: list[BudgetVarianceLine]
+
+
+class BankReconcileRequest(BaseModel):
+    company_id: UUID
+    bank_account_id: UUID | None = None
+    date_from: date | None = None
+    date_to: date | None = None
+
+
+class BankReconciliationCandidate(BaseModel):
+    source_id: UUID
+    source_type: str
+    source_date: date
+    amount: Decimal
+    score: Decimal
+    reason: str
+
+
+class BankReconciliationItem(BaseModel):
+    statement_detail_id: UUID
+    candidates: list[BankReconciliationCandidate]
+
+
+class BankAccountCreate(BaseModel):
+    company_id: UUID
+    bank_code: str = Field(min_length=4, max_length=4)
+    branch_code: str = Field(min_length=3, max_length=3)
+    account_type: str
+    account_no_encrypted: bytes
+    account_name: str = Field(max_length=100)
+    account_name_kana: str = Field(max_length=40)
+    currency_code: str = Field(default="JPY", min_length=3, max_length=3)
+
+
+class BankAccountResponse(BaseModel):
+    bank_account_id: UUID
+    company_id: UUID
+    bank_code: str
+    branch_code: str
+    account_type: str
+    account_name: str
+    account_name_kana: str
+    currency_code: str
+    auto_fetch_enabled: bool
+
+    model_config = {"from_attributes": True}
+
+
+class PaymentRequestCreate(BaseModel):
+    company_id: UUID
+    partner_id: UUID | None = None
+    payment_date: date
+    payment_amount: Decimal = Field(gt=0)
+    bank_account_id: UUID | None = None
+    dest_bank_code: str | None = Field(default=None, max_length=4)
+    dest_branch_code: str | None = Field(default=None, max_length=3)
+    dest_account_type: str | None = Field(default=None, max_length=10)
+    dest_account_no: str | None = Field(default=None, max_length=7)
+    dest_account_name_kana: str | None = Field(default=None, max_length=30)
+
+
+class PaymentRequestResponse(BaseModel):
+    payment_request_id: UUID
+    company_id: UUID
+    partner_id: UUID | None
+    payment_date: date
+    payment_amount: Decimal
+    bank_account_id: UUID | None
+    dest_bank_code: str | None
+    dest_branch_code: str | None
+    dest_account_type: str | None
+    dest_account_no: str | None
+    dest_account_name_kana: str | None
+    status: str
+
+    model_config = {"from_attributes": True}
+
+
+class ZenginExportRequest(BaseModel):
+    company_id: UUID
+    payment_date: date
+    bank_account_id: UUID
+    payment_request_ids: list[UUID] | None = None
+
+
+class ArchivedDocumentCreate(BaseModel):
+    company_id: UUID
+    transaction_date: date
+    transaction_amount: Decimal
+    counterparty_name: str = Field(max_length=255)
+    document_type: str = Field(default="other", max_length=50)
+
+
+class CashflowForecastRequest(BaseModel):
+    company_id: UUID
+    as_of: date
+    horizon_days: list[int] = Field(default_factory=lambda: [7, 30, 90, 365])
+
+
+class CashflowForecastBucket(BaseModel):
+    horizon_days: int
+    inflows: Decimal
+    outflows: Decimal
+    net_cashflow: Decimal
+
+
+class CashflowForecastResponse(BaseModel):
+    company_id: UUID
+    as_of: date
+    buckets: list[CashflowForecastBucket]
