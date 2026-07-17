@@ -1,0 +1,325 @@
+"use client";
+
+import { useState, useRef } from "react";
+import PageLayout from "@/components/page-layout";
+import { apiGet, apiPostMultipart } from "@/lib/api";
+import { formatYen } from "@/lib/format";
+import { useCompany } from "@/lib/company-context";
+import { useUser } from "@/lib/use-user";
+import { SkeletonTable } from "@/components/skeleton";
+import { Archive, Upload, Search, Loader2, CheckCircle2, ShieldCheck, Download, Sparkles } from "lucide-react";
+
+interface ArchivedDocument {
+  archived_document_id: string;
+  document_type: string;
+  file_name: string;
+  file_hash: string;
+  file_size: number;
+  transaction_date: string;
+  amount: string | null;
+  counterparty_name: string | null;
+  registered_at: string;
+}
+
+interface ExtractedFields {
+  transaction_date: string | null;
+  amount: number | null;
+  counterparty_name: string | null;
+  confidence: number;
+  ai_used: boolean;
+}
+
+const DOC_TYPES = [
+  { value: "invoice", label: "請求書" },
+  { value: "receipt", label: "領収書" },
+  { value: "contract", label: "契約書" },
+  { value: "quotation", label: "見積書" },
+  { value: "other", label: "その他" },
+];
+
+export default function DocumentArchivePage() {
+  const { companyId } = useCompany();
+  const { user } = useUser();
+  const canManage = user?.permissions.includes("document:manage") ?? false;
+
+  const [docs, setDocs] = useState<ArchivedDocument[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  // 取込フォーム
+  const [docType, setDocType] = useState("invoice");
+  const [txnDate, setTxnDate] = useState("");
+  const [amount, setAmount] = useState("");
+  const [counterparty, setCounterparty] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  // ファイル選択/フォームリセットのたびに増分し、後から届いた古い抽出結果を無視するための世代カウンタ
+  const extractionSeqRef = useRef(0);
+
+  // 検索3軸
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [amountMin, setAmountMin] = useState("");
+  const [amountMax, setAmountMax] = useState("");
+  const [searchCounterparty, setSearchCounterparty] = useState("");
+
+  const handleSearch = async () => {
+    if (!companyId) return;
+    setLoading(true);
+    setError("");
+    try {
+      const params: Record<string, string> = { company_id: companyId, limit: "200" };
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
+      if (amountMin) params.amount_min = amountMin;
+      if (amountMax) params.amount_max = amountMax;
+      if (searchCounterparty) params.counterparty = searchCounterparty;
+      const data = await apiGet<ArchivedDocument[]>("/documents/search", params);
+      setDocs(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "検索に失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFileSelected = async () => {
+    const file = fileRef.current?.files?.[0];
+    // 新しいファイル選択のたびに前回の状態通知をクリアし、進行中の抽出を無効化する
+    setNotice("");
+    setError("");
+    const seq = ++extractionSeqRef.current;
+    if (!file || !file.name.toLowerCase().endsWith(".pdf")) return;
+    setExtracting(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const data = await apiPostMultipart<ExtractedFields>("/documents/extract", {}, form);
+      if (seq !== extractionSeqRef.current) return; // 別のファイル選択/フォームリセットで無効化済み
+      if (data.transaction_date) setTxnDate((prev) => prev || data.transaction_date!);
+      if (data.amount !== null) setAmount((prev) => prev || String(data.amount));
+      if (data.counterparty_name) setCounterparty((prev) => prev || data.counterparty_name!);
+      if (data.transaction_date || data.amount !== null || data.counterparty_name) {
+        setNotice(
+          `証憑から取引情報を自動抽出しました（${data.ai_used ? "AI抽出" : "テキスト抽出"}・信頼度${Math.round(data.confidence * 100)}%）。内容をご確認ください。`
+        );
+      }
+    } catch {
+      // 抽出失敗時は手入力にフォールバック（エラー表示しない）
+    } finally {
+      if (seq === extractionSeqRef.current) setExtracting(false);
+    }
+  };
+
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const file = fileRef.current?.files?.[0];
+    if (!companyId || !file || !txnDate) {
+      setError("ファイルと取引年月日は必須です。");
+      return;
+    }
+    setUploading(true);
+    setError("");
+    setNotice("");
+    try {
+      const form = new FormData();
+      form.append("document_type", docType);
+      form.append("transaction_date", txnDate);
+      if (amount) form.append("amount", amount);
+      if (counterparty) form.append("counterparty_name", counterparty);
+      form.append("file", file);
+      await apiPostMultipart<ArchivedDocument>("/documents", { company_id: companyId }, form);
+      setNotice("証憑を登録しました（SHA-256ハッシュを付与）。");
+      extractionSeqRef.current++; // 登録済みファイルの抽出結果が後から届いてもフォームへ反映させない
+      setTxnDate("");
+      setAmount("");
+      setCounterparty("");
+      if (fileRef.current) fileRef.current.value = "";
+      await handleSearch();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "登録に失敗しました");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDownload = async (doc: ArchivedDocument) => {
+    if (!companyId) return;
+    setError("");
+    try {
+      const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const res = await fetch(
+        `${base}/documents/${doc.archived_document_id}/download?company_id=${encodeURIComponent(companyId)}`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
+      if (!res.ok) throw new Error("ダウンロードに失敗しました");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = doc.file_name;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "ダウンロードに失敗しました");
+    }
+  };
+
+  if (!canManage) {
+    return (
+      <PageLayout title="電帳法証憑アーカイブ">
+        <p className="text-sm text-muted-foreground">このページを表示する権限がありません（document:manage が必要です）。</p>
+      </PageLayout>
+    );
+  }
+
+  return (
+    <PageLayout title="電帳法証憑アーカイブ">
+      <div className="space-y-6">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Archive className="h-5 w-5" aria-hidden="true" />
+          <p className="text-sm">証憑をSHA-256ハッシュ付きで保存し、取引年月日・金額・取引先の3軸で検索します（電子帳簿保存法対応）。</p>
+        </div>
+
+        {error && (
+          <div role="alert" className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>
+        )}
+        {notice && (
+          <div role="status" className="flex items-center gap-2 rounded-md border border-green-500/40 bg-green-50 px-4 py-3 text-sm text-green-700">
+            <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> {notice}
+          </div>
+        )}
+
+        {/* 取込フォーム */}
+        <form onSubmit={handleUpload} aria-labelledby="upload-heading" className="rounded-lg border p-4">
+          <h2 id="upload-heading" className="mb-3 flex items-center gap-2 text-sm font-semibold">
+            <Upload className="h-4 w-4" aria-hidden="true" /> 証憑の登録
+          </h2>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <label htmlFor="doc-type" className="mb-1 block text-xs font-medium">書類種別</label>
+              <select id="doc-type" value={docType} onChange={(e) => setDocType(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm">
+                {DOC_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="txn-date" className="mb-1 block text-xs font-medium">
+                取引年月日 <span className="text-destructive" aria-hidden="true">*</span>
+              </label>
+              <input id="txn-date" type="date" required value={txnDate} onChange={(e) => setTxnDate(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label htmlFor="doc-amount" className="mb-1 block text-xs font-medium">取引金額</label>
+              <input id="doc-amount" type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="任意" className="w-full rounded-md border px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label htmlFor="doc-counterparty" className="mb-1 block text-xs font-medium">取引先</label>
+              <input id="doc-counterparty" type="text" value={counterparty} onChange={(e) => setCounterparty(e.target.value)} placeholder="任意" className="w-full rounded-md border px-3 py-2 text-sm" />
+            </div>
+            <div className="lg:col-span-2">
+              <label htmlFor="doc-file" className="mb-1 block text-xs font-medium">
+                ファイル <span className="text-destructive" aria-hidden="true">*</span>
+              </label>
+              <input id="doc-file" ref={fileRef} type="file" required onChange={handleFileSelected} className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-2 file:text-primary-foreground" />
+              {extracting && (
+                <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground" role="status">
+                  <Sparkles className="h-3 w-3" aria-hidden="true" /> 取引情報を自動抽出中…
+                </p>
+              )}
+            </div>
+          </div>
+          <button type="submit" disabled={uploading} className="mt-3 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50">
+            {uploading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />}
+            登録
+          </button>
+        </form>
+
+        {/* 検索3軸 */}
+        <section aria-labelledby="search-heading" className="rounded-lg border p-4">
+          <h2 id="search-heading" className="mb-3 flex items-center gap-2 text-sm font-semibold">
+            <Search className="h-4 w-4" aria-hidden="true" /> 検索（3軸）
+          </h2>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <label htmlFor="s-date-from" className="mb-1 block text-xs font-medium">取引日（From）</label>
+              <input id="s-date-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label htmlFor="s-date-to" className="mb-1 block text-xs font-medium">取引日（To）</label>
+              <input id="s-date-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label htmlFor="s-cp" className="mb-1 block text-xs font-medium">取引先</label>
+              <input id="s-cp" type="text" value={searchCounterparty} onChange={(e) => setSearchCounterparty(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label htmlFor="s-amt-min" className="mb-1 block text-xs font-medium">金額（下限）</label>
+              <input id="s-amt-min" type="number" value={amountMin} onChange={(e) => setAmountMin(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label htmlFor="s-amt-max" className="mb-1 block text-xs font-medium">金額（上限）</label>
+              <input id="s-amt-max" type="number" value={amountMax} onChange={(e) => setAmountMax(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm" />
+            </div>
+            <div className="flex items-end">
+              <button type="button" onClick={handleSearch} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground">
+                <Search className="h-4 w-4" aria-hidden="true" /> 検索
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* 検索結果 */}
+        {loading ? (
+          <SkeletonTable rows={5} columns={5} />
+        ) : docs.length === 0 ? (
+          <p className="text-sm text-muted-foreground">証憑がありません。検索条件を指定して検索してください。</p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="w-full text-sm">
+              <caption className="sr-only">保存された証憑の検索結果</caption>
+              <thead className="bg-muted/50">
+                <tr>
+                  <th scope="col" className="px-3 py-2 text-left font-medium">取引日</th>
+                  <th scope="col" className="px-3 py-2 text-left font-medium">ファイル名</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">金額</th>
+                  <th scope="col" className="px-3 py-2 text-left font-medium">取引先</th>
+                  <th scope="col" className="px-3 py-2 text-left font-medium">ハッシュ(SHA-256)</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {docs.map((d) => (
+                  <tr key={d.archived_document_id} className="border-t">
+                    <td className="px-3 py-2">{d.transaction_date}</td>
+                    <td className="px-3 py-2">{d.file_name}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatYen(d.amount)}</td>
+                    <td className="px-3 py-2">{d.counterparty_name || "-"}</td>
+                    <td className="px-3 py-2">
+                      <span className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground" title={d.file_hash}>
+                        <ShieldCheck className="h-3 w-3 text-green-600" aria-hidden="true" />
+                        {d.file_hash.slice(0, 12)}…
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleDownload(d)}
+                        className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+                        aria-label={`${d.file_name} をダウンロード`}
+                      >
+                        <Download className="h-3 w-3" aria-hidden="true" /> DL
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </PageLayout>
+  );
+}

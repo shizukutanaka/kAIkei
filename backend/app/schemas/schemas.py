@@ -104,6 +104,8 @@ class JournalLineCreate(BaseModel):
     sub_account_id: UUID | None = None
     department_id: UUID | None = None
     tax_rule_id: UUID | None = None
+    # Business constraints (nonzero amount, nonnegative tax) are enforced by
+    # ValidationEngine so violations surface as domain VAL-xxx errors, not 422s.
     amount: Decimal
     tax_amount: Decimal = Decimal("0")
     description: str | None = None
@@ -114,6 +116,7 @@ class JournalCreate(BaseModel):
     transaction_date: date
     voucher_type: str = Field(default="transfer", pattern="^(transfer|receipt|payment)$")
     summary: str | None = None
+    # Minimum-line and balance rules are enforced by ValidationEngine (VAL-002/001).
     lines: list[JournalLineCreate]
 
 
@@ -433,15 +436,6 @@ class InvoiceCreate(BaseModel):
     lines: list[InvoiceLineCreate]
 
 
-class InvoiceTaxLineInput(BaseModel):
-    amount: Decimal = Field(ge=0)
-    tax_rate: Decimal
-
-
-class InvoiceTaxComputeRequest(BaseModel):
-    lines: list[InvoiceTaxLineInput]
-
-
 class InvoiceLineResponse(BaseModel):
     line_id: UUID
     line_number: int
@@ -505,6 +499,469 @@ class TaxReturnResponse(BaseModel):
 # Paginated Response Types (ページネーション統一)
 # ---------------------------------------------------------------------------
 
+class InvoiceListResponse(BaseModel):
+    items: list[InvoiceResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class ExpenseListResponse(BaseModel):
+    items: list[ExpenseReportResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class PayrollListResponse(BaseModel):
+    items: list[PayrollRecordResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class PartnerListResponse(BaseModel):
+    items: list[PartnerResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class AuditLogResponse(BaseModel):
+    log_id: UUID
+    user_id: UUID | None = None
+    action: str
+    resource_type: str
+    resource_id: str | None = None
+    method: str
+    path: str
+    status_code: int
+    ip_address: str | None = None
+    user_agent: str | None = None
+    created_at: datetime
+
+
+class AuditLogListResponse(BaseModel):
+    items: list[AuditLogResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class YearEndListResponse(BaseModel):
+    items: list[YearEndAdjustmentResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class BonusListResponse(BaseModel):
+    items: list[BonusRecordResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class TaxReturnListResponse(BaseModel):
+    items: list[TaxReturnResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class EmployeeListResponse(BaseModel):
+    items: list[EmployeeResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class AttendanceListResponse(BaseModel):
+    items: list[AttendanceResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+# ---------------------------------------------------------------------------
+# Notification schemas
+# ---------------------------------------------------------------------------
+
+class NotificationResponse(BaseModel):
+    notification_id: UUID
+    company_id: UUID | None = None
+    user_id: UUID | None = None
+    category: str
+    priority: str
+    title: str
+    body: str
+    action_url: str | None = None
+    is_read: bool
+    read_at: datetime | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class NotificationListResponse(BaseModel):
+    items: list[NotificationResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class NotificationCreate(BaseModel):
+    company_id: UUID | None = None
+    user_id: UUID | None = None
+    category: str = Field(max_length=50)
+    priority: str = Field(default="normal", max_length=20)
+    title: str = Field(max_length=200)
+    body: str
+    action_url: str | None = None
+
+
+class NotificationPreferenceResponse(BaseModel):
+    preference_id: UUID
+    user_id: UUID
+    category: str
+    channel_inapp: bool
+    channel_email: bool
+    channel_push: bool
+    channel_webhook: bool
+
+    model_config = {"from_attributes": True}
+
+
+class NotificationPreferenceUpdate(BaseModel):
+    channel_inapp: bool | None = None
+    channel_email: bool | None = None
+    channel_push: bool | None = None
+    channel_webhook: bool | None = None
+
+
+class WebhookEndpointCreate(BaseModel):
+    url: str = Field(max_length=500)
+    # HMAC-SHA256の鍵として十分なエントロピーを持たせるため32文字以上を要求する。
+    secret: str = Field(min_length=32, max_length=200)
+    subscribed_events: list[str] = Field(default_factory=lambda: ["*"])
+    company_id: UUID | None = None
+    description: str | None = Field(default=None, max_length=200)
+
+
+class WebhookEndpointResponse(BaseModel):
+    webhook_endpoint_id: UUID
+    company_id: UUID | None = None
+    url: str
+    subscribed_events: list[str]
+    description: str | None = None
+    is_active: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class WebhookDeliveryResponse(BaseModel):
+    webhook_delivery_id: UUID
+    webhook_endpoint_id: UUID
+    event_type: str
+    status: str
+    attempt_count: int
+    max_attempts: int
+    last_status_code: int | None = None
+    last_error: str | None = None
+    next_retry_at: datetime | None = None
+    delivered_at: datetime | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class BankStatementLineResponse(BaseModel):
+    bank_statement_line_id: UUID
+    transaction_date: date
+    value_date: date | None = None
+    direction: str
+    amount: Decimal
+    balance: Decimal | None = None
+    description: str | None = None
+    counterparty_name: str | None = None
+    is_reconciled: bool
+    reconciled_journal_line_id: UUID | None = None
+    reconciled_at: datetime | None = None
+    source: str
+
+    model_config = {"from_attributes": True}
+
+
+class BankImportResponse(BaseModel):
+    imported: int
+    lines: list[BankStatementLineResponse]
+
+
+class AutoReconcileRequest(BaseModel):
+    bank_account_id: UUID
+    date_tolerance_days: int = Field(default=3, ge=0, le=31)
+    min_score: float = Field(default=0.6, ge=0.0, le=1.0)
+    max_fee: Decimal = Field(default=Decimal("0"), ge=0, le=100000)
+
+
+class AutoReconcileResponse(BaseModel):
+    total_unreconciled: int
+    matched: int
+    unmatched: int
+
+
+class ManualMatchRequest(BaseModel):
+    journal_line_id: UUID
+
+
+class AuditDetectionResponse(BaseModel):
+    audit_detection_log_id: UUID
+    company_id: UUID
+    journal_header_id: UUID | None = None
+    risk_level: str
+    category: str
+    message: str
+    details: dict | None = None
+    status: str
+    reviewed_by: UUID | None = None
+    reviewed_at: datetime | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AuditScanResponse(BaseModel):
+    scanned: int
+    detections_created: int
+
+
+class AuditDetectionStatusUpdate(BaseModel):
+    status: str = Field(pattern="^(open|confirmed|dismissed)$")
+
+
+class TaxAdjustmentRuleCreate(BaseModel):
+    name: str = Field(max_length=100)
+    adjustment_type: str = Field(pattern="^(addition|subtraction)$")
+    calculation_method: str = Field(pattern="^(fixed|rate|excess_over_limit)$")
+    rate: Decimal | None = None
+    limit_amount: Decimal | None = None
+    fixed_amount: Decimal | None = None
+    target_account_code: str | None = Field(default=None, max_length=20)
+
+
+class TaxAdjustmentRuleResponse(BaseModel):
+    tax_adjustment_rule_id: UUID
+    company_id: UUID
+    name: str
+    adjustment_type: str
+    calculation_method: str
+    rate: Decimal | None = None
+    limit_amount: Decimal | None = None
+    fixed_amount: Decimal | None = None
+    target_account_code: str | None = None
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class TaxAdjustmentComputeRequest(BaseModel):
+    accounting_income: Decimal
+    base_amounts: dict[str, Decimal] = Field(default_factory=dict)
+
+
+class TaxAdjustmentLineResult(BaseModel):
+    rule_id: str
+    name: str
+    adjustment_type: str
+    amount: Decimal
+
+
+class TaxAdjustmentComputeResponse(BaseModel):
+    accounting_income: Decimal
+    taxable_income: Decimal
+    total_additions: Decimal
+    total_subtractions: Decimal
+    adjustments: list[TaxAdjustmentLineResult]
+
+
+class ArchivedDocumentResponse(BaseModel):
+    archived_document_id: UUID
+    company_id: UUID
+    document_type: str
+    file_name: str
+    file_hash: str
+    file_size: int
+    mime_type: str | None = None
+    storage_path: str
+    transaction_date: date
+    amount: Decimal | None = None
+    counterparty_name: str | None = None
+    linked_journal_header_id: UUID | None = None
+    superseded_by_id: UUID | None = None
+    registered_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class DocumentVerifyResponse(BaseModel):
+    archived_document_id: str
+    is_valid: bool
+    expected_hash: str
+    actual_hash: str
+
+
+class ApprovalPolicyCreate(BaseModel):
+    document_type: str = Field(max_length=30)
+    approver_role: str = Field(max_length=50)
+    step_order: int = Field(default=1, ge=1)
+    min_amount: Decimal | None = None
+    max_amount: Decimal | None = None
+
+
+class ApprovalPolicyResponse(BaseModel):
+    approval_policy_id: UUID
+    company_id: UUID
+    document_type: str
+    min_amount: Decimal | None = None
+    max_amount: Decimal | None = None
+    approver_role: str
+    step_order: int
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class ApprovalStepsResponse(BaseModel):
+    document_type: str
+    amount: Decimal
+    required_steps: list[str]
+
+
+class SecurityPolicyUpdate(BaseModel):
+    require_mfa: bool | None = None
+    allowed_ip_cidrs: list[str] | None = None
+    session_timeout_minutes: int | None = Field(default=None, ge=5, le=1440)
+    password_min_length: int | None = Field(default=None, ge=8, le=128)
+    max_failed_attempts: int | None = Field(default=None, ge=1, le=20)
+
+
+class SecurityPolicyResponse(BaseModel):
+    tenant_security_policy_id: UUID
+    tenant_id: UUID
+    require_mfa: bool
+    allowed_ip_cidrs: list[str]
+    session_timeout_minutes: int
+    password_min_length: int
+    max_failed_attempts: int
+
+    model_config = {"from_attributes": True}
+
+
+class AiInferenceLogCreate(BaseModel):
+    company_id: UUID
+    source_type: str = Field(max_length=30)
+    suggestion: dict
+    confidence: Decimal = Field(ge=0, le=1)
+    input_summary: str | None = None
+    provider: str | None = None
+    journal_header_id: UUID | None = None
+
+
+class AiInferenceLogResponse(BaseModel):
+    ai_inference_log_id: UUID
+    company_id: UUID
+    source_type: str
+    input_summary: str | None = None
+    suggestion: dict
+    confidence: Decimal
+    provider: str | None = None
+    applied: bool
+    correction_diff: dict | None = None
+    journal_header_id: UUID | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AiInferenceApplyRequest(BaseModel):
+    final: dict | None = None
+
+
+class AiInferenceStatsResponse(BaseModel):
+    total: int
+    applied: int
+    acceptance_rate: float
+    corrected: int
+    correction_rate: float
+    avg_confidence: float
+
+
+class AiCalibrationBand(BaseModel):
+    band: str
+    count: int
+    avg_confidence: float | None = None
+    observed_accuracy: float | None = None
+    gap: float | None = None
+
+
+class AiCalibrationResponse(BaseModel):
+    applied_total: int
+    ece: float
+    bands: list[AiCalibrationBand]
+
+
+class OfficeTaskCreate(BaseModel):
+    title: str = Field(max_length=200)
+    task_type: str = Field(max_length=40)
+    due_date: date | None = None
+    assigned_to: UUID | None = None
+    period: str | None = Field(default=None, max_length=7)
+
+
+class OfficeTaskResponse(BaseModel):
+    office_task_id: UUID
+    company_id: UUID
+    title: str
+    task_type: str
+    assigned_to: UUID | None = None
+    due_date: date | None = None
+    status: str
+    period: str | None = None
+    completed_at: datetime | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class OfficeTaskGenerateRequest(BaseModel):
+    year: int = Field(ge=2000, le=2100)
+    month: int = Field(ge=1, le=12)
+
+
+class OfficeTaskStatusUpdate(BaseModel):
+    status: str = Field(pattern="^(todo|in_progress|done)$")
+
+
+class OfficeTaskProgressResponse(BaseModel):
+    total: int
+    todo: int
+    in_progress: int
+    done: int
+    completion_rate: float
+
+
+# --- main由来の独立ドメイン用スキーマ（予算/銀行/支払/ジョブ/税務/賞与/社保等） ---
+
+class InvoiceTaxLineInput(BaseModel):
+    amount: Decimal = Field(ge=0)
+    tax_rate: Decimal
+
+
+class InvoiceTaxComputeRequest(BaseModel):
+    lines: list[InvoiceTaxLineInput]
+
+
 class InvoiceTaxRateBreakdownResponse(BaseModel):
     tax_rate: Decimal
     taxable_base: Decimal
@@ -545,27 +1002,6 @@ class QualifiedInvoiceCheckResponse(BaseModel):
     registration_number_valid: bool
 
 
-class InvoiceListResponse(BaseModel):
-    items: list[InvoiceResponse]
-    total: int
-    page: int
-    page_size: int
-
-
-class ExpenseListResponse(BaseModel):
-    items: list[ExpenseReportResponse]
-    total: int
-    page: int
-    page_size: int
-
-
-class PayrollListResponse(BaseModel):
-    items: list[PayrollRecordResponse]
-    total: int
-    page: int
-    page_size: int
-
-
 class LaborInsuranceEmployeeResponse(BaseModel):
     employee_id: UUID
     employee_name: str
@@ -591,34 +1027,6 @@ class LaborInsuranceSummaryResponse(BaseModel):
     total_employer_premium: Decimal
     total_premium: Decimal
     items: list[LaborInsuranceEmployeeResponse]
-
-
-class PartnerListResponse(BaseModel):
-    items: list[PartnerResponse]
-    total: int
-    page: int
-    page_size: int
-
-
-class AuditLogResponse(BaseModel):
-    log_id: UUID
-    user_id: UUID | None = None
-    action: str
-    resource_type: str
-    resource_id: str | None = None
-    method: str
-    path: str
-    status_code: int
-    ip_address: str | None = None
-    user_agent: str | None = None
-    created_at: datetime
-
-
-class AuditLogListResponse(BaseModel):
-    items: list[AuditLogResponse]
-    total: int
-    page: int
-    page_size: int
 
 
 class AuditLedgerImbalanceEntry(BaseModel):
@@ -665,33 +1073,6 @@ class LedgerCheckResponse(BaseModel):
 
 class AuditInspectRequest(BaseModel):
     journal_header_id: UUID
-
-
-class AuditDetectionResponse(BaseModel):
-    risk_level: str
-    category: str
-    reason: str
-
-
-class YearEndListResponse(BaseModel):
-    items: list[YearEndAdjustmentResponse]
-    total: int
-    page: int
-    page_size: int
-
-
-class BonusListResponse(BaseModel):
-    items: list[BonusRecordResponse]
-    total: int
-    page: int
-    page_size: int
-
-
-class TaxReturnListResponse(BaseModel):
-    items: list[TaxReturnResponse]
-    total: int
-    page: int
-    page_size: int
 
 
 class TaxForecastResponse(BaseModel):
@@ -835,106 +1216,6 @@ class MonthlyRevisionExportRequest(BaseModel):
     employees: list[MonthlyRevisionEmployeeInput]
 
 
-class EmployeeListResponse(BaseModel):
-    items: list[EmployeeResponse]
-    total: int
-    page: int
-    page_size: int
-
-
-class AttendanceListResponse(BaseModel):
-    items: list[AttendanceResponse]
-    total: int
-    page: int
-    page_size: int
-
-
-# ---------------------------------------------------------------------------
-# Notification schemas
-# ---------------------------------------------------------------------------
-
-class NotificationResponse(BaseModel):
-    notification_id: UUID
-    company_id: UUID | None = None
-    user_id: UUID | None = None
-    category: str
-    priority: str
-    title: str
-    body: str
-    action_url: str | None = None
-    is_read: bool
-    read_at: datetime | None = None
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-class NotificationListResponse(BaseModel):
-    items: list[NotificationResponse]
-    total: int
-    page: int
-    page_size: int
-
-
-class NotificationCreate(BaseModel):
-    company_id: UUID | None = None
-    user_id: UUID | None = None
-    category: str = Field(max_length=50)
-    priority: str = Field(default="normal", max_length=20)
-    title: str = Field(max_length=200)
-    body: str
-    action_url: str | None = None
-
-
-class NotificationPreferenceResponse(BaseModel):
-    preference_id: UUID
-    user_id: UUID
-    category: str
-    channel_inapp: bool
-    channel_email: bool
-    channel_push: bool
-    channel_webhook: bool
-
-    model_config = {"from_attributes": True}
-
-
-class NotificationPreferenceUpdate(BaseModel):
-    channel_inapp: bool | None = None
-    channel_email: bool | None = None
-    channel_push: bool | None = None
-    channel_webhook: bool | None = None
-
-
-class WebhookEndpointCreate(BaseModel):
-    company_id: UUID
-    target_url: str
-    secret_token: str
-    subscribed_events: list[str]
-
-
-class WebhookEndpointResponse(BaseModel):
-    endpoint_id: UUID
-    company_id: UUID
-    target_url: str
-    subscribed_events: list[str]
-    is_active: bool
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-class WebhookDeliveryResponse(BaseModel):
-    delivery_id: UUID
-    endpoint_id: UUID
-    event_type: str
-    status: str
-    attempt_count: int
-    response_status: int | None = None
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
 class ScheduledJobCreate(BaseModel):
     company_id: UUID
     job_type: str
@@ -984,16 +1265,6 @@ class JobExecutionComplete(BaseModel):
     error_message: str | None = None
 
 
-class OfficeTaskGenerateRequest(BaseModel):
-    company_id: UUID
-    scope: str = Field(description="'monthly', 'daily' or 'annual'")
-    target_year: int | None = None
-    target_month: int | None = None
-    target_date: date | None = None
-    phase: str | None = None
-    fiscal_year_end_month: int | None = Field(default=None, ge=1, le=12)
-
-
 class HealthSummaryResponse(BaseModel):
     total: int
     failed: int
@@ -1029,24 +1300,6 @@ class EventJournalDraftResponse(BaseModel):
     total_debit: Decimal
     total_credit: Decimal
     lines: list[JournalLineDraftResponse]
-
-
-class OfficeTaskResponse(BaseModel):
-    task_id: UUID
-    company_id: UUID
-    task_type: str
-    title: str
-    status: str
-    assigned_to: UUID | None = None
-    due_date: date | None = None
-    completed_at: datetime | None = None
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-class OfficeTaskStatusUpdate(BaseModel):
-    status: str
 
 
 class BudgetLineCreate(BaseModel):
@@ -1195,27 +1448,6 @@ class ArchivedDocumentCreate(BaseModel):
     transaction_amount: Decimal
     counterparty_name: str = Field(max_length=255)
     document_type: str = Field(default="other", max_length=50)
-
-
-class ArchivedDocumentResponse(BaseModel):
-    document_id: UUID
-    company_id: UUID
-    file_path: str
-    file_extension: str
-    file_hash: str
-    file_size: int
-    transaction_date: date
-    transaction_amount: Decimal
-    counterparty_name: str
-    document_type: str
-    timestamp_token: str | None = None
-    timestamp_verified_at: datetime | None = None
-    journal_header_id: UUID | None = None
-    created_by: UUID
-    created_at: datetime
-    is_deleted: bool
-
-    model_config = {"from_attributes": True}
 
 
 class CashflowForecastRequest(BaseModel):

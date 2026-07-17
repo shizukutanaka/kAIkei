@@ -4,6 +4,9 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
+    # Environment ("development" / "staging" / "production")
+    ENVIRONMENT: str = "development"
+
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://kaikei:kaikei_dev@localhost:5432/kaikei"
 
@@ -34,6 +37,15 @@ class Settings(BaseSettings):
     S3_ACCESS_KEY: str = "minioadmin"
     S3_SECRET_KEY: str = "minioadmin"
     S3_BUCKET_NAME: str = "kaikei-documents"
+
+    # Background jobs（Webhook配信ワーカー等の定期実行）
+    BACKGROUND_JOBS_ENABLED: bool = True
+    WEBHOOK_WORKER_INTERVAL_SECONDS: float = 60.0
+
+    # IP制限ミドルウェア: リバースプロキシ配下でのみtrueにする。
+    # X-Forwarded-Forはクライアントが自由に指定できるヘッダのため、
+    # 信頼できるプロキシが上書きすることが保証された構成でのみ有効化すること。
+    TRUST_PROXY_HEADERS: bool = False
 
     # Application
     APP_NAME: str = "kAIkei"

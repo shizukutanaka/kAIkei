@@ -56,7 +56,7 @@
 | `tenants` | `tenant_security_policies` | 1:1 | `tenant_id` |
 | `tenants` | `idempotency_keys` | 1:N | `tenant_id` |
 | `webhook_endpoints` | `webhook_deliveries` | 1:N | `endpoint_id` (CASCADE) |
-| `companies` | `bank_statement_details` | 1:N | `company_id` |
+| `companies` | `bank_statement_lines` | 1:N | `company_id` |
 | `companies` | `audit_detection_logs` | 1:N | `company_id` |
 | `journal_headers` | `audit_detection_logs` | 1:N | `journal_header_id` |
 
@@ -510,24 +510,32 @@ CREATE TABLE bank_accounts (
 );
 ```
 
-### 9.2 bank_statement_details
+### 9.2 bank_statement_lines
+
+実装は入出金を `direction`（deposit/withdrawal）＋絶対値 `amount` で表現する
+（withdraw_amount/deposit_amount の2列方式から変更。migration 0014）。
 
 ```sql
-CREATE TABLE bank_statement_details (
-    statement_detail_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+CREATE TABLE bank_statement_lines (
+    bank_statement_line_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(tenant_id),
     company_id UUID NOT NULL REFERENCES companies(company_id),
-    bank_account_id UUID NOT NULL REFERENCES bank_accounts(bank_account_id),
-    value_date DATE NOT NULL,
-    withdraw_amount NUMERIC(15, 2) DEFAULT 0,
-    deposit_amount NUMERIC(15, 2) DEFAULT 0,
-    sender_name_kana VARCHAR(150) NOT NULL,
+    transaction_date DATE NOT NULL,
+    value_date DATE,
+    direction VARCHAR(10) NOT NULL,           -- 'deposit' | 'withdrawal'
+    amount NUMERIC(15, 4) NOT NULL,           -- 常に正の絶対値
+    balance NUMERIC(15, 4),
     description TEXT,
+    counterparty_name VARCHAR(200),
     is_reconciled BOOLEAN NOT NULL DEFAULT FALSE,
-    reconciled_journal_header_id UUID REFERENCES journal_headers(journal_header_id),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    reconciled_journal_line_id UUID REFERENCES journal_lines(journal_line_id),
+    reconciled_at TIMESTAMP WITH TIME ZONE,
+    source VARCHAR(30) NOT NULL DEFAULT 'csv',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_bank_unreconciled ON bank_statement_details(company_id, is_reconciled);
+CREATE INDEX idx_bank_unreconciled ON bank_statement_lines(company_id, is_reconciled);
 ```
 
 ### 9.3 payment_requests（支払申請）
@@ -865,7 +873,7 @@ CREATE POLICY tenant_isolation_journal_headers ON journal_headers
 9.  ai_inference_logs
 10. archived_documents
 11. approval_policies, approval_requests
-12. bank_accounts, bank_statement_details, payment_requests
+12. bank_accounts, bank_statement_lines, payment_requests
 13. fixed_assets
 14. employees, payroll_records
 15. office_tasks

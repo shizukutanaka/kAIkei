@@ -594,7 +594,7 @@ GET /api/v1/integrations/oauth/callback?code={code}&state={config_id}
 │  [********                                  ]        │
 │                                                     │
 │  コールバックURL:                                    │
-│  https://app.cotton-erp.com/api/v1/integrations/     │
+│  https://app.example.com/api/v1/integrations/        │
 │  oauth/callback                                      │
 │  [コピー]                                            │
 │                                                     │

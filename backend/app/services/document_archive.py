@@ -1,104 +1,277 @@
-from __future__ import annotations
+"""電子帳簿保存法（電帳法）証憑アーカイブサービス（フェーズ2）。
 
+証憑ファイルをSHA-256ハッシュ付きで登録し、電帳法が要求する検索3軸
+（取引年月日・取引金額・取引先）による検索と、改ざん検知（ハッシュ再計算）を提供する。
+
+ハッシュ計算・整合性検証・検索一致判定の中核はDB非依存の純粋関数として切り出す。
+"""
 import hashlib
-from pathlib import Path
+import logging
+import re
+from datetime import date
+from decimal import Decimal
 from uuid import UUID, uuid4
 
-from fastapi import UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.models import ArchivedDocument
+from app.models.models import ArchivedDocument, Company
+from app.services import storage as storage_module
+
+logger = logging.getLogger(__name__)
 
 
-class DocumentArchiveService:
-    def __init__(self, storage_root: Path | None = None) -> None:
-        self.storage_root = storage_root or Path(__file__).resolve().parents[2] / "storage" / "documents"
+class CompanyNotFoundError(Exception):
+    """company_idが指定tenant_idに属さない（または存在しない）場合に送出する。"""
 
-    @staticmethod
-    def compute_hash(content: bytes) -> str:
-        return hashlib.sha256(content).hexdigest()
 
-    def _relative_path(self, company_id: UUID, document_id: UUID, extension: str) -> Path:
-        return Path(str(company_id)) / f"{document_id}.{extension}"
+_UNSAFE_PATH_CHARS = re.compile(r"[/\\]")
 
-    async def archive(
-        self,
-        db: AsyncSession,
-        *,
-        company_id: UUID,
-        file: UploadFile,
-        transaction_date,
-        transaction_amount,
-        counterparty_name: str,
-        document_type: str,
-        created_by: UUID,
-    ) -> ArchivedDocument:
-        content = await file.read()
-        file_hash = self.compute_hash(content)
-        existing = await db.execute(
-            select(ArchivedDocument).where(
-                ArchivedDocument.company_id == company_id,
-                ArchivedDocument.file_hash == file_hash,
-                ArchivedDocument.is_deleted == False,  # noqa: E712
-            )
-        )
-        if existing.scalar_one_or_none():
-            raise ValueError("Document already archived")
 
-        extension = (Path(file.filename or "document.bin").suffix or ".bin").lstrip(".").lower()
-        document_id = uuid4()
-        relative = self._relative_path(company_id, document_id, extension)
-        absolute = self.storage_root / relative
-        absolute.parent.mkdir(parents=True, exist_ok=True)
-        absolute.write_bytes(content)
+# --- 純粋関数（DB非依存・テスト可能） ---------------------------------------
 
-        archived = ArchivedDocument(
-            document_id=document_id,
-            company_id=company_id,
-            file_path=str(relative).replace("\\", "/"),
-            file_extension=extension,
-            file_hash=file_hash,
-            file_size=len(content),
-            transaction_date=transaction_date,
-            transaction_amount=transaction_amount,
-            counterparty_name=counterparty_name,
-            document_type=document_type,
-            created_by=created_by,
-        )
-        db.add(archived)
-        await db.flush()
-        await db.refresh(archived)
-        return archived
+def compute_file_hash(file_bytes: bytes) -> str:
+    """ファイルのSHA-256ハッシュ（16進）を計算する。"""
+    return hashlib.sha256(file_bytes).hexdigest()
 
-    async def search(
-        self,
-        db: AsyncSession,
-        *,
-        company_id: UUID,
-        transaction_date_from=None,
-        transaction_date_to=None,
-        amount_min=None,
-        amount_max=None,
-        counterparty_name: str | None = None,
-        document_type: str | None = None,
-    ) -> list[ArchivedDocument]:
-        stmt = select(ArchivedDocument).where(
+
+def build_storage_key(
+    tenant_id: UUID, company_id: UUID, transaction_date: date, file_name: str
+) -> str:
+    """ストレージキー（オブジェクトパス）を組み立てる。
+
+    - tenant_idを接頭辞に含め、ストレージ層での取り違えに対する保険とする
+      （行レベルのtenant_id検証が主防御だが、キー自体もテナントで分離する）。
+    - ファイル名からパス区切り文字を除去し、ディレクトリトラバーサルや
+      別プレフィックスへの逸脱を防ぐ。
+    - UUIDを挟むことで同名ファイル・同日・同社の同時アップロードでも
+      キーが衝突しない（衝突は既存オブジェクトの上書き＝データ破損に直結する）。
+    """
+    safe_name = _UNSAFE_PATH_CHARS.sub("_", file_name or "document").lstrip(".")
+    return f"{tenant_id}/{company_id}/{transaction_date.isoformat()}/{uuid4()}_{safe_name or 'document'}"
+
+
+def verify_integrity(file_bytes: bytes, expected_hash: str) -> bool:
+    """ファイルが登録時のハッシュと一致するか（改ざんされていないか）検証する。"""
+    return compute_file_hash(file_bytes) == (expected_hash or "").lower()
+
+
+def matches_search(
+    transaction_date: date,
+    amount: Decimal | None,
+    counterparty_name: str | None,
+    *,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    amount_min: Decimal | None = None,
+    amount_max: Decimal | None = None,
+    counterparty: str | None = None,
+) -> bool:
+    """電帳法の検索3軸（日付範囲・金額範囲・取引先部分一致）で一致判定する。"""
+    if date_from is not None and transaction_date < date_from:
+        return False
+    if date_to is not None and transaction_date > date_to:
+        return False
+    if amount_min is not None and (amount is None or amount < amount_min):
+        return False
+    if amount_max is not None and (amount is None or amount > amount_max):
+        return False
+    if counterparty:
+        if not counterparty_name or counterparty not in counterparty_name:
+            return False
+    return True
+
+
+# --- 非同期サービス（DB依存） ------------------------------------------------
+
+async def archive_document(
+    db: AsyncSession,
+    tenant_id: UUID,
+    company_id: UUID,
+    document_type: str,
+    file_name: str,
+    file_bytes: bytes,
+    transaction_date: date,
+    storage_path: str,
+    amount: Decimal | None = None,
+    counterparty_name: str | None = None,
+    mime_type: str | None = None,
+    linked_journal_header_id: UUID | None = None,
+    registered_by: UUID | None = None,
+    store=None,
+) -> ArchivedDocument:
+    """証憑ファイル本体をストレージへ保存し、SHA-256ハッシュ付きでメタデータを登録する。
+
+    ファイル保存に失敗した場合はメタデータを書き込まず例外を送出する（本体なしの
+    メタデータ行を残さないため）。
+
+    Raises:
+        CompanyNotFoundError: company_idがtenant_idに属していない場合
+            （他テナントのcompany_idを指定して、自テナントの証憑として
+            登録しようとする不整合行の作成を防ぐ）。
+    """
+    company_result = await db.execute(
+        select(Company).where(Company.company_id == company_id, Company.tenant_id == tenant_id)
+    )
+    if company_result.scalar_one_or_none() is None:
+        raise CompanyNotFoundError(f"Company {company_id} does not belong to tenant {tenant_id}")
+
+    store = store or storage_module.storage
+    await store.put_object(storage_path, file_bytes, mime_type)
+    document = ArchivedDocument(
+        tenant_id=tenant_id,
+        company_id=company_id,
+        document_type=document_type,
+        file_name=file_name,
+        file_hash=compute_file_hash(file_bytes),
+        file_size=len(file_bytes),
+        mime_type=mime_type,
+        storage_path=storage_path,
+        transaction_date=transaction_date,
+        amount=amount,
+        counterparty_name=counterparty_name,
+        linked_journal_header_id=linked_journal_header_id,
+        registered_by=registered_by,
+    )
+    db.add(document)
+    await db.commit()
+    await db.refresh(document)
+    return document
+
+
+async def search_documents(
+    db: AsyncSession,
+    company_id: UUID,
+    tenant_id: UUID,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    amount_min: Decimal | None = None,
+    amount_max: Decimal | None = None,
+    counterparty: str | None = None,
+    include_superseded: bool = False,
+    limit: int = 100,
+) -> list[ArchivedDocument]:
+    """電帳法の検索3軸で証憑を検索する。既定では現行版（未差替え）のみ返す。
+
+    tenant_idで境界を強制する（company_idだけでは、呼び出し側が他テナントの
+    company_idを渡した場合に他テナントの証憑が返ってしまう）。
+    """
+    conditions = [
+        ArchivedDocument.company_id == company_id,
+        ArchivedDocument.tenant_id == tenant_id,
+    ]
+    if not include_superseded:
+        conditions.append(ArchivedDocument.superseded_by_id.is_(None))
+    if date_from is not None:
+        conditions.append(ArchivedDocument.transaction_date >= date_from)
+    if date_to is not None:
+        conditions.append(ArchivedDocument.transaction_date <= date_to)
+    if amount_min is not None:
+        conditions.append(ArchivedDocument.amount >= amount_min)
+    if amount_max is not None:
+        conditions.append(ArchivedDocument.amount <= amount_max)
+    if counterparty:
+        conditions.append(ArchivedDocument.counterparty_name.ilike(f"%{counterparty}%"))
+    result = await db.execute(
+        select(ArchivedDocument)
+        .where(*conditions)
+        .order_by(ArchivedDocument.transaction_date.desc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def get_document(
+    db: AsyncSession, document_id: UUID, company_id: UUID, tenant_id: UUID
+) -> ArchivedDocument | None:
+    """証憑を1件取得する（テナント境界を強制）。"""
+    result = await db.execute(
+        select(ArchivedDocument).where(
+            ArchivedDocument.archived_document_id == document_id,
             ArchivedDocument.company_id == company_id,
-            ArchivedDocument.is_deleted == False,  # noqa: E712
+            ArchivedDocument.tenant_id == tenant_id,
         )
-        if transaction_date_from is not None:
-            stmt = stmt.where(ArchivedDocument.transaction_date >= transaction_date_from)
-        if transaction_date_to is not None:
-            stmt = stmt.where(ArchivedDocument.transaction_date <= transaction_date_to)
-        if amount_min is not None:
-            stmt = stmt.where(ArchivedDocument.transaction_amount >= amount_min)
-        if amount_max is not None:
-            stmt = stmt.where(ArchivedDocument.transaction_amount <= amount_max)
-        if counterparty_name:
-            stmt = stmt.where(ArchivedDocument.counterparty_name.ilike(f"%{counterparty_name}%"))
-        if document_type:
-            stmt = stmt.where(ArchivedDocument.document_type == document_type)
-        stmt = stmt.order_by(ArchivedDocument.transaction_date.desc(), ArchivedDocument.created_at.desc())
-        result = await db.execute(stmt)
-        return list(result.scalars().all())
+    )
+    return result.scalar_one_or_none()
+
+
+async def download_document(
+    db: AsyncSession, document_id: UUID, company_id: UUID, tenant_id: UUID, store=None
+) -> tuple[ArchivedDocument, bytes] | None:
+    """保存済み証憑のメタデータと本体バイト列を取得する。"""
+    store = store or storage_module.storage
+    document = await get_document(db, document_id, company_id, tenant_id)
+    if document is None:
+        return None
+    data = await store.get_object(document.storage_path)
+    return document, data
+
+
+async def verify_document(
+    db: AsyncSession,
+    document_id: UUID,
+    company_id: UUID,
+    tenant_id: UUID,
+    file_bytes: bytes | None = None,
+    store=None,
+) -> dict | None:
+    """証憑の改ざん検知。file_bytes未指定時は保存済み本体を取得して照合する。"""
+    document = await get_document(db, document_id, company_id, tenant_id)
+    if document is None:
+        return None
+    if file_bytes is None:
+        store = store or storage_module.storage
+        file_bytes = await store.get_object(document.storage_path)
+    ok = verify_integrity(file_bytes, document.file_hash)
+    return {
+        "archived_document_id": str(document.archived_document_id),
+        "is_valid": ok,
+        "expected_hash": document.file_hash,
+        "actual_hash": compute_file_hash(file_bytes),
+    }
+
+
+async def supersede_document(
+    db: AsyncSession,
+    tenant_id: UUID,
+    company_id: UUID,
+    old_document_id: UUID,
+    document_type: str,
+    file_name: str,
+    file_bytes: bytes,
+    transaction_date: date,
+    storage_path: str,
+    amount: Decimal | None = None,
+    counterparty_name: str | None = None,
+    mime_type: str | None = None,
+    linked_journal_header_id: UUID | None = None,
+    registered_by: UUID | None = None,
+    store=None,
+) -> tuple[ArchivedDocument, ArchivedDocument] | None:
+    """既存証憑を差し替える。新版を登録し、旧版は残して新版へリンクする。
+
+    旧版は削除せず superseded_by_id で新版を指す（電帳法の訂正削除履歴）。
+    """
+    old = await get_document(db, old_document_id, company_id, tenant_id)
+    if old is None:
+        return None
+    new = await archive_document(
+        db,
+        tenant_id=tenant_id,
+        company_id=company_id,
+        document_type=document_type,
+        file_name=file_name,
+        file_bytes=file_bytes,
+        transaction_date=transaction_date,
+        storage_path=storage_path,
+        amount=amount,
+        counterparty_name=counterparty_name,
+        mime_type=mime_type,
+        linked_journal_header_id=linked_journal_header_id,
+        registered_by=registered_by,
+        store=store,
+    )
+    old.superseded_by_id = new.archived_document_id
+    await db.commit()
+    await db.refresh(old)
+    return old, new

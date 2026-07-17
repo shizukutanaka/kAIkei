@@ -276,6 +276,31 @@ export default function InvoicesPage() {
     }
   };
 
+  const handleDownloadPeppol = async (invoiceId: string, number: string) => {
+    setDownloadLoading(invoiceId);
+    try {
+      const token = localStorage.getItem("token");
+      const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
+      const res = await fetch(`${base}/invoices/invoices/${invoiceId}/peppol-xml`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("取得に失敗しました");
+      const text = await res.text();
+      const blob = new Blob([text], { type: "application/xml;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `invoice_${number}_peppol.xml`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("Peppol XMLをダウンロードしました", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "ダウンロードに失敗しました", "error");
+    } finally {
+      setDownloadLoading(null);
+    }
+  };
+
   return (
     <PageLayout title="請求書管理">
       <div className="mb-6 flex items-center gap-3">
@@ -568,6 +593,9 @@ export default function InvoicesPage() {
                       <button onClick={() => setSelectedInvoice(inv)} className="rounded px-2 py-1 text-xs hover:bg-accent">詳細</button>
                       <button onClick={() => handleDownload(inv.invoice_id, inv.invoice_number)} disabled={downloadLoading === inv.invoice_id} className="inline-flex items-center justify-center rounded p-2 hover:bg-accent disabled:opacity-50" title="CSV出力" aria-label="CSV出力">
                         {downloadLoading === inv.invoice_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-muted-foreground" />}
+                      </button>
+                      <button onClick={() => handleDownloadPeppol(inv.invoice_id, inv.invoice_number)} disabled={downloadLoading === inv.invoice_id} className="rounded px-2 py-1 text-xs hover:bg-accent disabled:opacity-50" title="Peppol/JP PINT XML出力" aria-label="Peppol XML出力">
+                        XML
                       </button>
                     </div>
                   </td>

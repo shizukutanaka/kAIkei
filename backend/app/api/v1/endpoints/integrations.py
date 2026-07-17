@@ -42,23 +42,16 @@ async def import_csv(
     content = await file.read()
     csv_text = content.decode("utf-8-sig")
 
-    if software_code == "generic_csv":
-        from app.services.integrations.generic_csv_adapter import GenericCsvAdapter
-
-        csv_adapter = GenericCsvAdapter()
-        journals = csv_adapter.parse_csv(csv_text)
-        validation = csv_adapter.validate_import(journals)
-    elif software_code == "yayoi_accounting":
-        from app.services.integrations.yayoi_adapter import YayoiAccountingAdapter
-
-        yayoi_adapter = YayoiAccountingAdapter()
-        journals = yayoi_adapter.parse_csv(csv_text)
-
-        from app.services.integrations.generic_csv_adapter import GenericCsvAdapter
-
-        validation = GenericCsvAdapter().validate_import(journals)
-    else:
-        raise HTTPException(status_code=400, detail=f"CSV import not implemented for {software_code}")
+    # 各アダプタがparse_csv/validate_importを提供するため、software_code毎の
+    # 分岐なしにポリモーフィックに取り込む。
+    try:
+        journals = adapter.parse_csv(csv_text)
+    except NotImplementedError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"CSV import is not available for {software_code}",
+        )
+    validation = adapter.validate_import(journals)
 
     return {
         "dry_run": dry_run,

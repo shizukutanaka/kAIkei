@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, LayoutDashboard, FileText, Settings, Receipt, Users, Building2, Calculator, Sparkles, Globe, FileCheck, List, Menu, X, Handshake, Gift, CalendarClock, Clock, Wallet, FilePlus, Landmark, ScrollText } from "lucide-react";
+import { BookOpen, LayoutDashboard, FileText, Settings, Receipt, Users, Building2, Calculator, Sparkles, Globe, FileCheck, List, Menu, X, Handshake, Gift, CalendarClock, Clock, Wallet, FilePlus, Landmark, ScrollText, Banknote, ShieldAlert, Archive, ListChecks, ShieldCheck, Scale, GitBranch, Webhook } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import CompanySelector from "@/components/company-selector";
@@ -33,7 +33,9 @@ const navSections: NavSection[] = [
       { label: "仕訳入力", href: "/journals/new", icon: Receipt, permissions: ["journal:create"] },
       { label: "仕訳一覧", href: "/journals", icon: List, permissions: ["journal:read"] },
       { label: "AI仕訳推論", href: "/ai-inference", icon: Sparkles, permissions: ["ai:infer", "ai:review"] },
+      { label: "AI推論証跡", href: "/ai-inference-logs", icon: Sparkles, permissions: ["ai:review"] },
       { label: "承認ワークフロー", href: "/approvals", icon: FileCheck, permissions: ["journal:approve", "journal:post", "journal:create"] },
+      { label: "承認ポリシー", href: "/approval-policies", icon: GitBranch, permissions: ["master:read"] },
       { label: "マスタ", href: "/masters", icon: BookOpen, permissions: ["master:read", "master:create"] },
       { label: "取引先", href: "/partners", icon: Handshake, permissions: ["master:read", "master:create"] },
       { label: "帳票", href: "/reports", icon: FileText, permissions: ["report:read"] },
@@ -55,6 +57,8 @@ const navSections: NavSection[] = [
       { label: "経費精算", href: "/expenses", icon: Wallet },
       { label: "請求書", href: "/invoices", icon: FilePlus },
       { label: "消費税申告", href: "/tax-returns", icon: Landmark },
+      { label: "税務調整", href: "/tax-adjustments", icon: Scale, permissions: ["master:read"] },
+      { label: "銀行明細・消込", href: "/bank", icon: Banknote, permissions: ["journal:read"] },
     ],
   },
   {
@@ -62,6 +66,11 @@ const navSections: NavSection[] = [
     items: [
       { label: "ナレッジ検索", href: "/knowledge", icon: Globe, permissions: ["knowledge:search"] },
       { label: "操作証跡ログ", href: "/audit", icon: ScrollText, permissions: ["report:read"] },
+      { label: "監査・リスク検知", href: "/audit-detection", icon: ShieldAlert, permissions: ["audit:review"] },
+      { label: "証憑アーカイブ", href: "/documents", icon: Archive, permissions: ["document:manage"] },
+      { label: "月次業務タスク", href: "/office-tasks", icon: ListChecks },
+      { label: "セキュリティポリシー", href: "/security-policy", icon: ShieldCheck, permissions: ["user:manage"] },
+      { label: "Webhook管理", href: "/webhooks", icon: Webhook, permissions: ["webhook:manage"] },
       { label: "設定", href: "/settings", icon: Settings },
     ],
   },

@@ -1,117 +1,108 @@
-from __future__ import annotations
-
+import hashlib
+import uuid
 from datetime import date
 from decimal import Decimal
-from pathlib import Path
-from uuid import uuid4
 
 import pytest
 
-from app.models.models import ArchivedDocument
-from app.services.document_archive import DocumentArchiveService
+from app.services.document_archive import (
+    build_storage_key,
+    compute_file_hash,
+    matches_search,
+    verify_integrity,
+)
 
 
-class _ScalarResult:
-    def __init__(self, value):
-        self._value = value
+class TestHashing:
+    def test_hash_matches_hashlib(self):
+        data = b"invoice content"
+        assert compute_file_hash(data) == hashlib.sha256(data).hexdigest()
 
-    def scalar_one_or_none(self):
-        return self._value
+    def test_hash_is_deterministic(self):
+        assert compute_file_hash(b"abc") == compute_file_hash(b"abc")
 
-    def scalars(self):
-        return self
-
-    def all(self):
-        return self._value
+    def test_different_content_different_hash(self):
+        assert compute_file_hash(b"a") != compute_file_hash(b"b")
 
 
-class _FakeDB:
-    def __init__(self, execute_results: list[object]):
-        self._execute_results = execute_results
-        self.added: list[object] = []
+class TestVerifyIntegrity:
+    def test_valid_when_unchanged(self):
+        data = b"receipt-2026-001"
+        assert verify_integrity(data, compute_file_hash(data)) is True
 
-    async def execute(self, _stmt):
-        return _ScalarResult(self._execute_results.pop(0))
+    def test_invalid_when_tampered(self):
+        original = b"amount: 10000"
+        tampered = b"amount: 99999"
+        assert verify_integrity(tampered, compute_file_hash(original)) is False
 
-    def add(self, obj):
-        self.added.append(obj)
-
-    async def flush(self):
-        return None
-
-    async def refresh(self, _obj):
-        return None
+    def test_empty_expected_hash_is_invalid(self):
+        assert verify_integrity(b"x", "") is False
 
 
-class _FakeUploadFile:
-    def __init__(self, content: bytes, filename: str):
-        self._content = content
-        self.filename = filename
+class TestMatchesSearch:
+    D = date(2026, 4, 15)
 
-    async def read(self) -> bytes:
-        return self._content
+    def test_no_filters_matches(self):
+        assert matches_search(self.D, Decimal("1000"), "カイケイ商事") is True
+
+    def test_date_range(self):
+        assert matches_search(self.D, None, None, date_from=date(2026, 4, 1), date_to=date(2026, 4, 30)) is True
+        assert matches_search(self.D, None, None, date_from=date(2026, 5, 1)) is False
+        assert matches_search(self.D, None, None, date_to=date(2026, 4, 1)) is False
+
+    def test_amount_range(self):
+        assert matches_search(self.D, Decimal("5000"), None, amount_min=Decimal("1000"), amount_max=Decimal("10000")) is True
+        assert matches_search(self.D, Decimal("500"), None, amount_min=Decimal("1000")) is False
+        assert matches_search(self.D, Decimal("20000"), None, amount_max=Decimal("10000")) is False
+
+    def test_amount_filter_excludes_null_amount(self):
+        assert matches_search(self.D, None, None, amount_min=Decimal("1000")) is False
+
+    def test_counterparty_partial_match(self):
+        assert matches_search(self.D, None, "株式会社カイケイ商事", counterparty="カイケイ") is True
+        assert matches_search(self.D, None, "別の会社", counterparty="カイケイ") is False
+
+    def test_counterparty_filter_excludes_null_name(self):
+        assert matches_search(self.D, None, None, counterparty="カイケイ") is False
+
+    def test_all_three_axes_combined(self):
+        assert matches_search(
+            self.D, Decimal("5000"), "カイケイ商事",
+            date_from=date(2026, 4, 1), date_to=date(2026, 4, 30),
+            amount_min=Decimal("1000"), amount_max=Decimal("10000"),
+            counterparty="カイケイ",
+        ) is True
 
 
-class TestDocumentArchiveService:
-    def test_compute_hash(self):
-        assert DocumentArchiveService.compute_hash(b"hello") == "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+class TestBuildStorageKey:
+    TENANT = uuid.UUID("11111111-1111-1111-1111-111111111111")
+    COMPANY = uuid.UUID("22222222-2222-2222-2222-222222222222")
+    D = date(2026, 4, 15)
 
-    @pytest.mark.asyncio
-    async def test_archive_writes_file_and_returns_document(self, tmp_path: Path):
-        service = DocumentArchiveService(storage_root=tmp_path)
-        db = _FakeDB([None])
-        upload = _FakeUploadFile(b"pdf-bytes", "receipt.pdf")
-        doc = await service.archive(
-            db,
-            company_id=uuid4(),
-            file=upload,
-            transaction_date=date(2026, 6, 30),
-            transaction_amount=Decimal("12345.67"),
-            counterparty_name="テスト商事",
-            document_type="receipt",
-            created_by=uuid4(),
-        )
-        assert isinstance(doc, ArchivedDocument)
-        assert doc.file_extension == "pdf"
-        assert doc.file_size == len(b"pdf-bytes")
-        assert (tmp_path / doc.file_path).read_bytes() == b"pdf-bytes"
-        assert len(db.added) == 1
+    def test_includes_tenant_company_and_date(self):
+        key = build_storage_key(self.TENANT, self.COMPANY, self.D, "invoice.pdf")
+        assert key.startswith(f"{self.TENANT}/{self.COMPANY}/2026-04-15/")
+        assert key.endswith("_invoice.pdf")
 
-    @pytest.mark.asyncio
-    async def test_archive_duplicate_raises(self, tmp_path: Path):
-        service = DocumentArchiveService(storage_root=tmp_path)
-        db = _FakeDB([ArchivedDocument(document_id=uuid4(), company_id=uuid4(), file_path="x", file_extension="pdf", file_hash=DocumentArchiveService.compute_hash(b"dup"), file_size=3, transaction_date=date(2026, 6, 30), transaction_amount=Decimal("1"), counterparty_name="A", document_type="receipt", created_by=uuid4(), is_deleted=False)])
-        upload = _FakeUploadFile(b"dup", "receipt.pdf")
-        with pytest.raises(ValueError):
-            await service.archive(
-                db,
-                company_id=uuid4(),
-                file=upload,
-                transaction_date=date(2026, 6, 30),
-                transaction_amount=Decimal("1"),
-                counterparty_name="A",
-                document_type="receipt",
-                created_by=uuid4(),
-            )
+    def test_two_calls_with_identical_inputs_never_collide(self):
+        # 同一テナント・同一会社・同一日付・同一ファイル名の連続アップロードでも
+        # ストレージキーが衝突しない（既存オブジェクトの上書き事故を防ぐ）。
+        k1 = build_storage_key(self.TENANT, self.COMPANY, self.D, "invoice.pdf")
+        k2 = build_storage_key(self.TENANT, self.COMPANY, self.D, "invoice.pdf")
+        assert k1 != k2
 
-    @pytest.mark.asyncio
-    async def test_search_filters_counterparty(self, tmp_path: Path):
-        service = DocumentArchiveService(storage_root=tmp_path)
-        item = ArchivedDocument(
-            document_id=uuid4(),
-            company_id=uuid4(),
-            file_path="doc.pdf",
-            file_extension="pdf",
-            file_hash=DocumentArchiveService.compute_hash(b"abc"),
-            file_size=3,
-            transaction_date=date(2026, 6, 30),
-            transaction_amount=Decimal("1000"),
-            counterparty_name="東京電力",
-            document_type="invoice",
-            created_by=uuid4(),
-            is_deleted=False,
-        )
-        db = _FakeDB([[item]])
-        items = await service.search(db, company_id=item.company_id, counterparty_name="東京")
-        assert len(items) == 1
-        assert items[0].counterparty_name == "東京電力"
+    def test_sanitizes_path_traversal_in_filename(self):
+        key = build_storage_key(self.TENANT, self.COMPANY, self.D, "../../etc/passwd")
+        # スラッシュはすべて除去され、日付より後ろは単一セグメントの末尾ファイル名になる
+        # （パス区切りが残らないため、経路逸脱に使えない）。
+        tail = key.split(f"{self.D.isoformat()}/", 1)[1]
+        assert "/" not in tail and "\\" not in tail
+
+    def test_sanitizes_backslash(self):
+        key = build_storage_key(self.TENANT, self.COMPANY, self.D, "..\\..\\windows\\win.ini")
+        tail = key.split(f"{self.D.isoformat()}/", 1)[1]
+        assert "\\" not in tail
+
+    def test_empty_filename_falls_back_to_document(self):
+        key = build_storage_key(self.TENANT, self.COMPANY, self.D, "")
+        assert key.endswith("_document")

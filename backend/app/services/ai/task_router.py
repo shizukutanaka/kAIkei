@@ -91,8 +91,8 @@ class TaskRouter:
 
         判定基準:
         - document_textが長い（>1000文字）→ HEAVY
-        - descriptionが短く区切りの無い単純な摘要で金額が単純 → LIGHT
-        - それ以外（構造化された摘要・長い摘要・添付テキスト有り）→ MEDIUM
+        - descriptionが短い単一概念で金額が単純 → LIGHT
+        - それ以外（複合的な摘要・区切り文字を含む等）→ MEDIUM
         """
         text_len = len(request.document_text or "")
         description = request.description or ""
@@ -101,9 +101,10 @@ class TaskRouter:
         if text_len > 1000:
             return TaskComplexity.HEAVY
 
-        has_structure = any(sep in description for sep in (" - ", "-", "/", "、", ",", "："))
+        # 区切り文字を含む摘要は複数の要素（取引先・期間等）を持つ複合取引とみなす。
+        has_separator = any(sep in description for sep in ("-", "・", "、", ",", "/"))
 
-        if text_len == 0 and request.amount > 0 and desc_len < 10 and not has_structure:
+        if text_len == 0 and desc_len < 10 and not has_separator and request.amount > 0:
             return TaskComplexity.LIGHT
 
         return TaskComplexity.MEDIUM

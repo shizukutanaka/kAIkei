@@ -73,3 +73,61 @@ class ImportAdapter(ABC):
     def supports_csv(self) -> bool:
         """Whether this software supports CSV import."""
         pass
+
+    def parse_csv(self, csv_content: str, encoding: str = "utf-8") -> list[ImportedJournal]:
+        """Parse a CSV export into ImportedJournal entries.
+
+        CSV-capable adapters override this. The default raises so that an
+        adapter advertising ``supports_csv`` without an implementation fails
+        loudly rather than silently importing nothing.
+        """
+        raise NotImplementedError(f"{self.software_code} does not implement CSV parsing")
+
+    def validate_import(self, journals: list[ImportedJournal]) -> dict[str, Any]:
+        """Validate imported journals and return an error report.
+
+        Format-agnostic: operates on the normalized ImportedJournal line
+        dicts, so every adapter shares one balance/amount/account check.
+        """
+        errors: list[dict[str, Any]] = []
+        valid_count = 0
+        error_count = 0
+
+        for i, journal in enumerate(journals):
+            row_errors: list[str] = []
+
+            debit_total = sum(l["amount"] for l in journal.lines if l["debit_credit"] == "debit")
+            credit_total = sum(l["amount"] for l in journal.lines if l["debit_credit"] == "credit")
+
+            if abs(debit_total - credit_total) > 0.01:
+                row_errors.append(f"貸借不一致: 借方{debit_total} / 貸方{credit_total}")
+
+            if not journal.lines:
+                row_errors.append("行データが空")
+
+            for j, line in enumerate(journal.lines):
+                if line["amount"] == 0:
+                    row_errors.append(f"行{j+1}: 金額が0")
+                # 科目はコードまたは名称のいずれかで識別できればよい
+                # （freee等の名称ベースCSVを許容）。
+                if not line.get("account_code") and not line.get("account_name"):
+                    row_errors.append(f"行{j+1}: 科目が空")
+
+            if row_errors:
+                error_count += 1
+                errors.append({
+                    "row": i + 1,
+                    "journal_number": journal.journal_number,
+                    "date": journal.transaction_date.isoformat(),
+                    "errors": row_errors,
+                })
+            else:
+                valid_count += 1
+
+        return {
+            "total": len(journals),
+            "valid": valid_count,
+            "errors": error_count,
+            "error_details": errors,
+            "is_valid": error_count == 0,
+        }

@@ -1,3 +1,4 @@
+import json
 import logging
 import uuid
 
@@ -10,6 +11,39 @@ from app.models.models import AuditLog
 logger = logging.getLogger(__name__)
 
 SKIP_PATHS = {"/health", "/docs", "/redoc", "/openapi.json"}
+
+# 監査ログに平文で残してはいけないフィールド名（パスワード・TOTPコード・トークン等）。
+SENSITIVE_BODY_KEYS = {
+    "password",
+    "new_password",
+    "old_password",
+    "mfa_code",
+    "code",
+    "current_code",
+    "secret",
+    "refresh_token",
+    "access_token",
+}
+
+REDACTED_PLACEHOLDER = "***REDACTED***"
+
+
+def redact_sensitive_fields(body_text: str) -> str:
+    """JSON形式のリクエストボディから既知の機微キーの値を伏字にする。
+
+    JSONとしてパースできない場合（フォームデータ等）は元のテキストをそのまま返す
+    （非JSONボディに機微キーが含まれる既存経路は本関数の対象外）。
+    """
+    try:
+        data = json.loads(body_text)
+    except (json.JSONDecodeError, TypeError):
+        return body_text
+    if not isinstance(data, dict):
+        return body_text
+    redacted = {
+        k: (REDACTED_PLACEHOLDER if k in SENSITIVE_BODY_KEYS else v) for k, v in data.items()
+    }
+    return json.dumps(redacted, ensure_ascii=False)
 
 
 class AuditLogMiddleware(BaseHTTPMiddleware):
@@ -71,7 +105,7 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         body_text = None
         if body_bytes and request.method in ("POST", "PUT", "PATCH", "DELETE"):
             try:
-                body_text = body_bytes.decode("utf-8", errors="replace")[:2000]
+                body_text = redact_sensitive_fields(body_bytes.decode("utf-8", errors="replace"))[:2000]
             except Exception:
                 pass
 

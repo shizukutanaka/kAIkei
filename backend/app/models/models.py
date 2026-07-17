@@ -14,9 +14,10 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    Time,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -48,6 +49,9 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(50), default="viewer", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    mfa_secret: Mapped[str | None] = mapped_column(String(64))
+    mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    mfa_last_used_step: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -74,11 +78,6 @@ class Company(Base):
     tenant = relationship("Tenant", back_populates="companies")
     accounts = relationship("Account", back_populates="company")
     journal_headers = relationship("JournalHeader", back_populates="company")
-    webhook_endpoints = relationship("WebhookEndpoint", back_populates="company")
-    webhook_deliveries = relationship("WebhookDelivery", back_populates="company")
-    scheduled_jobs = relationship("ScheduledJob", back_populates="company")
-    job_executions = relationship("JobExecution", back_populates="company")
-    office_tasks = relationship("OfficeTask", back_populates="company")
 
 
 class Account(Base):
@@ -192,40 +191,6 @@ class MonthlyBalance(Base):
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-
-
-class Budget(Base):
-    """予算ヘッダー（会計年度単位）。"""
-    __tablename__ = "budgets"
-
-    budget_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
-    fiscal_year: Mapped[int] = mapped_column(Integer, nullable=False)
-    name: Mapped[str] = mapped_column(String(200), nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
-    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-
-    company = relationship("Company")
-    lines = relationship("BudgetLine", back_populates="budget", cascade="all, delete-orphan")
-
-
-class BudgetLine(Base):
-    """予算明細（勘定科目×月単位）。"""
-    __tablename__ = "budget_lines"
-
-    budget_line_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    budget_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("budgets.budget_id", ondelete="CASCADE"), nullable=False
-    )
-    account_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("accounts.account_id"), nullable=False)
-    month: Mapped[int] = mapped_column(Integer, nullable=False)
-    budgeted_amount: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-    budget = relationship("Budget", back_populates="lines")
-    account = relationship("Account")
 
 
 class ApprovalWorkflow(Base):
@@ -533,106 +498,6 @@ class InvoiceLine(Base):
     invoice = relationship("Invoice", back_populates="lines")
 
 
-class BankAccount(Base):
-    """銀行口座。"""
-    __tablename__ = "bank_accounts"
-
-    bank_account_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
-    bank_code: Mapped[str] = mapped_column(String(4), nullable=False)
-    branch_code: Mapped[str] = mapped_column(String(3), nullable=False)
-    account_type: Mapped[str] = mapped_column(String(10), nullable=False)
-    account_no_encrypted: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
-    account_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    account_name_kana: Mapped[str] = mapped_column(String(40), nullable=False)
-    currency_code: Mapped[str] = mapped_column(String(3), default="JPY", nullable=False)
-    valid_from: Mapped[date] = mapped_column(Date, server_default=func.current_date(), nullable=False)
-    valid_to: Mapped[date | None] = mapped_column(Date)
-    auto_fetch_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-
-    company = relationship("Company")
-    statement_details = relationship("BankStatementDetail", back_populates="bank_account")
-    payment_requests = relationship("PaymentRequest", back_populates="bank_account")
-
-
-class BankStatementDetail(Base):
-    """銀行明細。"""
-    __tablename__ = "bank_statement_details"
-
-    statement_detail_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
-    bank_account_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("bank_accounts.bank_account_id"), nullable=False)
-    value_date: Mapped[date] = mapped_column(Date, nullable=False)
-    withdraw_amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=Decimal("0"), nullable=False)
-    deposit_amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=Decimal("0"), nullable=False)
-    sender_name_kana: Mapped[str] = mapped_column(String(150), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text)
-    is_reconciled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    reconciled_journal_header_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("journal_headers.journal_header_id")
-    )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-    company = relationship("Company")
-    bank_account = relationship("BankAccount", back_populates="statement_details")
-
-
-class PaymentRequest(Base):
-    """支払申請。"""
-    __tablename__ = "payment_requests"
-
-    payment_request_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
-    partner_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("partners.partner_id"))
-    payment_date: Mapped[date] = mapped_column(Date, nullable=False)
-    payment_amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
-    bank_account_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("bank_accounts.bank_account_id"))
-    dest_bank_code: Mapped[str | None] = mapped_column(String(4))
-    dest_branch_code: Mapped[str | None] = mapped_column(String(3))
-    dest_account_type: Mapped[str | None] = mapped_column(String(10))
-    dest_account_no: Mapped[str | None] = mapped_column(String(7))
-    dest_account_name_kana: Mapped[str | None] = mapped_column(String(30))
-    status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
-    journal_header_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("journal_headers.journal_header_id"))
-    zengin_export_batch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
-    created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-
-    company = relationship("Company")
-    partner = relationship("Partner")
-    bank_account = relationship("BankAccount", back_populates="payment_requests")
-
-
-class ArchivedDocument(Base):
-    """電子帳簿保存法アーカイブ文書。"""
-    __tablename__ = "archived_documents"
-
-    document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
-    file_path: Mapped[str] = mapped_column(String(512), nullable=False)
-    file_extension: Mapped[str] = mapped_column(String(10), nullable=False)
-    file_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    file_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    transaction_date: Mapped[date] = mapped_column(Date, nullable=False)
-    transaction_amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
-    counterparty_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    document_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    timestamp_token: Mapped[str | None] = mapped_column(Text)
-    timestamp_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    journal_header_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("journal_headers.journal_header_id"))
-    created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-
-    company = relationship("Company")
-    journal_header = relationship("JournalHeader")
-    creator = relationship("User")
-
-
 class TaxReturn(Base):
     """消費税申告（年次）。"""
     __tablename__ = "tax_returns"
@@ -719,6 +584,48 @@ class Notification(Base):
     user = relationship("User")
 
 
+class WebhookEndpoint(Base):
+    """Webhook登録先（通知先URL・秘密鍵・購読イベント）。"""
+    __tablename__ = "webhook_endpoints"
+
+    webhook_endpoint_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.tenant_id"), nullable=False)
+    company_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=True)
+    url: Mapped[str] = mapped_column(String(500), nullable=False)
+    secret: Mapped[str] = mapped_column(String(200), nullable=False)
+    # 購読イベント種別のリスト。["*"] は全イベント、"notification.*" は接頭辞一致。
+    subscribed_events: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    description: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    deliveries = relationship("WebhookDelivery", back_populates="endpoint")
+
+
+class WebhookDelivery(Base):
+    """Webhook配信キュー（ペイロード・再試行回数・次回実行時刻・状態）。"""
+    __tablename__ = "webhook_deliveries"
+
+    webhook_delivery_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    webhook_endpoint_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("webhook_endpoints.webhook_endpoint_id"), nullable=False
+    )
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    last_status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    endpoint = relationship("WebhookEndpoint", back_populates="deliveries")
+
+
 class NotificationPreference(Base):
     """ユーザーごとの通知設定。"""
     __tablename__ = "notification_preferences"
@@ -736,41 +643,281 @@ class NotificationPreference(Base):
     user = relationship("User")
 
 
-class WebhookEndpoint(Base):
-    __tablename__ = "webhook_endpoints"
+class BankStatementLine(Base):
+    """銀行明細（入出金・振込人カナ・消込フラグ）。"""
+    __tablename__ = "bank_statement_lines"
 
-    endpoint_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    bank_statement_line_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.tenant_id"), nullable=False)
     company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
-    target_url: Mapped[str] = mapped_column(String(512), nullable=False)
-    secret_token: Mapped[str] = mapped_column(String(255), nullable=False)
-    subscribed_events: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    transaction_date: Mapped[date] = mapped_column(Date, nullable=False)
+    value_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # "deposit"（入金）または "withdrawal"（出金）。amountは常に正の絶対値。
+    direction: Mapped[str] = mapped_column(String(10), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(15, 4), nullable=False)
+    balance: Mapped[Decimal | None] = mapped_column(Numeric(15, 4), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    counterparty_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    is_reconciled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    reconciled_journal_line_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("journal_lines.journal_line_id"), nullable=True
+    )
+    reconciled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    source: Mapped[str] = mapped_column(String(30), default="csv", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class AuditDetectionLog(Base):
+    """監査検知ログ（リスクレベル・検知カテゴリ・確認状態）。"""
+    __tablename__ = "audit_detection_logs"
+
+    audit_detection_log_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.tenant_id"), nullable=False)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    journal_header_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("journal_headers.journal_header_id"), nullable=True
+    )
+    risk_level: Mapped[str] = mapped_column(String(10), nullable=False)  # low / medium / high
+    category: Mapped[str] = mapped_column(String(40), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="open", nullable=False)  # open / confirmed / dismissed
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class TaxAdjustmentRule(Base):
+    """税務調整ルール（加算/減算・限度額計算式・対象科目）。"""
+    __tablename__ = "tax_adjustment_rules"
+
+    tax_adjustment_rule_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.tenant_id"), nullable=False)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    # "addition"（加算）または "subtraction"（減算）。
+    adjustment_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    # "fixed" | "rate" | "excess_over_limit"
+    calculation_method: Mapped[str] = mapped_column(String(30), nullable=False)
+    rate: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+    limit_amount: Mapped[Decimal | None] = mapped_column(Numeric(15, 4), nullable=True)
+    fixed_amount: Mapped[Decimal | None] = mapped_column(Numeric(15, 4), nullable=True)
+    target_account_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    company = relationship("Company", back_populates="webhook_endpoints")
-    deliveries = relationship("WebhookDelivery", back_populates="endpoint")
 
+class ArchivedDocument(Base):
+    """電帳法証憑アーカイブ（SHA-256・3軸検索・タイムスタンプ）。"""
+    __tablename__ = "archived_documents"
 
-class WebhookDelivery(Base):
-    __tablename__ = "webhook_deliveries"
-
-    delivery_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    endpoint_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("webhook_endpoints.endpoint_id"), nullable=False)
+    archived_document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.tenant_id"), nullable=False)
     company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
-    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
-    payload: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
-    attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    max_attempts: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
-    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    response_status: Mapped[int | None] = mapped_column(Integer)
-    signature: Mapped[str | None] = mapped_column(String(255))
+    document_type: Mapped[str] = mapped_column(String(30), nullable=False)  # invoice / receipt / contract 等
+    file_name: Mapped[str] = mapped_column(String(300), nullable=False)
+    file_hash: Mapped[str] = mapped_column(String(64), nullable=False)  # SHA-256 hex（改ざん検知）
+    file_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    mime_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    storage_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    # 電帳法の検索3軸: 取引年月日・取引金額・取引先。
+    transaction_date: Mapped[date] = mapped_column(Date, nullable=False)
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(15, 4), nullable=True)
+    counterparty_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # 訂正・差替え時、旧版は残し新版へのリンクを持つ（電帳法の訂正削除履歴）。
+    superseded_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("archived_documents.archived_document_id"), nullable=True
+    )
+    linked_journal_header_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("journal_headers.journal_header_id"), nullable=True
+    )
+    registered_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True)
+    registered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ApprovalPolicy(Base):
+    """承認ポリシー（文書種別・金額範囲・承認ロール・ステップ順序）。"""
+    __tablename__ = "approval_policies"
+
+    approval_policy_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.tenant_id"), nullable=False)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    document_type: Mapped[str] = mapped_column(String(30), nullable=False)  # journal / expense / invoice / payment
+    min_amount: Mapped[Decimal | None] = mapped_column(Numeric(15, 4), nullable=True)
+    max_amount: Mapped[Decimal | None] = mapped_column(Numeric(15, 4), nullable=True)
+    approver_role: Mapped[str] = mapped_column(String(50), nullable=False)
+    step_order: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    endpoint = relationship("WebhookEndpoint", back_populates="deliveries")
-    company = relationship("Company", back_populates="webhook_deliveries")
+
+class TenantSecurityPolicy(Base):
+    """テナントセキュリティポリシー（認証方式・MFA・IP帯域CIDR配列）。"""
+    __tablename__ = "tenant_security_policies"
+
+    tenant_security_policy_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.tenant_id"), unique=True, nullable=False)
+    require_mfa: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # 許可IP帯域のCIDR文字列配列。空なら制限なし。
+    allowed_ip_cidrs: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    session_timeout_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
+    password_min_length: Mapped[int] = mapped_column(Integer, default=8, nullable=False)
+    max_failed_attempts: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class AiInferenceLog(Base):
+    """AI推論監査証跡（推論元・提案内容・信頼度・適用状況・修正差分）。"""
+    __tablename__ = "ai_inference_logs"
+
+    ai_inference_log_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.tenant_id"), nullable=False)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(30), nullable=False)  # journal_suggest / tax_predict / anomaly
+    input_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    suggestion: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    confidence: Mapped[Decimal] = mapped_column(Numeric(4, 3), nullable=False)
+    provider: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    applied: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    correction_diff: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    journal_header_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("journal_headers.journal_header_id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class OfficeTask(Base):
+    """事務タスク（月次業務/入社事務/経費申請等・メタデータJSONB・ステータス）。"""
+    __tablename__ = "office_tasks"
+
+    office_task_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.tenant_id"), nullable=False)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    task_type: Mapped[str] = mapped_column(String(40), nullable=False)  # monthly_close / onboarding 等
+    assigned_to: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="todo", nullable=False)  # todo / in_progress / done
+    period: Mapped[str | None] = mapped_column(String(7), nullable=True)  # "YYYY-MM"
+    task_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+# --- main由来の独立ドメインモデル（予算・銀行口座/明細・支払申請・ジョブ） ---
+
+class Budget(Base):
+    """予算ヘッダー（会計年度単位）。"""
+    __tablename__ = "budgets"
+
+    budget_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    fiscal_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    company = relationship("Company")
+    lines = relationship("BudgetLine", back_populates="budget", cascade="all, delete-orphan")
+
+
+class BudgetLine(Base):
+    """予算明細（勘定科目×月単位）。"""
+    __tablename__ = "budget_lines"
+
+    budget_line_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    budget_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("budgets.budget_id", ondelete="CASCADE"), nullable=False
+    )
+    account_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("accounts.account_id"), nullable=False)
+    month: Mapped[int] = mapped_column(Integer, nullable=False)
+    budgeted_amount: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    budget = relationship("Budget", back_populates="lines")
+    account = relationship("Account")
+
+
+class BankAccount(Base):
+    """銀行口座。"""
+    __tablename__ = "bank_accounts"
+
+    bank_account_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    bank_code: Mapped[str] = mapped_column(String(4), nullable=False)
+    branch_code: Mapped[str] = mapped_column(String(3), nullable=False)
+    account_type: Mapped[str] = mapped_column(String(10), nullable=False)
+    account_no_encrypted: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    account_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    account_name_kana: Mapped[str] = mapped_column(String(40), nullable=False)
+    currency_code: Mapped[str] = mapped_column(String(3), default="JPY", nullable=False)
+    valid_from: Mapped[date] = mapped_column(Date, server_default=func.current_date(), nullable=False)
+    valid_to: Mapped[date | None] = mapped_column(Date)
+    auto_fetch_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    company = relationship("Company")
+    statement_details = relationship("BankStatementDetail", back_populates="bank_account")
+    payment_requests = relationship("PaymentRequest", back_populates="bank_account")
+
+
+class BankStatementDetail(Base):
+    """銀行明細。"""
+    __tablename__ = "bank_statement_details"
+
+    statement_detail_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    bank_account_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("bank_accounts.bank_account_id"), nullable=False)
+    value_date: Mapped[date] = mapped_column(Date, nullable=False)
+    withdraw_amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=Decimal("0"), nullable=False)
+    deposit_amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=Decimal("0"), nullable=False)
+    sender_name_kana: Mapped[str] = mapped_column(String(150), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    is_reconciled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    reconciled_journal_header_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("journal_headers.journal_header_id")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    company = relationship("Company")
+    bank_account = relationship("BankAccount", back_populates="statement_details")
+
+
+class PaymentRequest(Base):
+    """支払申請。"""
+    __tablename__ = "payment_requests"
+
+    payment_request_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
+    partner_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("partners.partner_id"))
+    payment_date: Mapped[date] = mapped_column(Date, nullable=False)
+    payment_amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
+    bank_account_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("bank_accounts.bank_account_id"))
+    dest_bank_code: Mapped[str | None] = mapped_column(String(4))
+    dest_branch_code: Mapped[str | None] = mapped_column(String(3))
+    dest_account_type: Mapped[str | None] = mapped_column(String(10))
+    dest_account_no: Mapped[str | None] = mapped_column(String(7))
+    dest_account_name_kana: Mapped[str | None] = mapped_column(String(30))
+    status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
+    journal_header_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("journal_headers.journal_header_id"))
+    zengin_export_batch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    company = relationship("Company")
+    partner = relationship("Partner")
+    bank_account = relationship("BankAccount", back_populates="payment_requests")
 
 
 class ScheduledJob(Base):
@@ -790,7 +937,7 @@ class ScheduledJob(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    company = relationship("Company", back_populates="scheduled_jobs")
+    company = relationship("Company")
     executions = relationship("JobExecution", back_populates="scheduled_job")
 
 
@@ -813,23 +960,4 @@ class JobExecution(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     scheduled_job = relationship("ScheduledJob", back_populates="executions")
-    company = relationship("Company", back_populates="job_executions")
-
-
-class OfficeTask(Base):
-    """事務タスク（月次/日次業務エンジンが生成する定型タスク）。"""
-    __tablename__ = "office_tasks"
-
-    task_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
-    task_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    title: Mapped[str] = mapped_column(String(200), nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
-    assigned_to: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.user_id"))
-    meta_data: Mapped[dict[str, object] | None] = mapped_column(JSON)
-    due_date: Mapped[date | None] = mapped_column(Date)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-
-    company = relationship("Company", back_populates="office_tasks")
+    company = relationship("Company")

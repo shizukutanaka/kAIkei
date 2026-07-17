@@ -39,6 +39,21 @@ npm install
 npm run dev
 ```
 
+## テスト
+
+```bash
+cd backend
+
+# 純粋ロジックテスト（DB不要）
+pytest tests/ -m "not db"
+
+# DB統合テスト（PostgreSQL 16が必要。未設定時は自動スキップ）
+TEST_DATABASE_URL=postgresql+asyncpg://kaikei:kaikei_dev@localhost:5432/kaikei_test \
+  pytest tests/ -m db
+```
+
+フロントエンドは `npx tsc --noEmit` と `npm run build` で検証する。
+
 ## ドキュメント
 
 - [Plan.md](./Plan.md) — 開発計画書

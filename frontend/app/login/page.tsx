@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiPost } from "@/lib/api";
-import { Building2, LogIn, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Building2, LogIn, Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react";
 
 interface LoginResponse {
   access_token: string;
@@ -18,6 +18,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaCode, setMfaCode] = useState("");
 
   useEffect(() => {
     if (typeof window !== "undefined" && localStorage.getItem("token")) {
@@ -36,12 +38,20 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const data = await apiPost<LoginResponse>("/auth/login", { email, password });
+      const body: Record<string, string> = { email, password };
+      if (mfaCode) body.mfa_code = mfaCode;
+      const data = await apiPost<LoginResponse>("/auth/login", body);
       localStorage.setItem("token", data.access_token);
       localStorage.setItem("refresh_token", data.refresh_token);
       router.push("/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "不明なエラー");
+      const message = err instanceof Error ? err.message : "不明なエラー";
+      if (message.includes("MFA code required")) {
+        setMfaRequired(true);
+        setError("");
+      } else {
+        setError(message.includes("Invalid MFA code") ? "認証コードが正しくありません" : message);
+      }
     } finally {
       setLoading(false);
     }
@@ -96,6 +106,27 @@ export default function LoginPage() {
               </button>
             </div>
           </div>
+
+          {mfaRequired && (
+            <div>
+              <label htmlFor="mfa-code" className="mb-1 flex items-center gap-1 text-sm font-medium">
+                <ShieldCheck className="h-4 w-4 text-primary" aria-hidden="true" /> 認証コード（MFA）
+              </label>
+              <input
+                id="mfa-code"
+                type="text"
+                inputMode="numeric"
+                value={mfaCode}
+                onChange={(e) => setMfaCode(e.target.value)}
+                placeholder="123456"
+                maxLength={8}
+                className="w-full rounded-md border px-3 py-2 text-sm tracking-widest"
+                autoComplete="one-time-code"
+                autoFocus
+              />
+              <p className="mt-1 text-xs text-muted-foreground">認証アプリに表示される6桁のコードを入力してください。</p>
+            </div>
+          )}
 
           {error && (
             <div role="alert" className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">

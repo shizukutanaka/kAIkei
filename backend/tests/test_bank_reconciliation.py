@@ -1,104 +1,158 @@
 from datetime import date
 from decimal import Decimal
-from uuid import uuid4
 
-from app.models.models import BankStatementDetail, Invoice, PaymentRequest
-from app.services.bank_reconciliation import BankReconciliationService
+import pytest
 
-
-def _statement(*, deposit: str = "0", withdraw: str = "0", value_date: date | None = None) -> BankStatementDetail:
-    return BankStatementDetail(
-        statement_detail_id=uuid4(),
-        company_id=uuid4(),
-        bank_account_id=uuid4(),
-        value_date=value_date or date(2026, 6, 30),
-        withdraw_amount=Decimal(withdraw),
-        deposit_amount=Decimal(deposit),
-        sender_name_kana="ﾃｽﾄ",
-        description="",
-    )
+from app.services.bank_reconciliation import (
+    ReconciliationCandidate,
+    find_best_match,
+    match_score,
+    name_similarity,
+    normalize_name,
+    parse_bank_csv,
+)
 
 
-def _invoice(*, total: str, due_date: date) -> Invoice:
-    return Invoice(
-        invoice_id=uuid4(),
-        company_id=uuid4(),
-        partner_id=None,
-        invoice_number="INV-001",
-        invoice_date=due_date,
-        due_date=due_date,
-        subtotal=Decimal(total),
-        tax_rate=Decimal("10.00"),
-        tax_amount=Decimal("0"),
-        total_amount=Decimal(total),
-        status="issued",
-        note=None,
-    )
+class TestNormalizeName:
+    def test_strips_corporate_tokens_and_spaces(self):
+        assert normalize_name("株式会社 カイケイ商事") == normalize_name("カイケイ商事")
+
+    def test_uppercases(self):
+        assert normalize_name("abc corp") == normalize_name("ABC CORP")
+
+    def test_none_and_empty(self):
+        assert normalize_name(None) == ""
+        assert normalize_name("") == ""
+
+    def test_strips_furikomi_marker(self):
+        assert normalize_name("カ)カイケイ") == normalize_name("カイケイ")
 
 
-def _payment_request(*, amount: str, payment_date: date) -> PaymentRequest:
-    return PaymentRequest(
-        payment_request_id=uuid4(),
-        company_id=uuid4(),
-        partner_id=None,
-        payment_date=payment_date,
-        payment_amount=Decimal(amount),
-        bank_account_id=None,
-        dest_bank_code=None,
-        dest_branch_code=None,
-        dest_account_type=None,
-        dest_account_no=None,
-        dest_account_name_kana=None,
-        status="approved",
-        journal_header_id=None,
-        zengin_export_batch_id=None,
-        created_by=uuid4(),
-    )
+class TestNameSimilarity:
+    def test_identical_after_normalization(self):
+        assert name_similarity("株式会社カイケイ", "カイケイ") == 1.0
+
+    def test_empty_is_zero(self):
+        assert name_similarity("", "カイケイ") == 0.0
+        assert name_similarity(None, None) == 0.0
+
+    def test_similar_scores_higher_than_different(self):
+        sim_close = name_similarity("カイケイショウジ", "カイケイショウカイ")
+        sim_far = name_similarity("カイケイ", "ゼンゼンチガウ")
+        assert sim_close > sim_far
 
 
-class TestInvoiceCandidate:
-    def test_exact_amount_and_date_scores_highest(self):
-        statement = _statement(deposit="11000", value_date=date(2026, 6, 30))
-        invoice = _invoice(total="11000", due_date=date(2026, 6, 30))
-        candidate = BankReconciliationService.score_invoice_candidate(statement, invoice)
-        assert candidate.source_type == "invoice"
-        assert candidate.score == Decimal("90.00")
-        assert "一致" in candidate.reason
+class TestMatchScore:
+    def _cand(self, amount, d, name=""):
+        return ReconciliationCandidate(ref_id="c1", amount=Decimal(amount), date=d, counterparty_name=name)
 
-    def test_amount_mismatch_scores_lower(self):
-        statement = _statement(deposit="11000", value_date=date(2026, 6, 30))
-        invoice = _invoice(total="10995", due_date=date(2026, 7, 2))
-        candidate = BankReconciliationService.score_invoice_candidate(statement, invoice)
-        assert candidate.score == Decimal("45.00")
+    def test_amount_mismatch_returns_none(self):
+        cand = self._cand("10000", date(2026, 4, 15))
+        assert match_score(Decimal("9999"), date(2026, 4, 15), "", cand) is None
+
+    def test_date_beyond_tolerance_returns_none(self):
+        cand = self._cand("10000", date(2026, 4, 1))
+        assert match_score(Decimal("10000"), date(2026, 4, 15), "", cand, date_tolerance_days=3) is None
+
+    def test_same_day_same_name_scores_high(self):
+        cand = self._cand("10000", date(2026, 4, 15), "カイケイ商事")
+        score = match_score(Decimal("10000"), date(2026, 4, 15), "株式会社カイケイ商事", cand)
+        assert score == pytest.approx(1.0)
+
+    def test_date_proximity_reduces_score(self):
+        cand = self._cand("10000", date(2026, 4, 13), "カイケイ")
+        near = match_score(Decimal("10000"), date(2026, 4, 15), "カイケイ", self._cand("10000", date(2026, 4, 15), "カイケイ"))
+        far = match_score(Decimal("10000"), date(2026, 4, 15), "カイケイ", cand)
+        assert near > far
+
+    def test_zero_tolerance_requires_exact_date(self):
+        cand = self._cand("10000", date(2026, 4, 14), "カイケイ")
+        # 1日差は許容0では不一致
+        assert match_score(Decimal("10000"), date(2026, 4, 15), "カイケイ", cand, date_tolerance_days=0) is None
+        # 同日は一致
+        same = self._cand("10000", date(2026, 4, 15), "カイケイ")
+        assert match_score(Decimal("10000"), date(2026, 4, 15), "カイケイ", same, date_tolerance_days=0) is not None
 
 
-class TestPaymentRequestCandidate:
-    def test_exact_amount_and_date_scores_highest(self):
-        statement = _statement(withdraw="55000", value_date=date(2026, 6, 30))
-        payment_request = _payment_request(amount="55000", payment_date=date(2026, 6, 30))
-        candidate = BankReconciliationService.score_payment_request_candidate(statement, payment_request)
-        assert candidate.source_type == "payment_request"
-        assert candidate.score == Decimal("90.00")
-        assert "一致" in candidate.reason
-
-
-class TestRankCandidates:
-    def test_deposit_matches_invoices_only(self):
-        statement = _statement(deposit="12000")
-        invoices = [
-            _invoice(total="12000", due_date=date(2026, 6, 30)),
-            _invoice(total="8000", due_date=date(2026, 6, 30)),
+class TestFindBestMatch:
+    def test_picks_highest_score(self):
+        cands = [
+            ReconciliationCandidate("a", Decimal("10000"), date(2026, 4, 15), "チガウナマエ"),
+            ReconciliationCandidate("b", Decimal("10000"), date(2026, 4, 15), "カイケイ商事"),
         ]
-        payment_requests = [_payment_request(amount="12000", payment_date=date(2026, 6, 30))]
-        candidates = BankReconciliationService.rank_candidates(statement, invoices, payment_requests)
-        assert [c.source_type for c in candidates] == ["invoice", "invoice"]
+        best = find_best_match(Decimal("10000"), date(2026, 4, 15), "カイケイ商事", cands)
+        assert best is not None
+        assert best[0].ref_id == "b"
 
-    def test_withdraw_matches_payment_requests_only(self):
-        statement = _statement(withdraw="12000")
-        invoices = [_invoice(total="12000", due_date=date(2026, 6, 30))]
-        payment_requests = [
-            _payment_request(amount="12000", payment_date=date(2026, 6, 30)),
-            _payment_request(amount="8000", payment_date=date(2026, 6, 30)),
+    def test_returns_none_when_all_below_min_score(self):
+        cands = [ReconciliationCandidate("a", Decimal("10000"), date(2026, 4, 15), "X")]
+        best = find_best_match(
+            Decimal("10000"), date(2026, 4, 15), "Y", cands, min_score=0.99, name_weight=1.0
+        )
+        assert best is None
+
+    def test_returns_none_when_no_amount_match(self):
+        cands = [ReconciliationCandidate("a", Decimal("500"), date(2026, 4, 15), "カイケイ")]
+        assert find_best_match(Decimal("10000"), date(2026, 4, 15), "カイケイ", cands) is None
+
+    def test_tie_break_prefers_closer_date(self):
+        # 同名・同スコアなら日付が近い方を選ぶ
+        cands = [
+            ReconciliationCandidate("far", Decimal("10000"), date(2026, 4, 12), "カイケイ"),
+            ReconciliationCandidate("near", Decimal("10000"), date(2026, 4, 15), "カイケイ"),
         ]
-        candidates = BankReconciliationService.rank_candidates(statement, invoices, payment_requests)
-        assert [c.source_type for c in candidates] == ["payment_request", "payment_request"]
+        best = find_best_match(Decimal("10000"), date(2026, 4, 15), "カイケイ", cands)
+        assert best[0].ref_id == "near"
+
+
+class TestParseBankCsv:
+    def test_parses_deposit_and_withdrawal(self):
+        csv_text = (
+            "取引日,入金額,出金額,残高,摘要,振込人名カナ\n"
+            "2026/04/15,\"10,000\",,\"110,000\",振込入金,カ)カイケイ\n"
+            "2026/04/16,,\"3,000\",\"107,000\",引落,デンキダイ\n"
+        )
+        rows = parse_bank_csv(csv_text)
+        assert len(rows) == 2
+        assert rows[0].direction == "deposit"
+        assert rows[0].amount == Decimal("10000")
+        assert rows[0].counterparty_name == "カ)カイケイ"
+        assert rows[1].direction == "withdrawal"
+        assert rows[1].amount == Decimal("3000")
+
+    def test_skips_bad_date(self):
+        csv_text = "取引日,入金額,出金額,残高,摘要,振込人名カナ\nNOTADATE,1000,,,x,y\n"
+        assert parse_bank_csv(csv_text) == []
+
+    def test_skips_row_with_no_amount(self):
+        csv_text = "取引日,入金額,出金額,残高,摘要,振込人名カナ\n2026/04/15,,,100,x,y\n"
+        assert parse_bank_csv(csv_text) == []
+
+class TestFeeTolerance:
+    def _cand(self, amount, d=None, name="カイケイ"):
+        from datetime import date as _date
+        return ReconciliationCandidate(ref_id="c1", amount=Decimal(amount), date=d or _date(2026, 4, 15), counterparty_name=name)
+
+    def test_no_tolerance_rejects_fee_difference(self):
+        from datetime import date as _date
+        cand = self._cand("10000")
+        # 手数料880円引かれた入金は、許容0では不一致
+        assert match_score(Decimal("9120"), _date(2026, 4, 15), "カイケイ", cand) is None
+
+    def test_tolerance_allows_fee_difference(self):
+        from datetime import date as _date
+        cand = self._cand("10000")
+        score = match_score(Decimal("9120"), _date(2026, 4, 15), "カイケイ", cand, amount_tolerance=Decimal("880"))
+        assert score is not None
+
+    def test_tolerance_still_rejects_beyond_fee(self):
+        from datetime import date as _date
+        cand = self._cand("10000")
+        assert match_score(Decimal("9000"), _date(2026, 4, 15), "カイケイ", cand, amount_tolerance=Decimal("880")) is None
+
+    def test_exact_match_preferred_over_fee_match(self):
+        from datetime import date as _date
+        exact = ReconciliationCandidate(ref_id="exact", amount=Decimal("9120"), date=_date(2026, 4, 15), counterparty_name="カイケイ")
+        feeish = ReconciliationCandidate(ref_id="fee", amount=Decimal("10000"), date=_date(2026, 4, 15), counterparty_name="カイケイ")
+        best = find_best_match(Decimal("9120"), _date(2026, 4, 15), "カイケイ", [feeish, exact], amount_tolerance=Decimal("880"))
+        assert best is not None and best[0].ref_id == "exact"

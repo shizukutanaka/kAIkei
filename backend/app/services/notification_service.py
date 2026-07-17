@@ -16,13 +16,44 @@ VALID_CATEGORIES = {
 
 VALID_PRIORITIES = {"low", "normal", "high", "urgent"}
 
+# 配信チャネル（アプリ内 + 外部）。外部チャネルの実配信はフェーズ7の配信基盤で行う。
+DELIVERY_CHANNELS = ("inapp", "email", "push", "webhook")
+
+
+def resolve_delivery_channels(pref: NotificationPreference | None) -> list[str]:
+    """通知設定から有効な配信チャネルの一覧を解決する。
+
+    設定行が存在しない場合は、NotificationPreferenceのカラム既定値
+    （channel_inappのみTrue）に合わせてアプリ内通知のみを返す。
+
+    Args:
+        pref: 対象ユーザー・カテゴリの通知設定。未設定の場合はNone。
+
+    Returns:
+        有効な配信チャネル名のリスト（DELIVERY_CHANNELSの順序を保持）。
+    """
+    if pref is None:
+        return ["inapp"]
+    flags = {
+        "inapp": pref.channel_inapp,
+        "email": pref.channel_email,
+        "push": pref.channel_push,
+        "webhook": pref.channel_webhook,
+    }
+    return [channel for channel in DELIVERY_CHANNELS if flags[channel]]
+
 
 async def create_notification(
     db: AsyncSession,
     tenant_id: UUID,
     payload: NotificationCreate,
 ) -> Notification:
-    """通知を作成する。"""
+    """通知を作成する。
+
+    アプリ内通知レコード（システム記録）を永続化したうえで、受信者の通知設定を
+    参照して有効な外部配信チャネル（メール/プッシュ/Webhook）を解決する。
+    外部配信の実処理はフェーズ7の配信基盤で行うため、ここでは配信意図を記録する。
+    """
     if payload.category not in VALID_CATEGORIES:
         raise ValueError(f"Invalid category: {payload.category}")
     if payload.priority not in VALID_PRIORITIES:
@@ -41,6 +72,51 @@ async def create_notification(
     db.add(notif)
     await db.commit()
     await db.refresh(notif)
+
+    # 受信者の通知設定に応じて外部配信チャネルを解決する。
+    if payload.user_id is not None:
+        pref_result = await db.execute(
+            select(NotificationPreference).where(
+                NotificationPreference.user_id == payload.user_id,
+                NotificationPreference.category == payload.category,
+            )
+        )
+        channels = resolve_delivery_channels(pref_result.scalar_one_or_none())
+        external = [c for c in channels if c != "inapp"]
+        if external:
+            logger.info(
+                "Notification %s queued for external delivery channels: %s",
+                notif.notification_id,
+                ", ".join(external),
+            )
+        # Webhookチャネルが有効なら、購読中エンドポイントへ配信キューへ投入する。
+        # 配信の失敗が通知作成自体を妨げないよう防御的に扱う。
+        if "webhook" in external:
+            try:
+                from app.services import webhook_service
+
+                await webhook_service.enqueue_event(
+                    db,
+                    tenant_id=tenant_id,
+                    event_type=f"notification.{payload.category}",
+                    data={
+                        "notification_id": str(notif.notification_id),
+                        "category": notif.category,
+                        "priority": notif.priority,
+                        "title": notif.title,
+                        "body": notif.body,
+                        "action_url": notif.action_url,
+                        "company_id": str(notif.company_id) if notif.company_id else None,
+                    },
+                    company_id=payload.company_id,
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.warning(
+                    "Failed to enqueue webhook delivery for notification %s: %s",
+                    notif.notification_id,
+                    e,
+                )
+
     return notif
 
 
