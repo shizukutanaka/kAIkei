@@ -53,6 +53,22 @@ class TestZenginExportService:
         )
         assert b"3500.00" in body
 
+    def test_payee_account_name_survives_and_output_is_valid_utf8(self):
+        # 回帰防止: 以前は内部UUIDが120バイト枠を圧迫し口座名義（振込先の最重要項目）が
+        # バイト切りで破損し不正なUTF-8を生成していた。名義が保持され全体が復号可能なこと。
+        requests = [_payment_request(amount="1000", payment_date=date(2026, 6, 30))]
+        body = ZenginExportService.render(
+            requests=requests,
+            company_id=uuid4(),
+            payment_date="2026-06-30",
+            bank_account_id=uuid4(),
+        )
+        # 不正なUTF-8を含まない（例外が出れば失敗）。
+        text = body.decode("utf-8")
+        assert "ﾃｽﾄﾀﾛｳ" in text
+        # レコード長は依然120バイト。
+        assert all(len(record) == 120 for record in body.splitlines())
+
     def test_empty_export_still_has_header_and_trailer(self):
         body = ZenginExportService.render(
             requests=[],

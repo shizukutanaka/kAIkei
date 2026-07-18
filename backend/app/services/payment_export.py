@@ -19,7 +19,15 @@ class ZenginExportService:
         raw = "|".join([prefix, *parts])
         encoded = raw.encode("utf-8")
         if len(encoded) > cls.RECORD_BYTES:
+            # バイト単位で切ると末尾のマルチバイト文字が分割され不正なUTF-8になるため、
+            # 文字境界まで縮めてから切り詰める（口座名義等の破損は上位でフィールド幅管理する前提）。
             encoded = encoded[: cls.RECORD_BYTES]
+            while encoded:
+                try:
+                    encoded.decode("utf-8")
+                    break
+                except UnicodeDecodeError:
+                    encoded = encoded[:-1]
         return encoded.ljust(cls.RECORD_BYTES, b" ")
 
     @classmethod
@@ -36,8 +44,8 @@ class ZenginExportService:
                 cls._render_line(
                     "DTL",
                     [
-                        req.payment_request_id.hex,
-                        req.partner_id.hex if req.partner_id else "",
+                        # 内部UUID（64バイト）は全銀レコードに不要で、これが120バイト枠を
+                        # 圧迫し口座名義を切り捨てさせていたため除外する。
                         req.payment_date.isoformat(),
                         f"{Decimal(str(req.payment_amount)):.2f}",
                         req.dest_bank_code or "",

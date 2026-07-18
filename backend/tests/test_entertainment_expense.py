@@ -39,6 +39,28 @@ class TestEntertainmentExpenseService:
         assert result.non_deductible_amount == Decimal("7000000")
         assert result.basis == "dining_50pct"
 
+    def test_capital_over_10bn_gets_no_deduction(self):
+        # 令和2年度改正: 資本金100億円超は接待飲食費50%特例も不可（損金算入限度額0）。
+        result = EntertainmentExpenseService.compute(
+            Decimal("12000000"),
+            Decimal("10000000"),
+            Decimal("10000000001"),  # 100億円超
+        )
+        assert result.deductible_limit == Decimal("0")
+        assert result.deductible_amount == Decimal("0")
+        assert result.non_deductible_amount == Decimal("12000000")
+        assert result.basis == "no_deduction_over_10bn"
+
+    def test_capital_exactly_10bn_still_gets_dining_deduction(self):
+        # 100億円ちょうどは「超」に当たらず50%特例が適用される。
+        result = EntertainmentExpenseService.compute(
+            Decimal("12000000"),
+            Decimal("10000000"),
+            Decimal("10000000000"),  # 100億円ちょうど
+        )
+        assert result.deductible_limit == Decimal("5000000")
+        assert result.basis == "dining_50pct"
+
     def test_threshold_capital_inclusive_small(self):
         result = EntertainmentExpenseService.compute(
             Decimal("9000000"),
