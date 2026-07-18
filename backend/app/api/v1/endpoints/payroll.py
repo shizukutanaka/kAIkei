@@ -40,6 +40,13 @@ from app.schemas.schemas import (
     YearEndAdjustmentCalcResponse,
     LegalLedgerCheckRequest,
     LegalLedgerCheckResponse,
+    HighAgeBenefitRequest,
+    HighAgeBenefitResponse,
+    InjuryAllowanceRequest,
+    MaternityAllowanceRequest,
+    HealthInsuranceBenefitResponse,
+    ShortTimeInsuranceRequest,
+    ShortTimeInsuranceResponse,
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     QualificationAcquisitionExportRequest,
@@ -80,8 +87,85 @@ from app.services.dependent_eligibility import DependentEligibilityService
 from app.services.social_insurance_exemption import LEAVE_CHILDCARE, SocialInsuranceExemptionService, TARGET_MONTHLY
 from app.services.year_end_adjustment import YearEndAdjustmentService
 from app.services.legal_ledger import LegalLedgerService
+from app.services.high_age_benefit import HighAgeEmploymentBenefitService
+from app.services.health_insurance_benefit import HealthInsuranceBenefitService
+from app.services.short_time_insurance import ShortTimeWorkerInsuranceService
 
 router = APIRouter()
+
+
+@router.post("/short-time-insurance/judge")
+async def judge_short_time_insurance(
+    payload: ShortTimeInsuranceRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> ShortTimeInsuranceResponse:
+    try:
+        result = ShortTimeWorkerInsuranceService.judge(
+            weekly_hours=payload.weekly_hours,
+            monthly_wage=payload.monthly_wage,
+            employment_over_2_months=payload.employment_over_2_months,
+            is_student=payload.is_student,
+            company_insured_count=payload.company_insured_count,
+            labor_agreement=payload.labor_agreement,
+            meets_three_quarters_standard=payload.meets_three_quarters_standard,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ShortTimeInsuranceResponse.model_validate(result)
+
+
+@router.post("/injury-allowance/calculate")
+async def calculate_injury_allowance(
+    payload: InjuryAllowanceRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> HealthInsuranceBenefitResponse:
+    try:
+        result = HealthInsuranceBenefitService.injury_allowance(
+            avg_standard_monthly=payload.avg_standard_monthly,
+            insured_months=payload.insured_months,
+            absent_days=payload.absent_days,
+            waiting_completed=payload.waiting_completed,
+            daily_remuneration=payload.daily_remuneration,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return HealthInsuranceBenefitResponse.model_validate(result)
+
+
+@router.post("/maternity-allowance/calculate")
+async def calculate_maternity_allowance(
+    payload: MaternityAllowanceRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> HealthInsuranceBenefitResponse:
+    try:
+        result = HealthInsuranceBenefitService.maternity_allowance(
+            avg_standard_monthly=payload.avg_standard_monthly,
+            insured_months=payload.insured_months,
+            days_before_birth=payload.days_before_birth,
+            days_after_birth=payload.days_after_birth,
+            multiple_pregnancy=payload.multiple_pregnancy,
+            daily_remuneration=payload.daily_remuneration,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return HealthInsuranceBenefitResponse.model_validate(result)
+
+
+@router.post("/high-age-benefit/calculate")
+async def calculate_high_age_benefit(
+    payload: HighAgeBenefitRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> HighAgeBenefitResponse:
+    try:
+        result = HighAgeEmploymentBenefitService.compute(
+            age=payload.age,
+            insured_months=payload.insured_months,
+            wage_at_60=payload.wage_at_60,
+            current_wage=payload.current_wage,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return HighAgeBenefitResponse.model_validate(result)
 
 
 @router.post("/legal-ledger/check")

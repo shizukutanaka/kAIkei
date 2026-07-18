@@ -1402,3 +1402,61 @@ class DenchouScannerCheckResponse(BaseModel):
     visibility_met: bool
     compliant: bool
     missing_requirements: list[str]
+
+
+class HighAgeBenefitRequest(BaseModel):
+    age: int
+    insured_months: int
+    wage_at_60: Decimal
+    current_wage: Decimal
+
+
+class HighAgeBenefitResponse(BaseModel):
+    eligible: bool
+    reduction_ratio: Decimal
+    benefit_amount: Decimal
+    reason: str
+
+
+class InjuryAllowanceRequest(BaseModel):
+    avg_standard_monthly: Decimal
+    insured_months: int
+    absent_days: int
+    waiting_completed: bool = False
+    daily_remuneration: Decimal = Decimal("0")
+
+
+class MaternityAllowanceRequest(BaseModel):
+    avg_standard_monthly: Decimal
+    insured_months: int
+    days_before_birth: int
+    days_after_birth: int
+    multiple_pregnancy: bool = False
+    daily_remuneration: Decimal = Decimal("0")
+
+
+class HealthInsuranceBenefitResponse(BaseModel):
+    daily_benefit: Decimal
+    effective_daily_benefit: Decimal
+    payable_days: int
+    total_amount: Decimal
+
+
+class ShortTimeInsuranceRequest(BaseModel):
+    weekly_hours: Decimal
+    monthly_wage: Decimal
+    employment_over_2_months: bool
+    is_student: bool
+    company_insured_count: int
+    labor_agreement: bool = False
+    meets_three_quarters_standard: bool = False
+
+
+class ShortTimeInsuranceResponse(BaseModel):
+    covered: bool
+    is_specified_workplace: bool
+    meets_hours: bool
+    meets_wage: bool
+    meets_employment_period: bool
+    not_student: bool
+    reasons: list[str]
