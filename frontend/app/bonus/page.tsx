@@ -75,6 +75,7 @@ export default function BonusPage() {
   const [baseMonths, setBaseMonths] = useState("2.0");
   const [perfFactors, setPerfFactors] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
+  const [downloadLoading, setDownloadLoading] = useState<string | null>(null);
 
   const fetchBonusRecords = async () => {
     if (!companyId) return;
@@ -113,6 +114,12 @@ export default function BonusPage() {
 
   const handleCalculate = async () => {
     if (!companyId) return;
+    const ok = await confirm({
+      title: "賞与計算",
+      message: `${bonusYear}年${bonusTerm === "summer" ? "夏" : "冬"}の賞与を計算しますか？`,
+      confirmText: "計算実行",
+    });
+    if (!ok) return;
     setCalculating(true);
     setError("");
     try {
@@ -132,7 +139,9 @@ export default function BonusPage() {
       setBonusRecords(data);
       toast(`${data.length}件の賞与を計算しました`, "success");
     } catch (err) {
-      toast(err instanceof Error ? err.message : "計算に失敗しました", "error");
+      const msg = err instanceof Error ? err.message : "計算に失敗しました";
+      setError(msg);
+      toast(msg, "error");
     } finally {
       setCalculating(false);
     }
@@ -158,6 +167,7 @@ export default function BonusPage() {
   };
 
   const handleDownload = async (bonusId: string, empName: string) => {
+    setDownloadLoading(bonusId);
     try {
       const token = localStorage.getItem("token");
       const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
@@ -176,6 +186,8 @@ export default function BonusPage() {
       toast("CSVをダウンロードしました", "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "ダウンロードに失敗しました", "error");
+    } finally {
+      setDownloadLoading(null);
     }
   };
 
@@ -193,7 +205,7 @@ export default function BonusPage() {
   const currentStatus = bonusRecords[0]?.status;
 
   return (
-    <PageLayout>
+    <PageLayout title="賞与">
       <div className="mb-6 flex items-center gap-3">
         <Gift className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">賞与</h1>
@@ -206,7 +218,7 @@ export default function BonusPage() {
       )}
 
       {error && (
-        <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+        <div role="alert" className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -244,12 +256,13 @@ export default function BonusPage() {
 
       {canCalculate && employees.length > 0 && (
         <div className="mb-4 rounded-lg border bg-card p-4">
-          <h3 className="mb-3 text-sm font-semibold">業績係数（個別設定）</h3>
+          <h2 className="mb-3 text-sm font-semibold">業績係数（個別設定）</h2>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
             {employees.map((e) => (
               <div key={e.employee_id} className="flex items-center gap-2">
-                <label className="whitespace-nowrap text-xs text-muted-foreground">{e.employee_name}</label>
+                <label htmlFor={`pf-${e.employee_id}`} className="whitespace-nowrap text-xs text-muted-foreground">{e.employee_name}</label>
                 <input
+                  id={`pf-${e.employee_id}`}
                   type="number"
                   step="0.01"
                   min="0"
@@ -270,11 +283,13 @@ export default function BonusPage() {
       ) : bonusRecords.length > 0 ? (
         <>
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <div className="relative">
+            <div className="relative" role="search">
               <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
+                aria-label="従業員名検索"
                 placeholder="従業員名で検索..."
+                enterKeyHint="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-48 rounded-md border py-1.5 pl-8 pr-7 text-sm"
@@ -282,6 +297,7 @@ export default function BonusPage() {
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
+                  aria-label="クリア"
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
                 >
                   <X className="h-3 w-3 text-muted-foreground" />
@@ -292,17 +308,18 @@ export default function BonusPage() {
           </div>
           <div className="overflow-x-auto rounded-lg border">
             <table className="w-full text-sm">
+              <caption className="sr-only">賞与一覧</caption>
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium">従業員</th>
-                  <th className="px-4 py-3 text-right font-medium">基準月数</th>
-                  <th className="px-4 py-3 text-right font-medium">業績係数</th>
-                  <th className="px-4 py-3 text-right font-medium">賞与額</th>
-                  <th className="px-4 py-3 text-right font-medium">源泉所得税</th>
-                  <th className="px-4 py-3 text-right font-medium">社会保険料</th>
-                  <th className="px-4 py-3 text-right font-medium">差引支給額</th>
-                  <th className="px-4 py-3 text-center font-medium">ステータス</th>
-                  <th className="px-4 py-3 text-center font-medium">CSV</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">従業員</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">基準月数</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">業績係数</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">賞与額</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">源泉所得税</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">社会保険料</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">差引支給額</th>
+                  <th scope="col" className="px-4 py-3 text-center font-medium">ステータス</th>
+                  <th scope="col" className="px-4 py-3 text-center font-medium">CSV</th>
                 </tr>
               </thead>
               <tbody>
@@ -323,10 +340,12 @@ export default function BonusPage() {
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => handleDownload(r.bonus_id, r.employee_name || r.employee_id.slice(0, 8))}
-                        className="inline-flex items-center justify-center rounded p-1 hover:bg-accent"
+                        disabled={downloadLoading === r.bonus_id}
+                        className="inline-flex items-center justify-center rounded p-2 hover:bg-accent disabled:opacity-50"
                         title="CSV出力"
+                        aria-label="CSV出力"
                       >
-                        <Download className="h-4 w-4 text-muted-foreground" />
+                        {downloadLoading === r.bonus_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-muted-foreground" />}
                       </button>
                     </td>
                   </tr>

@@ -3,9 +3,9 @@
 import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
 import { useUser } from "@/lib/use-user";
-import { apiGet, apiPut } from "@/lib/api";
+import { apiGet, apiPost, apiPut } from "@/lib/api";
 import { useToast } from "@/components/toast";
-import { Settings, User, Shield, LogOut, Bell, Loader2 } from "lucide-react";
+import { Settings, User, Shield, ShieldCheck, LogOut, Bell, Loader2 } from "lucide-react";
 import { SkeletonCard } from "@/components/skeleton";
 import { useConfirm } from "@/components/confirm-dialog";
 
@@ -70,6 +70,75 @@ export default function SettingsPage() {
   const [updatingCat, setUpdatingCat] = useState<string | null>(null);
   const [logoutLoading, setLogoutLoading] = useState(false);
 
+  // MFA（TOTP）
+  const [mfaEnabled, setMfaEnabled] = useState<boolean | null>(null);
+  const [mfaSetup, setMfaSetup] = useState<{ secret: string; otpauth_uri: string } | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaBusy, setMfaBusy] = useState(false);
+
+  useEffect(() => {
+    const fetchMfa = async () => {
+      try {
+        const data = await apiGet<{ mfa_enabled: boolean }>("/auth/mfa/status");
+        setMfaEnabled(data.mfa_enabled);
+      } catch {
+        // API未起動時は非表示のまま
+      }
+    };
+    fetchMfa();
+  }, []);
+
+  const handleMfaSetup = async () => {
+    setMfaBusy(true);
+    try {
+      const data = await apiPost<{ secret: string; otpauth_uri: string }>("/auth/mfa/setup", {});
+      setMfaSetup(data);
+      setMfaCode("");
+    } catch {
+      toast("MFAセットアップに失敗しました", "error");
+    } finally {
+      setMfaBusy(false);
+    }
+  };
+
+  const handleMfaEnable = async () => {
+    if (!mfaCode) return;
+    setMfaBusy(true);
+    try {
+      await apiPost<{ mfa_enabled: boolean }>("/auth/mfa/enable", { code: mfaCode });
+      setMfaEnabled(true);
+      setMfaSetup(null);
+      setMfaCode("");
+      toast("MFAを有効化しました", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "MFAの有効化に失敗しました", "error");
+    } finally {
+      setMfaBusy(false);
+    }
+  };
+
+  const handleMfaDisable = async () => {
+    if (!mfaCode) return;
+    const ok = await confirm({
+      title: "MFAの無効化",
+      message: "二要素認証を無効化しますか？アカウントの保護レベルが下がります。",
+      confirmText: "無効化",
+      variant: "danger",
+    });
+    if (!ok) return;
+    setMfaBusy(true);
+    try {
+      await apiPost<{ mfa_enabled: boolean }>("/auth/mfa/disable", { code: mfaCode });
+      setMfaEnabled(false);
+      setMfaCode("");
+      toast("MFAを無効化しました", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "MFAの無効化に失敗しました", "error");
+    } finally {
+      setMfaBusy(false);
+    }
+  };
+
   useEffect(() => {
     const fetchPrefs = async () => {
       setPrefsLoading(true);
@@ -126,7 +195,7 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <PageLayout>
+      <PageLayout title="設定">
         <div className="mb-6 h-8 w-32 animate-pulse rounded bg-muted" />
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -228,13 +297,14 @@ export default function SettingsPage() {
             ) : (
               <div className="overflow-x-auto rounded-lg border">
                 <table className="w-full text-sm">
+                  <caption className="sr-only">通知設定</caption>
                   <thead className="bg-muted/50">
                     <tr>
-                      <th className="px-4 py-3 text-left font-medium">カテゴリ</th>
-                      <th className="px-4 py-3 text-center font-medium">アプリ内</th>
-                      <th className="px-4 py-3 text-center font-medium">メール</th>
-                      <th className="px-4 py-3 text-center font-medium">プッシュ</th>
-                      <th className="px-4 py-3 text-center font-medium">Webhook</th>
+                      <th scope="col" className="px-4 py-3 text-left font-medium">カテゴリ</th>
+                      <th scope="col" className="px-4 py-3 text-center font-medium">アプリ内</th>
+                      <th scope="col" className="px-4 py-3 text-center font-medium">メール</th>
+                      <th scope="col" className="px-4 py-3 text-center font-medium">プッシュ</th>
+                      <th scope="col" className="px-4 py-3 text-center font-medium">Webhook</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -271,6 +341,58 @@ export default function SettingsPage() {
             <p className="mt-2 text-xs text-muted-foreground">
               各カテゴリの通知チャネルを個別に有効/無効できます。
             </p>
+          </div>
+
+          <div className="rounded-lg border bg-card p-6">
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              二要素認証（MFA）
+            </h2>
+            {mfaEnabled === null ? (
+              <p className="text-sm text-muted-foreground">状態を取得できませんでした。</p>
+            ) : mfaEnabled ? (
+              <div className="space-y-3">
+                <p className="flex items-center gap-2 text-sm text-green-700">
+                  <ShieldCheck className="h-4 w-4" aria-hidden="true" /> MFAは有効です。ログイン時に認証アプリのコードが必要になります。
+                </p>
+                <div className="flex items-end gap-2">
+                  <div>
+                    <label htmlFor="mfa-disable-code" className="mb-1 block text-xs font-medium">認証コード</label>
+                    <input id="mfa-disable-code" type="text" inputMode="numeric" maxLength={8} value={mfaCode} onChange={(e) => setMfaCode(e.target.value)} placeholder="123456" className="w-32 rounded-md border px-3 py-2 text-sm tracking-widest" />
+                  </div>
+                  <button type="button" onClick={handleMfaDisable} disabled={mfaBusy || !mfaCode} className="rounded-md border border-destructive/50 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50">
+                    無効化
+                  </button>
+                </div>
+              </div>
+            ) : mfaSetup ? (
+              <div className="space-y-3">
+                <p className="text-sm">認証アプリ（Google Authenticator等）に以下の秘密鍵を登録し、表示されたコードで有効化してください。</p>
+                <div className="rounded-md border bg-muted/50 p-3">
+                  <p className="text-xs text-muted-foreground">秘密鍵（手動入力用）</p>
+                  <p className="break-all font-mono text-sm">{mfaSetup.secret}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">otpauth URI</p>
+                  <p className="break-all font-mono text-xs">{mfaSetup.otpauth_uri}</p>
+                </div>
+                <div className="flex items-end gap-2">
+                  <div>
+                    <label htmlFor="mfa-enable-code" className="mb-1 block text-xs font-medium">認証コード</label>
+                    <input id="mfa-enable-code" type="text" inputMode="numeric" maxLength={8} value={mfaCode} onChange={(e) => setMfaCode(e.target.value)} placeholder="123456" className="w-32 rounded-md border px-3 py-2 text-sm tracking-widest" />
+                  </div>
+                  <button type="button" onClick={handleMfaEnable} disabled={mfaBusy || !mfaCode} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+                    {mfaBusy ? "確認中..." : "有効化"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">MFAは無効です。認証アプリ（TOTP）による二要素認証を設定できます。</p>
+                <button type="button" onClick={handleMfaSetup} disabled={mfaBusy} className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+                  {mfaBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                  セットアップを開始
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="rounded-lg border bg-card p-6">

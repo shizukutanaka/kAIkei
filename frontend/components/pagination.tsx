@@ -30,7 +30,7 @@ export function Pagination({ page, pageSize, total, onPageChange }: PaginationPr
   }
 
   return (
-    <div className="mt-4 flex flex-col items-center justify-between gap-2 sm:flex-row">
+    <nav aria-label="ページネーション" className="mt-4 flex flex-col items-center justify-between gap-2 sm:flex-row">
       <p className="text-sm text-muted-foreground">
         {total}件中 {start}-{end}件
       </p>
@@ -38,6 +38,7 @@ export function Pagination({ page, pageSize, total, onPageChange }: PaginationPr
         <button
           onClick={() => onPageChange(Math.max(1, page - 1))}
           disabled={page <= 1}
+          aria-label="前のページ"
           className="flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm disabled:opacity-50"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -48,6 +49,8 @@ export function Pagination({ page, pageSize, total, onPageChange }: PaginationPr
             <button
               key={i}
               onClick={() => onPageChange(p)}
+              aria-label={`${p}ページ目`}
+              aria-current={p === page ? "page" : undefined}
               className={`hidden min-w-8 rounded-md px-2 py-1.5 text-sm sm:block ${
                 p === page ? "bg-primary text-primary-foreground" : "border hover:bg-accent"
               }`}
@@ -66,12 +69,13 @@ export function Pagination({ page, pageSize, total, onPageChange }: PaginationPr
         <button
           onClick={() => onPageChange(Math.min(totalPages, page + 1))}
           disabled={page >= totalPages}
+          aria-label="次のページ"
           className="flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm disabled:opacity-50"
         >
           次へ
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
-    </div>
+    </nav>
   );
 }

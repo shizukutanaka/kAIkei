@@ -43,3 +43,14 @@ class AIProvider(ABC):
     async def detect_anomaly(self, journal_data: dict) -> dict:
         """Detect anomalies in journal data."""
         pass
+
+    async def extract_document_fields(
+        self, text: str, image_base64: str | None = None
+    ) -> dict:
+        """Extract structured fields from a document (date/amount/counterparty).
+
+        Vision-capable providers override this to read the document image
+        directly. Returns a dict with keys: transaction_date (ISO string),
+        amount (number), counterparty_name (str), confidence (0.0-1.0).
+        """
+        raise NotImplementedError("This provider does not support document extraction")

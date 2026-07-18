@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useDeferredValue, useMemo } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
@@ -8,6 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
+import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 import { Handshake, Plus, Search, Trash2, Pencil, X, Users, RefreshCw, Loader2 } from "lucide-react";
 import { Pagination } from "@/components/pagination";
 
@@ -58,6 +59,7 @@ export default function PartnersPage() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -66,6 +68,9 @@ export default function PartnersPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState(emptyForm);
+
+  const isDirty = showForm && (formData.partner_code !== emptyForm.partner_code || formData.partner_name !== emptyForm.partner_name);
+  useUnsavedChanges(isDirty);
 
   const fetchPartners = async () => {
     if (!companyId) return;
@@ -86,20 +91,29 @@ export default function PartnersPage() {
     if (companyId) fetchPartners();
   }, [companyId, page]);
 
-  const filtered = partners.filter((p) => {
-    const matchesSearch =
-      !search ||
-      p.partner_code.toLowerCase().includes(search.toLowerCase()) ||
-      p.partner_name.toLowerCase().includes(search.toLowerCase());
-    const matchesType = !typeFilter || p.partner_type === typeFilter;
-    return matchesSearch && matchesType;
-  });
+  const deferredSearch = useDeferredValue(search);
+  const deferredTypeFilter = useDeferredValue(typeFilter);
 
-  const handleSave = async () => {
-    if (!formData.partner_code || !formData.partner_name) {
-      toast("取引先コードと名称は必須です", "warning");
+  const filtered = useMemo(() => partners.filter((p) => {
+    const matchesSearch =
+      !deferredSearch ||
+      p.partner_code.toLowerCase().includes(deferredSearch.toLowerCase()) ||
+      p.partner_name.toLowerCase().includes(deferredSearch.toLowerCase());
+    const matchesType = !deferredTypeFilter || p.partner_type === deferredTypeFilter;
+    return matchesSearch && matchesType;
+  }), [partners, deferredSearch, deferredTypeFilter]);
+
+  const handleSave = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const errors: Record<string, string> = {};
+    if (!formData.partner_code) errors.partner_code = "取引先コードは必須です";
+    if (!formData.partner_name) errors.partner_name = "取引先名は必須です";
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      toast("必須項目を入力してください", "warning");
       return;
     }
+    setFieldErrors({});
     setLoading(true);
     try {
       const payload = {
@@ -124,7 +138,9 @@ export default function PartnersPage() {
       setFormData(emptyForm);
       await fetchPartners();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "保存に失敗しました", "error");
+      const msg = err instanceof Error ? err.message : "保存に失敗しました";
+      setError(msg);
+      toast(msg, "error");
     } finally {
       setLoading(false);
     }
@@ -164,7 +180,7 @@ export default function PartnersPage() {
   };
 
   return (
-    <PageLayout>
+    <PageLayout title="取引先マスタ">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Handshake className="h-6 w-6 text-primary" />
@@ -182,7 +198,7 @@ export default function PartnersPage() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+        <div role="alert" className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -194,36 +210,49 @@ export default function PartnersPage() {
       )}
 
       {showForm && (
-        <div className="mb-6 rounded-lg border bg-card p-6">
+        <form onSubmit={handleSave} className="mb-6 rounded-lg border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">{editingId ? "取引先編集" : "新規取引先登録"}</h2>
-            <button onClick={handleCancel} className="rounded-md p-1 hover:bg-accent">
+            <button type="button" onClick={handleCancel} className="rounded-md p-2 hover:bg-accent" aria-label="閉じる">
               <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium">取引先コード</label>
+              <label htmlFor="partner_code" className="mb-1 block text-sm font-medium">取引先コード <span className="text-destructive" aria-hidden="true">*</span></label>
               <input
+                id="partner_code"
                 type="text"
                 value={formData.partner_code}
-                onChange={(e) => setFormData({ ...formData, partner_code: e.target.value })}
+                onChange={(e) => { setFormData({ ...formData, partner_code: e.target.value }); if (fieldErrors.partner_code) setFieldErrors({ ...fieldErrors, partner_code: "" }); }}
                 disabled={!!editingId}
-                className="w-full rounded-md border px-3 py-2 text-sm disabled:bg-muted"
+                required
+                aria-required="true"
+                aria-invalid={!!fieldErrors.partner_code}
+                aria-describedby={fieldErrors.partner_code ? "partner_code-error" : undefined}
+                className="w-full rounded-md border px-3 py-2 text-sm disabled:bg-muted aria-[invalid=true]:border-destructive"
               />
+              {fieldErrors.partner_code && <p id="partner_code-error" className="mt-1 text-xs text-destructive">{fieldErrors.partner_code}</p>}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">取引先名</label>
+              <label htmlFor="partner_name" className="mb-1 block text-sm font-medium">取引先名 <span className="text-destructive" aria-hidden="true">*</span></label>
               <input
+                id="partner_name"
                 type="text"
                 value={formData.partner_name}
-                onChange={(e) => setFormData({ ...formData, partner_name: e.target.value })}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                onChange={(e) => { setFormData({ ...formData, partner_name: e.target.value }); if (fieldErrors.partner_name) setFieldErrors({ ...fieldErrors, partner_name: "" }); }}
+                required
+                aria-required="true"
+                aria-invalid={!!fieldErrors.partner_name}
+                aria-describedby={fieldErrors.partner_name ? "partner_name-error" : undefined}
+                className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive"
               />
+              {fieldErrors.partner_name && <p id="partner_name-error" className="mt-1 text-xs text-destructive">{fieldErrors.partner_name}</p>}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">取引先区分</label>
+              <label htmlFor="partner_type" className="mb-1 block text-sm font-medium">取引先区分</label>
               <select
+                id="partner_type"
                 value={formData.partner_type}
                 onChange={(e) => setFormData({ ...formData, partner_type: e.target.value })}
                 className="w-full rounded-md border px-3 py-2 text-sm"
@@ -234,44 +263,54 @@ export default function PartnersPage() {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">担当者</label>
+              <label htmlFor="contact_person" className="mb-1 block text-sm font-medium">担当者</label>
               <input
+                id="contact_person"
                 type="text"
                 value={formData.contact_person}
                 onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
+                autoComplete="name"
                 className="w-full rounded-md border px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">郵便番号</label>
+              <label htmlFor="postal_code" className="mb-1 block text-sm font-medium">郵便番号</label>
               <input
+                id="postal_code"
                 type="text"
+                inputMode="numeric"
                 value={formData.postal_code}
                 onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
+                autoComplete="postal-code"
                 className="w-full rounded-md border px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">電話番号</label>
+              <label htmlFor="phone" className="mb-1 block text-sm font-medium">電話番号</label>
               <input
-                type="text"
+                id="phone"
+                type="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                autoComplete="tel"
                 className="w-full rounded-md border px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">メールアドレス</label>
+              <label htmlFor="email" className="mb-1 block text-sm font-medium">メールアドレス</label>
               <input
+                id="email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                autoComplete="email"
                 className="w-full rounded-md border px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">支払条件</label>
+              <label htmlFor="payment_terms" className="mb-1 block text-sm font-medium">支払条件</label>
               <input
+                id="payment_terms"
                 type="text"
                 value={formData.payment_terms}
                 onChange={(e) => setFormData({ ...formData, payment_terms: e.target.value })}
@@ -280,8 +319,9 @@ export default function PartnersPage() {
               />
             </div>
             <div className="col-span-2">
-              <label className="mb-1 block text-sm font-medium">住所</label>
+              <label htmlFor="address" className="mb-1 block text-sm font-medium">住所</label>
               <input
+                id="address"
                 type="text"
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
@@ -291,33 +331,36 @@ export default function PartnersPage() {
           </div>
           <div className="mt-4 flex gap-2">
             <button
-              onClick={handleSave}
+              type="submit"
               disabled={loading}
               className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {loading ? "保存中..." : editingId ? "更新" : "登録"}
             </button>
-            <button onClick={handleCancel} className="rounded-md border px-4 py-2 text-sm">
+            <button type="button" onClick={handleCancel} className="rounded-md border px-4 py-2 text-sm">
               キャンセル
             </button>
           </div>
-        </div>
+        </form>
       )}
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="relative flex-1">
+        <div className="relative flex-1" role="search">
           <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
+            aria-label="取引先検索"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="コード・名称で検索"
+            enterKeyHint="search"
             className="w-full rounded-md border py-1.5 pl-8 pr-7 text-sm"
           />
           {search && (
             <button
               onClick={() => setSearch("")}
+              aria-label="クリア"
               className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
             >
               <X className="h-3 w-3 text-muted-foreground" />
@@ -325,6 +368,7 @@ export default function PartnersPage() {
           )}
         </div>
         <select
+          aria-label="区分フィルター"
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
           className="rounded-md border px-2 py-1.5 text-sm"
@@ -350,15 +394,16 @@ export default function PartnersPage() {
       ) : filtered.length > 0 ? (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
+            <caption className="sr-only">取引先一覧</caption>
             <thead className="bg-muted/50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">コード</th>
-                <th className="px-4 py-3 text-left font-medium">名称</th>
-                <th className="px-4 py-3 text-left font-medium">区分</th>
-                <th className="px-4 py-3 text-left font-medium">担当者</th>
-                <th className="px-4 py-3 text-left font-medium">連絡先</th>
-                <th className="px-4 py-3 text-center font-medium">状態</th>
-                <th className="px-4 py-3 text-center font-medium">操作</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">コード</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">名称</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">区分</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">担当者</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">連絡先</th>
+                <th scope="col" className="px-4 py-3 text-center font-medium">状態</th>
+                <th scope="col" className="px-4 py-3 text-center font-medium">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -381,7 +426,7 @@ export default function PartnersPage() {
                     {p.phone || p.email || "-"}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`rounded px-2 py-0.5 text-xs ${p.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                    <span className={`rounded px-2 py-0.5 text-xs ${p.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"}`}>
                       {p.is_active ? "有効" : "無効"}
                     </span>
                   </td>

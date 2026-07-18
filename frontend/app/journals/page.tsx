@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useDeferredValue, useMemo } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPostMultipart } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
@@ -89,15 +89,20 @@ export default function JournalsListPage() {
     if (companyId) fetchJournals();
   }, [companyId, page, statusFilter]);
 
-  const filteredItems = data
-    ? data.items.filter((j) => {
-        const matchesSearch =
-          !searchQuery ||
-          j.journal_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (j.summary || "").toLowerCase().includes(searchQuery.toLowerCase());
-        return matchesSearch;
-      })
-    : [];
+  const deferredSearch = useDeferredValue(searchQuery);
+
+  const filteredItems = useMemo(() =>
+    data
+      ? data.items.filter((j) => {
+          const matchesSearch =
+            !deferredSearch ||
+            j.journal_number.toLowerCase().includes(deferredSearch.toLowerCase()) ||
+            (j.summary || "").toLowerCase().includes(deferredSearch.toLowerCase());
+          return matchesSearch;
+        })
+      : [],
+    [data, deferredSearch]
+  );
 
   const totalPages = data ? Math.ceil(data.total / data.page_size) : 0;
 
@@ -152,7 +157,7 @@ export default function JournalsListPage() {
   };
 
   return (
-    <PageLayout>
+    <PageLayout title="仕訳一覧">
         <div className="mb-6 flex items-center gap-3">
           <Receipt className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold">仕訳一覧</h1>
@@ -166,11 +171,13 @@ export default function JournalsListPage() {
 
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
-            <div className="relative">
+            <div className="relative" role="search">
               <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
+                aria-label="仕訳検索"
                 placeholder="仕訳番号・摘要で検索..."
+                enterKeyHint="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-48 rounded-md border py-1.5 pl-8 pr-7 text-sm"
@@ -178,6 +185,7 @@ export default function JournalsListPage() {
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
+                  aria-label="クリア"
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
                 >
                   <X className="h-3 w-3 text-muted-foreground" />
@@ -186,6 +194,7 @@ export default function JournalsListPage() {
             </div>
             <Filter className="h-4 w-4 text-muted-foreground" />
             <select
+              aria-label="ステータスフィルター"
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
               className="rounded-md border px-2 py-1.5 text-sm"
@@ -240,7 +249,7 @@ export default function JournalsListPage() {
         </div>
 
         {error && (
-          <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+          <div role="alert" className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
             {error}
           </div>
         )}
@@ -253,13 +262,14 @@ export default function JournalsListPage() {
           <>
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
+                <caption className="sr-only">仕訳一覧</caption>
                 <thead className="bg-muted/50">
                   <tr>
-                    <th className="px-4 py-3 text-left font-medium">仕訳番号</th>
-                    <th className="px-4 py-3 text-left font-medium">取引日</th>
-                    <th className="px-4 py-3 text-left font-medium">摘要</th>
-                    <th className="px-4 py-3 text-left font-medium">ステータス</th>
-                    <th className="px-4 py-3 text-left font-medium">無効化</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">仕訳番号</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">取引日</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">摘要</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">ステータス</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">無効化</th>
                   </tr>
                 </thead>
                 <tbody>

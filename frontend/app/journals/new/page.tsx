@@ -118,8 +118,15 @@ export default function JournalEntryPage() {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!isBalanced || !companyId || !transactionDate) return;
+    const ok = await confirm({
+      title: "仕訳保存",
+      message: "この仕訳を保存しますか？",
+      confirmText: "保存",
+    });
+    if (!ok) return;
     setSaving(true);
     setError("");
     setResult(null);
@@ -185,7 +192,8 @@ export default function JournalEntryPage() {
   };
 
   return (
-    <PageLayout>
+    <PageLayout title="仕訳入力">
+      <form onSubmit={handleSave}>
       <div className="mb-6 flex items-center gap-3">
         <BookOpen className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">仕訳入力</h1>
@@ -198,13 +206,13 @@ export default function JournalEntryPage() {
         )}
 
         {error && (
-          <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+          <div role="alert" className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
             {error}
           </div>
         )}
 
         {result && (
-          <div className="mb-4 rounded-md border border-green-500/50 bg-green-50 p-4 text-sm text-green-700">
+          <div role="status" className="mb-4 rounded-md border border-green-500/50 bg-green-50 p-4 text-sm text-green-700">
             仕訳を保存しました: {result.journal_number as string} (ID: {result.journal_header_id as string})
           </div>
         )}
@@ -222,17 +230,21 @@ export default function JournalEntryPage() {
             </div>
           </div>
           <div className="flex-1">
-            <label className="mb-1 block text-sm font-medium">取引日</label>
+            <label htmlFor="journal_date" className="mb-1 block text-sm font-medium">取引日 <span className="text-destructive" aria-hidden="true">*</span></label>
             <input
+              id="journal_date"
               type="date"
               value={transactionDate}
               onChange={(e) => setTransactionDate(e.target.value)}
+              required
+              aria-required="true"
               className="w-full rounded-md border px-3 py-2"
             />
           </div>
           <div className="flex-[2]">
-            <label className="mb-1 block text-sm font-medium">摘要</label>
+            <label htmlFor="journal_summary" className="mb-1 block text-sm font-medium">摘要</label>
             <input
+              id="journal_summary"
               type="text"
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
@@ -244,17 +256,18 @@ export default function JournalEntryPage() {
 
         <div className="mb-4 overflow-x-auto">
         <table className="w-full border-collapse">
+          <caption className="sr-only">仕訳入力明細</caption>
           <thead>
             <tr className="border-b bg-muted/50">
-              <th className="p-2 text-left text-sm">行</th>
-              <th className="p-2 text-left text-sm">借貸</th>
-              <th className="p-2 text-left text-sm">科目</th>
-              <th className="p-2 text-left text-sm">科目コード</th>
-              <th className="p-2 text-left text-sm">科目名</th>
-              <th className="p-2 text-right text-sm">金額</th>
-              <th className="p-2 text-right text-sm">消費税</th>
-              <th className="p-2 text-left text-sm">摘要</th>
-              <th className="p-2"></th>
+              <th scope="col" className="p-2 text-left text-sm">行</th>
+              <th scope="col" className="p-2 text-left text-sm">借貸</th>
+              <th scope="col" className="p-2 text-left text-sm">科目</th>
+              <th scope="col" className="p-2 text-left text-sm">科目コード</th>
+              <th scope="col" className="p-2 text-left text-sm">科目名</th>
+              <th scope="col" className="p-2 text-right text-sm">金額</th>
+              <th scope="col" className="p-2 text-right text-sm">消費税</th>
+              <th scope="col" className="p-2 text-left text-sm">摘要</th>
+              <th scope="col" className="p-2"></th>
             </tr>
           </thead>
           <tbody>
@@ -373,7 +386,7 @@ export default function JournalEntryPage() {
 
         <div className="mt-6 flex gap-4">
           <button
-            onClick={handleSave}
+            type="submit"
             disabled={!isBalanced || saving || !companyId}
             className="flex items-center gap-2 rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
@@ -381,6 +394,7 @@ export default function JournalEntryPage() {
             {saving ? "保存中..." : "保存"}
           </button>
           <button
+            type="button"
             onClick={handleSubmitForApproval}
             disabled={!isBalanced || saving || !companyId}
             className="flex items-center gap-2 rounded-md border px-6 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
@@ -390,6 +404,7 @@ export default function JournalEntryPage() {
           </button>
           {result && (
             <button
+              type="button"
               onClick={resetForm}
               className="flex items-center gap-2 rounded-md border px-6 py-2 text-sm font-medium hover:bg-accent"
             >
@@ -398,6 +413,7 @@ export default function JournalEntryPage() {
             </button>
           )}
         </div>
+      </form>
     </PageLayout>
   );
 }

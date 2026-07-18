@@ -5,7 +5,7 @@ import PageLayout from "@/components/page-layout";
 import { apiGet } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
-import { Receipt, Clock, Sparkles, AlertCircle, TrendingUp, BookOpen, Calculator, FileCheck, Users, Handshake, Gift, CalendarClock, Wallet, FilePlus, Landmark, TrendingDown, RefreshCw, ArrowRight } from "lucide-react";
+import { Receipt, Clock, Sparkles, AlertCircle, TrendingUp, BookOpen, Calculator, FileCheck, Users, Handshake, Gift, CalendarClock, Wallet, FilePlus, Landmark, TrendingDown, RefreshCw, ArrowRight, Banknote, ShieldAlert, ListChecks } from "lucide-react";
 import Link from "next/link";
 import { SkeletonCard } from "@/components/skeleton";
 
@@ -110,6 +110,36 @@ export default function DashboardPage() {
   const [plSummary, setPlSummary] = useState<PLQuickSummary | null>(null);
   const [apiStatus, setApiStatus] = useState<"ok" | "error" | "checking">("checking");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [opsAlerts, setOpsAlerts] = useState<{
+    unreconciled: number | null;
+    openDetections: number | null;
+    taskCompletion: number | null;
+  }>({ unreconciled: null, openDetections: null, taskCompletion: null });
+
+  // 運用アラート（銀行未消込・未確認の監査検知・当月の月次業務進捗）を取得する。
+  useEffect(() => {
+    if (!companyId || !user) return;
+    const period = new Date().toISOString().slice(0, 7);
+    (async () => {
+      const [bank, audit, tasks] = await Promise.allSettled([
+        user.permissions.includes("journal:read")
+          ? apiGet<unknown[]>("/bank/statement-lines", { company_id: companyId, reconciled: "false", limit: "500" })
+          : Promise.resolve(null),
+        user.permissions.includes("audit:review")
+          ? apiGet<unknown[]>("/audit-detection/detections", { company_id: companyId, status: "open", limit: "500" })
+          : Promise.resolve(null),
+        apiGet<{ completion_rate: number; total: number }>("/office-tasks/progress", { company_id: companyId, period }),
+      ]);
+      setOpsAlerts({
+        unreconciled: bank.status === "fulfilled" && Array.isArray(bank.value) ? bank.value.length : null,
+        openDetections: audit.status === "fulfilled" && Array.isArray(audit.value) ? audit.value.length : null,
+        taskCompletion:
+          tasks.status === "fulfilled" && tasks.value && tasks.value.total > 0
+            ? Math.round(tasks.value.completion_rate * 100)
+            : null,
+      });
+    })();
+  }, [companyId, user]);
 
   const fetchDashboard = useCallback(async () => {
     if (!companyId) {
@@ -318,7 +348,7 @@ export default function DashboardPage() {
 
   if (loading || userLoading) {
     return (
-      <PageLayout>
+      <PageLayout title="ダッシュボード">
         <div className="mb-6 h-8 w-48 animate-pulse rounded bg-muted" />
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-8">
           {Array.from({ length: 8 }).map((_, i) => (
@@ -384,6 +414,45 @@ export default function DashboardPage() {
             );
           })}
         </div>
+
+        {(opsAlerts.unreconciled !== null || opsAlerts.openDetections !== null || opsAlerts.taskCompletion !== null) && (
+          <div className="mt-6">
+            <h2 className="mb-3 text-sm font-semibold text-muted-foreground">運用アラート</h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {opsAlerts.unreconciled !== null && (
+                <Link href="/bank" className="flex items-center justify-between rounded-lg border bg-card p-4 transition-shadow hover:shadow-md">
+                  <div className="flex items-center gap-3">
+                    <Banknote className="h-5 w-5 text-blue-600" aria-hidden="true" />
+                    <span className="text-sm">未消込の銀行明細</span>
+                  </div>
+                  <span className={`text-lg font-bold ${opsAlerts.unreconciled > 0 ? "text-amber-600" : "text-muted-foreground"}`}>
+                    {opsAlerts.unreconciled}件
+                  </span>
+                </Link>
+              )}
+              {opsAlerts.openDetections !== null && (
+                <Link href="/audit-detection" className="flex items-center justify-between rounded-lg border bg-card p-4 transition-shadow hover:shadow-md">
+                  <div className="flex items-center gap-3">
+                    <ShieldAlert className="h-5 w-5 text-red-600" aria-hidden="true" />
+                    <span className="text-sm">未確認のリスク検知</span>
+                  </div>
+                  <span className={`text-lg font-bold ${opsAlerts.openDetections > 0 ? "text-red-600" : "text-muted-foreground"}`}>
+                    {opsAlerts.openDetections}件
+                  </span>
+                </Link>
+              )}
+              {opsAlerts.taskCompletion !== null && (
+                <Link href="/office-tasks" className="flex items-center justify-between rounded-lg border bg-card p-4 transition-shadow hover:shadow-md">
+                  <div className="flex items-center gap-3">
+                    <ListChecks className="h-5 w-5 text-green-600" aria-hidden="true" />
+                    <span className="text-sm">当月の月次業務進捗</span>
+                  </div>
+                  <span className="text-lg font-bold">{opsAlerts.taskCompletion}%</span>
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="rounded-lg border bg-card p-6">

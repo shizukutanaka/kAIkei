@@ -7,7 +7,10 @@ import { ToastProvider } from "@/components/toast";
 import { ConfirmProvider } from "@/components/confirm-dialog";
 
 export const metadata: Metadata = {
-  title: "kAIkei — 統合バックオフィスプラットフォーム",
+  title: {
+    default: "kAIkei — 統合バックオフィスプラットフォーム",
+    template: "%s | kAIkei",
+  },
   description: "AI-driven integrated ERP system for Japan",
 };
 

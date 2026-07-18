@@ -8,6 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
+import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 import { Receipt, Plus, X, Search, Download, CheckCircle, XCircle, Banknote, Loader2, RefreshCw } from "lucide-react";
 import { Pagination } from "@/components/pagination";
 
@@ -77,6 +78,7 @@ export default function ExpensesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -93,6 +95,9 @@ export default function ExpensesPage() {
     note: "",
   });
   const [items, setItems] = useState([{ ...emptyItem }]);
+
+  const isDirty = showForm && (formData.title !== "" || items.some((i) => i.description !== ""));
+  useUnsavedChanges(isDirty);
 
   const fetchReports = async () => {
     if (!companyId) return;
@@ -151,15 +156,27 @@ export default function ExpensesPage() {
 
   const totalAmount = items.reduce((s, item) => s + (parseFloat(item.amount) || 0), 0);
 
-  const handleSubmit = async () => {
-    if (!companyId || !formData.employee_id || !formData.title) {
-      toast("従業員とタイトルは必須です", "warning");
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const errors: Record<string, string> = {};
+    if (!formData.employee_id) errors.exp_employee = "従業員を選択してください";
+    if (!formData.title) errors.exp_title = "タイトルは必須です";
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      toast("必須項目を入力してください", "warning");
       return;
     }
     if (items.length === 0 || items.some((i) => !i.description || !i.amount)) {
       toast("明細の摘要と金額を入力してください", "warning");
       return;
     }
+    setFieldErrors({});
+    const ok = await confirm({
+      title: "経費精算申請",
+      message: "この経費精算を申請しますか？",
+      confirmText: "申請",
+    });
+    if (!ok) return;
     setSubmitLoading(true);
     try {
       await apiPost("/expenses/reports", {
@@ -181,7 +198,9 @@ export default function ExpensesPage() {
       setItems([{ ...emptyItem }]);
       fetchReports();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "提出に失敗しました", "error");
+      const msg = err instanceof Error ? err.message : "提出に失敗しました";
+      setError(msg);
+      toast(msg, "error");
     } finally {
       setSubmitLoading(false);
     }
@@ -240,7 +259,7 @@ export default function ExpensesPage() {
   };
 
   return (
-    <PageLayout>
+    <PageLayout title="経費精算">
       <div className="mb-6 flex items-center gap-3">
         <Receipt className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">経費精算</h1>
@@ -253,18 +272,20 @@ export default function ExpensesPage() {
       )}
 
       {error && (
-        <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+        <div role="alert" className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
           {error}
         </div>
       )}
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
-          <div className="relative">
+          <div className="relative" role="search">
             <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
+              aria-label="経費精算検索"
               placeholder="タイトル・従業員名で検索..."
+              enterKeyHint="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-48 rounded-md border py-1.5 pl-8 pr-7 text-sm"
@@ -272,6 +293,7 @@ export default function ExpensesPage() {
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery("")}
+                aria-label="クリア"
                 className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
               >
                 <X className="h-3 w-3 text-muted-foreground" />
@@ -279,6 +301,7 @@ export default function ExpensesPage() {
             )}
           </div>
           <select
+            aria-label="ステータスフィルター"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="rounded-md border px-2 py-1.5 text-sm"
@@ -316,30 +339,32 @@ export default function ExpensesPage() {
       </div>
 
       {showForm && (
-        <div className="mb-6 rounded-lg border bg-card p-6">
+        <form onSubmit={handleSubmit} className="mb-6 rounded-lg border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">経費精算申請</h2>
-            <button onClick={() => setShowForm(false)} className="rounded p-1 hover:bg-accent">
+            <button type="button" onClick={() => setShowForm(false)} className="rounded p-2 hover:bg-accent" aria-label="閉じる">
               <X className="h-4 w-4" />
             </button>
           </div>
           <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-3">
             <div>
-              <label className="mb-1 block text-sm font-medium">従業員</label>
-              <select value={formData.employee_id} onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm">
+              <label htmlFor="exp_employee" className="mb-1 block text-sm font-medium">従業員 <span className="text-destructive" aria-hidden="true">*</span></label>
+              <select id="exp_employee" value={formData.employee_id} onChange={(e) => { setFormData({ ...formData, employee_id: e.target.value }); if (fieldErrors.exp_employee) setFieldErrors({ ...fieldErrors, exp_employee: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.exp_employee} aria-describedby={fieldErrors.exp_employee ? "exp_employee-error" : undefined} className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive">
                 <option value="">選択...</option>
                 {employees.map((e) => (
                   <option key={e.employee_id} value={e.employee_id}>{e.employee_name}</option>
                 ))}
               </select>
+              {fieldErrors.exp_employee && <p id="exp_employee-error" className="mt-1 text-xs text-destructive">{fieldErrors.exp_employee}</p>}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">精算日</label>
-              <input type="date" value={formData.report_date} onChange={(e) => setFormData({ ...formData, report_date: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+              <label htmlFor="exp_date" className="mb-1 block text-sm font-medium">精算日 <span className="text-destructive" aria-hidden="true">*</span></label>
+              <input id="exp_date" type="date" value={formData.report_date} onChange={(e) => setFormData({ ...formData, report_date: e.target.value })} required aria-required="true" className="w-full rounded-md border px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">タイトル</label>
-              <input type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" placeholder="例: 6月営業交通費" />
+              <label htmlFor="exp_title" className="mb-1 block text-sm font-medium">タイトル <span className="text-destructive" aria-hidden="true">*</span></label>
+              <input id="exp_title" type="text" value={formData.title} onChange={(e) => { setFormData({ ...formData, title: e.target.value }); if (fieldErrors.exp_title) setFieldErrors({ ...fieldErrors, exp_title: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.exp_title} aria-describedby={fieldErrors.exp_title ? "exp_title-error" : undefined} className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive" placeholder="例: 6月営業交通費" />
+              {fieldErrors.exp_title && <p id="exp_title-error" className="mt-1 text-xs text-destructive">{fieldErrors.exp_title}</p>}
             </div>
           </div>
 
@@ -362,7 +387,7 @@ export default function ExpensesPage() {
                   </select>
                   <input type="text" placeholder="摘要" value={item.description} onChange={(e) => handleItemChange(idx, "description", e.target.value)} className="col-span-5 rounded-md border px-2 py-1.5 text-sm" />
                   <input type="number" placeholder="金額" value={item.amount} onChange={(e) => handleItemChange(idx, "amount", e.target.value)} className="col-span-2 rounded-md border px-2 py-1.5 text-sm text-right" />
-                  <button onClick={() => handleRemoveItem(idx)} className="col-span-1 flex items-center justify-center rounded hover:bg-accent">
+                  <button onClick={() => handleRemoveItem(idx)} aria-label="項目を削除" className="col-span-1 flex items-center justify-center rounded hover:bg-accent">
                     <X className="h-4 w-4 text-muted-foreground" />
                   </button>
                 </div>
@@ -370,30 +395,30 @@ export default function ExpensesPage() {
             </div>
             <div className="mt-2 flex items-center justify-between border-t pt-2">
               <div>
-                <label className="text-sm font-medium">備考</label>
-                <input type="text" value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} className="ml-2 rounded-md border px-3 py-1 text-sm" placeholder="任意" />
+                <label htmlFor="exp-note" className="text-sm font-medium">備考</label>
+                <input id="exp-note" type="text" value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} className="ml-2 rounded-md border px-3 py-1 text-sm" placeholder="任意" />
               </div>
               <span className="text-sm font-bold">合計: ¥{totalAmount.toLocaleString()}</span>
             </div>
           </div>
 
           <div className="flex gap-2">
-            <button onClick={handleSubmit} disabled={submitLoading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+            <button type="submit" disabled={submitLoading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
               {submitLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {submitLoading ? "提出中..." : "提出"}
             </button>
-            <button onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
+            <button type="button" onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
               キャンセル
             </button>
           </div>
-        </div>
+        </form>
       )}
 
       {selectedReport && (
         <div className="mb-6 rounded-lg border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">精算詳細: {selectedReport.title}</h2>
-            <button onClick={() => setSelectedReport(null)} className="rounded p-1 hover:bg-accent">
+            <button onClick={() => setSelectedReport(null)} className="rounded p-2 hover:bg-accent" aria-label="閉じる">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -421,10 +446,10 @@ export default function ExpensesPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium">日付</th>
-                  <th className="px-4 py-3 text-left font-medium">カテゴリ</th>
-                  <th className="px-4 py-3 text-left font-medium">摘要</th>
-                  <th className="px-4 py-3 text-right font-medium">金額</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">日付</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">カテゴリ</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">摘要</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">金額</th>
                 </tr>
               </thead>
               <tbody>
@@ -473,19 +498,20 @@ export default function ExpensesPage() {
       ) : filteredReports.length > 0 ? (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
+            <caption className="sr-only">経費精算一覧</caption>
             <thead className="bg-muted/50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">精算日</th>
-                <th className="px-4 py-3 text-left font-medium">タイトル</th>
-                <th className="px-4 py-3 text-left font-medium">従業員</th>
-                <th className="px-4 py-3 text-right font-medium">合計金額</th>
-                <th className="px-4 py-3 text-center font-medium">ステータス</th>
-                <th className="px-4 py-3 text-center font-medium">操作</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">精算日</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">タイトル</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">従業員</th>
+                <th scope="col" className="px-4 py-3 text-right font-medium">合計金額</th>
+                <th scope="col" className="px-4 py-3 text-center font-medium">ステータス</th>
+                <th scope="col" className="px-4 py-3 text-center font-medium">操作</th>
               </tr>
             </thead>
             <tbody>
               {filteredReports.map((r) => (
-                <tr key={r.report_id} className="cursor-pointer border-t hover:bg-muted/30" onClick={() => setSelectedReport(r)}>
+                <tr key={r.report_id} tabIndex={0} className="cursor-pointer border-t hover:bg-muted/30 focus:outline-none focus:ring-2 focus:ring-ring" onClick={() => setSelectedReport(r)} onKeyDown={(e) => { if (e.key === "Enter") setSelectedReport(r); }}>
                   <td className="px-4 py-3">{r.report_date}</td>
                   <td className="px-4 py-3 font-medium">{r.title}</td>
                   <td className="px-4 py-3">{r.employee_name || r.employee_id.slice(0, 8)}</td>
@@ -507,8 +533,9 @@ export default function ExpensesPage() {
                       <button
                         onClick={() => handleDownload(r.report_id, r.title)}
                         disabled={downloadLoading === r.report_id}
-                        className="inline-flex items-center justify-center rounded p-1 hover:bg-accent disabled:opacity-50"
+                        className="inline-flex items-center justify-center rounded p-2 hover:bg-accent disabled:opacity-50"
                         title="CSV出力"
+                        aria-label="CSV出力"
                       >
                         {downloadLoading === r.report_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-muted-foreground" />}
                       </button>

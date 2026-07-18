@@ -116,7 +116,9 @@ export default function YearEndPage() {
       setRecords(data);
       toast(`${data.length}件の年末調整を計算しました`, "success");
     } catch (err) {
-      toast(err instanceof Error ? err.message : "計算に失敗しました", "error");
+      const msg = err instanceof Error ? err.message : "計算に失敗しました";
+      setError(msg);
+      toast(msg, "error");
     } finally {
       setCalculating(false);
     }
@@ -180,7 +182,7 @@ export default function YearEndPage() {
   const currentStatus = records[0]?.status;
 
   return (
-    <PageLayout>
+    <PageLayout title="年末調整">
       <div className="mb-6 flex items-center gap-3">
         <CalendarClock className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">年末調整</h1>
@@ -193,7 +195,7 @@ export default function YearEndPage() {
       )}
 
       {error && (
-        <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+        <div role="alert" className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -201,8 +203,8 @@ export default function YearEndPage() {
       <div className="mb-4 flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-4">
           <div>
-            <label className="mb-1 block text-xs text-muted-foreground">対象年</label>
-            <input type="number" value={adjustmentYear} onChange={(e) => setAdjustmentYear(e.target.value)} className="w-28 rounded-md border px-3 py-1.5 text-sm" />
+            <label htmlFor="adjustment-year" className="mb-1 block text-xs text-muted-foreground">対象年</label>
+            <input id="adjustment-year" type="number" value={adjustmentYear} onChange={(e) => setAdjustmentYear(e.target.value)} className="w-28 rounded-md border px-3 py-1.5 text-sm" />
           </div>
         </div>
         {canCalculate && (
@@ -219,12 +221,13 @@ export default function YearEndPage() {
 
       {canCalculate && employees.length > 0 && (
         <div className="mb-4 rounded-lg border bg-card p-4">
-          <h3 className="mb-3 text-sm font-semibold">扶養親族の数（個別設定）</h3>
+          <h2 className="mb-3 text-sm font-semibold">扶養親族の数（個別設定）</h2>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
             {employees.map((e) => (
               <div key={e.employee_id} className="flex items-center gap-2">
-                <label className="whitespace-nowrap text-xs text-muted-foreground">{e.employee_name}</label>
+                <label htmlFor={`dep-${e.employee_id}`} className="whitespace-nowrap text-xs text-muted-foreground">{e.employee_name}</label>
                 <input
+                  id={`dep-${e.employee_id}`}
                   type="number"
                   min="0"
                   placeholder="0"
@@ -245,11 +248,13 @@ export default function YearEndPage() {
       ) : records.length > 0 ? (
         <>
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <div className="relative">
+            <div className="relative" role="search">
               <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
+                aria-label="従業員名検索"
                 placeholder="従業員名で検索..."
+                enterKeyHint="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-48 rounded-md border py-1.5 pl-8 pr-7 text-sm"
@@ -257,6 +262,7 @@ export default function YearEndPage() {
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
+                  aria-label="クリア"
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
                 >
                   <X className="h-3 w-3 text-muted-foreground" />
@@ -275,18 +281,19 @@ export default function YearEndPage() {
           </div>
           <div className="overflow-x-auto rounded-lg border">
             <table className="w-full text-sm">
+              <caption className="sr-only">年末調整一覧</caption>
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium">従業員</th>
-                  <th className="px-4 py-3 text-right font-medium">年間給与</th>
-                  <th className="px-4 py-3 text-right font-medium">年間賞与</th>
-                  <th className="px-4 py-3 text-right font-medium">課税対象額</th>
-                  <th className="px-4 py-3 text-right font-medium">源泉徴収額</th>
-                  <th className="px-4 py-3 text-right font-medium">推定年税</th>
-                  <th className="px-4 py-3 text-right font-medium">調整額</th>
-                  <th className="px-4 py-3 text-center font-medium">扶養</th>
-                  <th className="px-4 py-3 text-center font-medium">ステータス</th>
-                  <th className="px-4 py-3 text-center font-medium">CSV</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">従業員</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">年間給与</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">年間賞与</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">課税対象額</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">源泉徴収額</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">推定年税</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">調整額</th>
+                  <th scope="col" className="px-4 py-3 text-center font-medium">扶養</th>
+                  <th scope="col" className="px-4 py-3 text-center font-medium">ステータス</th>
+                  <th scope="col" className="px-4 py-3 text-center font-medium">CSV</th>
                 </tr>
               </thead>
               <tbody>
@@ -311,8 +318,9 @@ export default function YearEndPage() {
                       <button
                         onClick={() => handleDownload(r.adjustment_id, r.employee_name || r.employee_id.slice(0, 8))}
                         disabled={downloadLoading === r.adjustment_id}
-                        className="inline-flex items-center justify-center rounded p-1 hover:bg-accent disabled:opacity-50"
+                        className="inline-flex items-center justify-center rounded p-2 hover:bg-accent disabled:opacity-50"
                         title="CSV出力"
+                        aria-label="CSV出力"
                       >
                         {downloadLoading === r.adjustment_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-muted-foreground" />}
                       </button>

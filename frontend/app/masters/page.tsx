@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useDeferredValue, useMemo } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost, apiPut } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
@@ -37,10 +37,12 @@ export default function MastersPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [initLoading, setInitLoading] = useState(false);
+  const [addLoading, setAddLoading] = useState(false);
   const [newAccount, setNewAccount] = useState({
     account_code: "",
     account_name: "",
@@ -69,12 +71,19 @@ export default function MastersPage() {
     }
   };
 
-  const handleAddAccount = async () => {
-    if (!companyId || !newAccount.account_code || !newAccount.account_name) {
-      setError("科目コードと科目名を入力してください");
+  const handleAddAccount = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const errors: Record<string, string> = {};
+    if (!newAccount.account_code) errors.account_code = "科目コードは必須です";
+    if (!newAccount.account_name) errors.account_name = "科目名は必須です";
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      toast("必須項目を入力してください", "warning");
       return;
     }
+    setFieldErrors({});
 
+    setAddLoading(true);
     try {
       await apiPost("/masters", { company_id: companyId, ...newAccount });
       setShowAddForm(false);
@@ -84,6 +93,8 @@ export default function MastersPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "科目の追加に失敗しました");
       toast(err instanceof Error ? err.message : "科目の追加に失敗しました", "error");
+    } finally {
+      setAddLoading(false);
     }
   };
 
@@ -121,15 +132,21 @@ export default function MastersPage() {
     }
   };
 
-  const filtered = accounts.filter(
-    (a) =>
-      (a.account_code.includes(search) ||
-      a.account_name.includes(search)) &&
-      (!typeFilter || a.account_type === typeFilter)
+  const deferredSearch = useDeferredValue(search);
+  const deferredTypeFilter = useDeferredValue(typeFilter);
+
+  const filtered = useMemo(() =>
+    accounts.filter(
+      (a) =>
+        (a.account_code.includes(deferredSearch) ||
+        a.account_name.includes(deferredSearch)) &&
+        (!deferredTypeFilter || a.account_type === deferredTypeFilter)
+    ),
+    [accounts, deferredSearch, deferredTypeFilter]
   );
 
   return (
-    <PageLayout>
+    <PageLayout title="勘定科目マスタ">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <BookOpen className="h-6 w-6 text-primary" />
@@ -157,32 +174,45 @@ export default function MastersPage() {
         </div>
 
         {showAddForm && (
-          <div className="mb-6 rounded-lg border bg-card p-6">
+          <form onSubmit={handleAddAccount} className="mb-6 rounded-lg border bg-card p-6">
             <h2 className="mb-4 text-lg font-semibold">新規勘定科目</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block text-sm font-medium">科目コード</label>
+                <label htmlFor="account_code" className="mb-1 block text-sm font-medium">科目コード <span className="text-destructive" aria-hidden="true">*</span></label>
                 <input
+                  id="account_code"
                   type="text"
                   value={newAccount.account_code}
-                  onChange={(e) => setNewAccount({ ...newAccount, account_code: e.target.value })}
+                  onChange={(e) => { setNewAccount({ ...newAccount, account_code: e.target.value }); if (fieldErrors.account_code) setFieldErrors({ ...fieldErrors, account_code: "" }); }}
                   placeholder="1000"
-                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  required
+                  aria-required="true"
+                  aria-invalid={!!fieldErrors.account_code}
+                  aria-describedby={fieldErrors.account_code ? "account_code-error" : undefined}
+                  className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive"
                 />
+                {fieldErrors.account_code && <p id="account_code-error" className="mt-1 text-xs text-destructive">{fieldErrors.account_code}</p>}
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">科目名</label>
+                <label htmlFor="account_name" className="mb-1 block text-sm font-medium">科目名 <span className="text-destructive" aria-hidden="true">*</span></label>
                 <input
+                  id="account_name"
                   type="text"
                   value={newAccount.account_name}
-                  onChange={(e) => setNewAccount({ ...newAccount, account_name: e.target.value })}
+                  onChange={(e) => { setNewAccount({ ...newAccount, account_name: e.target.value }); if (fieldErrors.account_name) setFieldErrors({ ...fieldErrors, account_name: "" }); }}
                   placeholder="現金"
-                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  required
+                  aria-required="true"
+                  aria-invalid={!!fieldErrors.account_name}
+                  aria-describedby={fieldErrors.account_name ? "account_name-error" : undefined}
+                  className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive"
                 />
+                {fieldErrors.account_name && <p id="account_name-error" className="mt-1 text-xs text-destructive">{fieldErrors.account_name}</p>}
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">科目区分</label>
+                <label htmlFor="account_type" className="mb-1 block text-sm font-medium">科目区分</label>
                 <select
+                  id="account_type"
                   value={newAccount.account_type}
                   onChange={(e) => setNewAccount({ ...newAccount, account_type: e.target.value })}
                   className="w-full rounded-md border px-3 py-2 text-sm"
@@ -193,8 +223,9 @@ export default function MastersPage() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">借方/貸方</label>
+                <label htmlFor="debit-credit" className="mb-1 block text-sm font-medium">借方/貸方</label>
                 <select
+                  id="debit-credit"
                   value={newAccount.debit_credit}
                   onChange={(e) => setNewAccount({ ...newAccount, debit_credit: e.target.value })}
                   className="w-full rounded-md border px-3 py-2 text-sm"
@@ -206,20 +237,22 @@ export default function MastersPage() {
             </div>
             <div className="mt-4 flex gap-2">
               <button
-                onClick={handleAddAccount}
-                className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+                type="submit"
+                disabled={addLoading}
+                className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
               >
-                <Plus className="h-4 w-4" />
-                追加
+                {addLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                {addLoading ? "追加中..." : "追加"}
               </button>
               <button
+                type="button"
                 onClick={() => setShowAddForm(false)}
                 className="rounded-md border px-4 py-2 text-sm font-medium"
               >
                 キャンセル
               </button>
             </div>
-          </div>
+          </form>
         )}
 
         {!companyId && (
@@ -229,25 +262,28 @@ export default function MastersPage() {
         )}
 
         {error && (
-          <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+          <div role="alert" className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
             {error}
           </div>
         )}
 
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1">
+            <div className="relative flex-1" role="search">
               <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
+                aria-label="科目検索"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="科目コード・科目名で検索"
+                enterKeyHint="search"
                 className="w-full rounded-md border px-3 py-2 pl-8 pr-7 text-sm"
               />
               {search && (
                 <button
                   onClick={() => setSearch("")}
+                  aria-label="クリア"
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
                 >
                   <X className="h-3 w-3 text-muted-foreground" />
@@ -255,6 +291,7 @@ export default function MastersPage() {
               )}
             </div>
             <select
+              aria-label="区分フィルター"
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
               className="rounded-md border px-2 py-2 text-sm"
@@ -281,14 +318,15 @@ export default function MastersPage() {
         ) : (
           <div className="overflow-x-auto rounded-lg border">
             <table className="w-full text-sm">
-              <thead className="bg-muted/50">
+            <caption className="sr-only">勘定科目一覧</caption>
+            <thead className="bg-muted/50">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium">科目コード</th>
-                  <th className="px-4 py-3 text-left font-medium">科目名</th>
-                  <th className="px-4 py-3 text-left font-medium">区分</th>
-                  <th className="px-4 py-3 text-left font-medium">借方/貸方</th>
-                  <th className="px-4 py-3 text-left font-medium">状態</th>
-                  {canCreate && <th className="px-4 py-3 text-center font-medium">操作</th>}
+                  <th scope="col" className="px-4 py-3 text-left font-medium">科目コード</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">科目名</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">区分</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">借方/貸方</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">状態</th>
+                  {canCreate && <th scope="col" className="px-4 py-3 text-center font-medium">操作</th>}
                 </tr>
               </thead>
               <tbody>
@@ -299,7 +337,7 @@ export default function MastersPage() {
                     <td className="px-4 py-3">{ACCOUNT_TYPES[account.account_type] || account.account_type}</td>
                     <td className="px-4 py-3">{account.debit_credit === "debit" ? "借方" : "貸方"}</td>
                     <td className="px-4 py-3">
-                      <span className={`rounded px-2 py-0.5 text-xs ${account.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                      <span className={`rounded px-2 py-0.5 text-xs ${account.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"}`}>
                         {account.is_active ? "有効" : "無効"}
                       </span>
                     </td>

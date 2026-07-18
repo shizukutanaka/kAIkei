@@ -49,9 +49,17 @@
   border-color: hsl(var(--border));
 }
 
+html {
+  scroll-padding-top: 4rem;
+}
+
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
+}
+
+button[disabled] {
+  cursor: not-allowed;
 }
 
 ::-webkit-scrollbar {
@@ -74,4 +82,24 @@ body {
 
 input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
 }

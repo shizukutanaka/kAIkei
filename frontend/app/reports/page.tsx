@@ -289,7 +289,7 @@ export default function ReportsPage() {
   }, [companyId]);
 
   return (
-    <PageLayout>
+    <PageLayout title="帳票">
         <div className="mb-6 flex items-center gap-3">
           <FileText className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold">帳票</h1>
@@ -384,11 +384,12 @@ export default function ReportsPage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {reportType === "trial-balance" || reportType === "income-statement" || reportType === "balance-sheet" || reportType === "cash-flow" ? (
               <div>
-                <label className="mb-1 block text-sm font-medium">基準日</label>
+                <label htmlFor="report-as-of" className="mb-1 block text-sm font-medium">基準日</label>
                 <input
+                  id="report-as-of"
                   type="date"
                   value={asOf}
                   onChange={(e) => setAsOf(e.target.value)}
@@ -398,8 +399,9 @@ export default function ReportsPage() {
             ) : (
               <>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">年</label>
+                  <label htmlFor="report-year" className="mb-1 block text-sm font-medium">年</label>
                   <input
+                    id="report-year"
                     type="number"
                     value={year}
                     onChange={(e) => setYear(e.target.value)}
@@ -407,8 +409,9 @@ export default function ReportsPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">月</label>
+                  <label htmlFor="report-month" className="mb-1 block text-sm font-medium">月</label>
                   <select
+                    id="report-month"
                     value={month}
                     onChange={(e) => setMonth(e.target.value)}
                     className="w-full rounded-md border px-3 py-2 text-sm"
@@ -427,8 +430,9 @@ export default function ReportsPage() {
             )}
             {reportType === "bonus" && (
               <div>
-                <label className="mb-1 block text-sm font-medium">賞与区分</label>
+                <label htmlFor="report-bonus-term" className="mb-1 block text-sm font-medium">賞与区分</label>
                 <select
+                  id="report-bonus-term"
                   value={bonusTerm}
                   onChange={(e) => setBonusTerm(e.target.value)}
                   className="w-full rounded-md border px-3 py-2 text-sm"
@@ -464,7 +468,7 @@ export default function ReportsPage() {
         </div>
 
         {error && (
-          <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+          <div role="alert" className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
             {error}
           </div>
         )}
@@ -478,13 +482,14 @@ export default function ReportsPage() {
               </span>
             </div>
             <table className="w-full text-sm">
+              <caption className="sr-only">試算表</caption>
               <thead className="bg-muted/30">
                 <tr>
-                  <th className="px-4 py-2 text-left font-medium">科目コード</th>
-                  <th className="px-4 py-2 text-left font-medium">科目名</th>
-                  <th className="px-4 py-2 text-left font-medium">区分</th>
-                  <th className="px-4 py-2 text-right font-medium">借方</th>
-                  <th className="px-4 py-2 text-right font-medium">貸方</th>
+                  <th scope="col" className="px-4 py-2 text-left font-medium">科目コード</th>
+                  <th scope="col" className="px-4 py-2 text-left font-medium">科目名</th>
+                  <th scope="col" className="px-4 py-2 text-left font-medium">区分</th>
+                  <th scope="col" className="px-4 py-2 text-right font-medium">借方</th>
+                  <th scope="col" className="px-4 py-2 text-right font-medium">貸方</th>
                 </tr>
               </thead>
               <tbody>
@@ -517,14 +522,15 @@ export default function ReportsPage() {
               <h2 className="text-lg font-semibold">給与サマリー — {year}年{month}月</h2>
             </div>
             <table className="w-full text-sm">
+              <caption className="sr-only">給与サマリー</caption>
               <thead className="bg-muted/30">
                 <tr>
-                  <th className="px-4 py-2 text-left font-medium">従業員</th>
-                  <th className="px-4 py-2 text-right font-medium">基本給</th>
-                  <th className="px-4 py-2 text-right font-medium">残業代</th>
-                  <th className="px-4 py-2 text-right font-medium">総支給額</th>
-                  <th className="px-4 py-2 text-right font-medium">控除額</th>
-                  <th className="px-4 py-2 text-right font-medium">差引支給額</th>
+                  <th scope="col" className="px-4 py-2 text-left font-medium">従業員</th>
+                  <th scope="col" className="px-4 py-2 text-right font-medium">基本給</th>
+                  <th scope="col" className="px-4 py-2 text-right font-medium">残業代</th>
+                  <th scope="col" className="px-4 py-2 text-right font-medium">総支給額</th>
+                  <th scope="col" className="px-4 py-2 text-right font-medium">控除額</th>
+                  <th scope="col" className="px-4 py-2 text-right font-medium">差引支給額</th>
                 </tr>
               </thead>
               <tbody>
@@ -576,14 +582,15 @@ export default function ReportsPage() {
               </h2>
             </div>
             <table className="w-full text-sm">
+              <caption className="sr-only">賞与サマリー</caption>
               <thead className="bg-muted/30">
                 <tr>
-                  <th className="px-4 py-2 text-left font-medium">従業員</th>
-                  <th className="px-4 py-2 text-right font-medium">基準月数</th>
-                  <th className="px-4 py-2 text-right font-medium">業績係数</th>
-                  <th className="px-4 py-2 text-right font-medium">賞与額</th>
-                  <th className="px-4 py-2 text-right font-medium">控除額</th>
-                  <th className="px-4 py-2 text-right font-medium">差引支給額</th>
+                  <th scope="col" className="px-4 py-2 text-left font-medium">従業員</th>
+                  <th scope="col" className="px-4 py-2 text-right font-medium">基準月数</th>
+                  <th scope="col" className="px-4 py-2 text-right font-medium">業績係数</th>
+                  <th scope="col" className="px-4 py-2 text-right font-medium">賞与額</th>
+                  <th scope="col" className="px-4 py-2 text-right font-medium">控除額</th>
+                  <th scope="col" className="px-4 py-2 text-right font-medium">差引支給額</th>
                 </tr>
               </thead>
               <tbody>
@@ -631,13 +638,14 @@ export default function ReportsPage() {
               </h2>
             </div>
             <table className="w-full text-sm">
+              <caption className="sr-only">月次残高</caption>
               <thead className="bg-muted/30">
                 <tr>
-                  <th className="px-4 py-2 text-left font-medium">科目コード</th>
-                  <th className="px-4 py-2 text-left font-medium">科目名</th>
-                  <th className="px-4 py-2 text-right font-medium">借方</th>
-                  <th className="px-4 py-2 text-right font-medium">貸方</th>
-                  <th className="px-4 py-2 text-right font-medium">残高</th>
+                  <th scope="col" className="px-4 py-2 text-left font-medium">科目コード</th>
+                  <th scope="col" className="px-4 py-2 text-left font-medium">科目名</th>
+                  <th scope="col" className="px-4 py-2 text-right font-medium">借方</th>
+                  <th scope="col" className="px-4 py-2 text-right font-medium">貸方</th>
+                  <th scope="col" className="px-4 py-2 text-right font-medium">残高</th>
                 </tr>
               </thead>
               <tbody>
@@ -669,15 +677,16 @@ export default function ReportsPage() {
               <h2 className="text-lg font-semibold">勤怠集計 — {year}年{month}月</h2>
             </div>
             <table className="w-full text-sm">
+              <caption className="sr-only">勤怠集計</caption>
               <thead className="bg-muted/30">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium">従業員コード</th>
-                  <th className="px-4 py-3 text-left font-medium">氏名</th>
-                  <th className="px-4 py-3 text-right font-medium">出勤日数</th>
-                  <th className="px-4 py-3 text-right font-medium">総勤務時間</th>
-                  <th className="px-4 py-3 text-right font-medium">総残業時間</th>
-                  <th className="px-4 py-3 text-right font-medium">有給日数</th>
-                  <th className="px-4 py-3 text-right font-medium">欠勤日数</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">従業員コード</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">氏名</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">出勤日数</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">総勤務時間</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">総残業時間</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">有給日数</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">欠勤日数</th>
                 </tr>
               </thead>
               <tbody>
@@ -730,13 +739,14 @@ export default function ReportsPage() {
               <h2 className="text-lg font-semibold">経費精算一覧</h2>
             </div>
             <table className="w-full text-sm">
+              <caption className="sr-only">経費精算一覧</caption>
               <thead className="bg-muted/30">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium">精算日</th>
-                  <th className="px-4 py-3 text-left font-medium">タイトル</th>
-                  <th className="px-4 py-3 text-left font-medium">従業員</th>
-                  <th className="px-4 py-3 text-right font-medium">金額</th>
-                  <th className="px-4 py-3 text-center font-medium">ステータス</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">精算日</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">タイトル</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">従業員</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">金額</th>
+                  <th scope="col" className="px-4 py-3 text-center font-medium">ステータス</th>
                 </tr>
               </thead>
               <tbody>
@@ -791,6 +801,7 @@ export default function ReportsPage() {
               </span>
             </div>
             <table className="w-full text-sm">
+              <caption className="sr-only">損益計算書</caption>
               <tbody>
                 <tr className="border-b bg-muted/30">
                   <td className="px-4 py-2 font-bold" colSpan={3}>収益</td>
@@ -840,6 +851,7 @@ export default function ReportsPage() {
               </span>
             </div>
             <table className="w-full text-sm">
+              <caption className="sr-only">貸借対照表</caption>
               <tbody>
                 <tr className="border-b bg-muted/30">
                   <td className="px-4 py-2 font-bold" colSpan={3}>資産</td>
@@ -896,11 +908,12 @@ export default function ReportsPage() {
         {cashFlowData && (
           <div className="mt-6 overflow-x-auto rounded-lg border">
             <table className="w-full text-sm">
+              <caption className="sr-only">キャッシュフロー計算書</caption>
               <thead className="bg-primary/10">
                 <tr>
-                  <th className="px-4 py-3 text-left">区分</th>
-                  <th className="px-4 py-3 text-left">項目</th>
-                  <th className="px-4 py-3 text-right">金額</th>
+                  <th scope="col" className="px-4 py-3 text-left">区分</th>
+                  <th scope="col" className="px-4 py-3 text-left">項目</th>
+                  <th scope="col" className="px-4 py-3 text-right">金額</th>
                 </tr>
               </thead>
               <tbody>

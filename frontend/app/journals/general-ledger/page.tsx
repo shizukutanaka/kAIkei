@@ -110,7 +110,7 @@ export default function GeneralLedgerPage() {
   };
 
   return (
-    <PageLayout>
+    <PageLayout title="総勘定元帳">
       <div className="mb-6 flex items-center gap-3">
         <BookOpen className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">総勘定元帳</h1>
@@ -125,8 +125,9 @@ export default function GeneralLedgerPage() {
       <div className="mb-6 rounded-lg border bg-card p-4">
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="mb-1 block text-sm font-medium">開始日</label>
+            <label htmlFor="gl-start-date" className="mb-1 block text-sm font-medium">開始日</label>
             <input
+              id="gl-start-date"
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
@@ -134,8 +135,9 @@ export default function GeneralLedgerPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">終了日</label>
+            <label htmlFor="gl-end-date" className="mb-1 block text-sm font-medium">終了日</label>
             <input
+              id="gl-end-date"
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
@@ -143,8 +145,9 @@ export default function GeneralLedgerPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">科目コード（任意）</label>
+            <label htmlFor="gl-account-code" className="mb-1 block text-sm font-medium">科目コード（任意）</label>
             <input
+              id="gl-account-code"
               type="text"
               value={accountCode}
               onChange={(e) => setAccountCode(e.target.value)}
@@ -174,7 +177,7 @@ export default function GeneralLedgerPage() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+        <div role="alert" className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -216,13 +219,14 @@ export default function GeneralLedgerPage() {
                   </button>
                   {isExpanded && (
                     <table className="w-full text-sm">
+                      <caption className="sr-only">総勘定元帳明細</caption>
                       <thead className="bg-muted/30">
                         <tr>
-                          <th className="px-4 py-2 text-left">取引日</th>
-                          <th className="px-4 py-2 text-left">伝票No</th>
-                          <th className="px-4 py-2 text-left">摘要</th>
-                          <th className="px-4 py-2 text-right">借方</th>
-                          <th className="px-4 py-2 text-right">貸方</th>
+                          <th scope="col" className="px-4 py-2 text-left">取引日</th>
+                          <th scope="col" className="px-4 py-2 text-left">伝票No</th>
+                          <th scope="col" className="px-4 py-2 text-left">摘要</th>
+                          <th scope="col" className="px-4 py-2 text-right">借方</th>
+                          <th scope="col" className="px-4 py-2 text-right">貸方</th>
                         </tr>
                       </thead>
                       <tbody>

@@ -90,8 +90,15 @@ export default function NotificationBell() {
         setOpen(false);
       }
     };
+    const handleKeydown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeydown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeydown);
+    };
   }, []);
 
   const handleMarkRead = async (id: string) => {
@@ -161,7 +168,8 @@ export default function NotificationBell() {
               )}
               <button
                 onClick={() => setOpen(false)}
-                className="rounded p-1 hover:bg-accent"
+                className="rounded p-2 hover:bg-accent"
+                aria-label="閉じる"
               >
                 <X className="h-4 w-4" />
               </button>

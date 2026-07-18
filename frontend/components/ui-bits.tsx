@@ -36,6 +36,7 @@ export function ErrorBanner({ message, onDismiss }: ErrorBannerProps) {
         <button
           onClick={onDismiss}
           className="ml-2 shrink-0 opacity-60 hover:opacity-100"
+          aria-label="エラーを閉じる"
         >
           <X className="h-4 w-4" />
         </button>

@@ -85,7 +85,7 @@ export default function KnowledgePage() {
   };
 
   return (
-    <PageLayout>
+    <PageLayout title="ナレッジ検索">
         <div className="mb-6 flex items-center gap-3">
           <BookOpen className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold">ナレッジ検索</h1>
@@ -94,9 +94,10 @@ export default function KnowledgePage() {
         <div className="mb-6 rounded-lg border bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold">検索キーワード</h2>
           <div className="flex gap-2">
-            <div className="relative flex-1">
+            <div className="relative flex-1" role="search">
               <input
                 type="text"
+                aria-label="ナレッジ検索"
                 value={keywords}
                 onChange={(e) => setKeywords(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -106,6 +107,7 @@ export default function KnowledgePage() {
               {keywords && (
                 <button
                   onClick={() => setKeywords("")}
+                  aria-label="クリア"
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
                 >
                   <X className="h-4 w-4 text-muted-foreground" />
@@ -143,7 +145,7 @@ export default function KnowledgePage() {
         </div>
 
         {error && (
-          <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+          <div role="alert" className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
             {error}
           </div>
         )}

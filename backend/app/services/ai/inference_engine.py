@@ -82,6 +82,22 @@ class AIInferenceEngine:
     def router(self) -> TaskRouter:
         return self._router
 
+    @property
+    def document_extraction_provider(self) -> AIProvider | None:
+        """文書抽出（extract_document_fields）に対応する最初のプロバイダを返す。
+
+        LOCAL_LLM_ENDPOINT設定時はLocalLLMProviderが_providers[0]になるが、
+        同プロバイダはextract_document_fieldsを実装していない
+        （base_provider.pyの既定はNotImplementedErrorを送出する）。
+        単純に先頭プロバイダを返すと、この場合サイレントにregexのみへ
+        フォールバックしつつ「AI抽出成功」と誤報告してしまうため、
+        実装をオーバーライドしているプロバイダを明示的に探す。
+        """
+        for provider in self._providers:
+            if type(provider).extract_document_fields is not AIProvider.extract_document_fields:
+                return provider
+        return None
+
     async def infer_journal(self, request: InferenceRequest) -> dict[str, Any]:
         """Infer journal lines with task routing and provider fallback.
 

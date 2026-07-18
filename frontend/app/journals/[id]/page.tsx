@@ -111,7 +111,7 @@ export default function JournalDetailPage() {
 
   if (loading) {
     return (
-      <PageLayout>
+      <PageLayout title="仕訳詳細">
         <button
           onClick={() => router.push("/journals")}
           className="mb-4 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
@@ -135,7 +135,7 @@ export default function JournalDetailPage() {
 
   if (error || !journal) {
     return (
-      <PageLayout>
+      <PageLayout title="仕訳詳細">
         <button
           onClick={() => router.push("/journals")}
           className="mb-4 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
@@ -143,7 +143,7 @@ export default function JournalDetailPage() {
           <ArrowLeft className="h-4 w-4" />
           仕訳一覧へ戻る
         </button>
-        <div className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+        <div role="alert" className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
           {error || "仕訳が見つかりません"}
         </div>
       </PageLayout>
@@ -206,14 +206,15 @@ export default function JournalDetailPage() {
 
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full text-sm">
+          <caption className="sr-only">仕訳明細</caption>
           <thead className="bg-muted/50">
             <tr>
-              <th className="px-4 py-3 text-left font-medium">行</th>
-              <th className="px-4 py-3 text-left font-medium">借貸</th>
-              <th className="px-4 py-3 text-left font-medium">科目ID</th>
-              <th className="px-4 py-3 text-right font-medium">金額</th>
-              <th className="px-4 py-3 text-right font-medium">税額</th>
-              <th className="px-4 py-3 text-left font-medium">摘要</th>
+              <th scope="col" className="px-4 py-3 text-left font-medium">行</th>
+              <th scope="col" className="px-4 py-3 text-left font-medium">借貸</th>
+              <th scope="col" className="px-4 py-3 text-left font-medium">科目ID</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">金額</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">税額</th>
+              <th scope="col" className="px-4 py-3 text-left font-medium">摘要</th>
             </tr>
           </thead>
           <tbody>

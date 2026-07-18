@@ -104,7 +104,9 @@ export default function TaxReturnsPage() {
       setSelectedRecord(data);
       toast(`${calcYear}年の消費税申告を計算しました`, "success");
     } catch (err) {
-      toast(err instanceof Error ? err.message : "計算に失敗しました", "error");
+      const msg = err instanceof Error ? err.message : "計算に失敗しました";
+      setError(msg);
+      toast(msg, "error");
     } finally {
       setCalculating(false);
     }
@@ -162,7 +164,7 @@ export default function TaxReturnsPage() {
   const fmt = (v: string) => `¥${parseInt(v || "0").toLocaleString()}`;
 
   return (
-    <PageLayout>
+    <PageLayout title="消費税申告">
       <div className="mb-6 flex items-center gap-3">
         <Calculator className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">消費税申告</h1>
@@ -175,7 +177,7 @@ export default function TaxReturnsPage() {
       )}
 
       {error && (
-        <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+        <div role="alert" className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -185,19 +187,19 @@ export default function TaxReturnsPage() {
           <h2 className="mb-4 text-lg font-semibold">消費税計算</h2>
           <div className="mb-4 flex flex-wrap items-end gap-4">
             <div>
-              <label className="mb-1 block text-sm font-medium">対象年度</label>
-              <input type="number" value={calcYear} onChange={(e) => setCalcYear(e.target.value)} className="w-32 rounded-md border px-3 py-2 text-sm" />
+              <label htmlFor="calc-year" className="mb-1 block text-sm font-medium">対象年度</label>
+              <input id="calc-year" type="number" value={calcYear} onChange={(e) => setCalcYear(e.target.value)} className="w-32 rounded-md border px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">申告区分</label>
-              <select value={filingType} onChange={(e) => setFilingType(e.target.value)} className="rounded-md border px-3 py-2 text-sm">
+              <label htmlFor="filing-type" className="mb-1 block text-sm font-medium">申告区分</label>
+              <select id="filing-type" value={filingType} onChange={(e) => setFilingType(e.target.value)} className="rounded-md border px-3 py-2 text-sm">
                 <option value="general">一般課税</option>
                 <option value="simplified">簡易課税</option>
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">調整額</label>
-              <input type="number" value={taxAdjustment} onChange={(e) => setTaxAdjustment(e.target.value)} className="w-32 rounded-md border px-3 py-2 text-sm" />
+              <label htmlFor="tax-adjustment" className="mb-1 block text-sm font-medium">調整額</label>
+              <input id="tax-adjustment" type="number" value={taxAdjustment} onChange={(e) => setTaxAdjustment(e.target.value)} className="w-32 rounded-md border px-3 py-2 text-sm" />
             </div>
             <button
               onClick={handleCalculate}
@@ -220,7 +222,7 @@ export default function TaxReturnsPage() {
             <h2 className="text-lg font-semibold">
               申告詳細 — {selectedRecord.tax_year}年度 ({FILING_LABELS[selectedRecord.filing_type]})
             </h2>
-            <button onClick={() => setSelectedRecord(null)} className="rounded p-1 hover:bg-accent">
+            <button onClick={() => setSelectedRecord(null)} className="rounded p-2 hover:bg-accent" aria-label="閉じる">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -305,11 +307,13 @@ export default function TaxReturnsPage() {
       )}
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="relative">
+        <div className="relative" role="search">
           <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
+            aria-label="申告検索"
             placeholder="年度・申告区分で検索..."
+            enterKeyHint="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-48 rounded-md border py-1.5 pl-8 pr-7 text-sm"
@@ -317,6 +321,7 @@ export default function TaxReturnsPage() {
           {searchQuery && (
             <button
               onClick={() => setSearchQuery("")}
+              aria-label="クリア"
               className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
             >
               <X className="h-3 w-3 text-muted-foreground" />
@@ -339,20 +344,21 @@ export default function TaxReturnsPage() {
       ) : filteredRecords.length > 0 ? (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
+            <caption className="sr-only">消費税申告一覧</caption>
             <thead className="bg-muted/50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">年度</th>
-                <th className="px-4 py-3 text-left font-medium">申告区分</th>
-                <th className="px-4 py-3 text-right font-medium">売上合計</th>
-                <th className="px-4 py-3 text-right font-medium">仕入合計</th>
-                <th className="px-4 py-3 text-right font-medium">納付税額</th>
-                <th className="px-4 py-3 text-center font-medium">ステータス</th>
-                <th className="px-4 py-3 text-center font-medium">操作</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">年度</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">申告区分</th>
+                <th scope="col" className="px-4 py-3 text-right font-medium">売上合計</th>
+                <th scope="col" className="px-4 py-3 text-right font-medium">仕入合計</th>
+                <th scope="col" className="px-4 py-3 text-right font-medium">納付税額</th>
+                <th scope="col" className="px-4 py-3 text-center font-medium">ステータス</th>
+                <th scope="col" className="px-4 py-3 text-center font-medium">操作</th>
               </tr>
             </thead>
             <tbody>
               {filteredRecords.map((r) => (
-                <tr key={r.return_id} className="cursor-pointer border-t hover:bg-muted/30" onClick={() => setSelectedRecord(r)}>
+                <tr key={r.return_id} tabIndex={0} className="cursor-pointer border-t hover:bg-muted/30 focus:outline-none focus:ring-2 focus:ring-ring" onClick={() => setSelectedRecord(r)} onKeyDown={(e) => { if (e.key === "Enter") setSelectedRecord(r); }}>
                   <td className="px-4 py-3 font-medium">{r.tax_year}年度</td>
                   <td className="px-4 py-3">{FILING_LABELS[r.filing_type] || r.filing_type}</td>
                   <td className="px-4 py-3 text-right">{fmt(r.total_sales)}</td>
@@ -366,7 +372,7 @@ export default function TaxReturnsPage() {
                   <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1">
                       <button onClick={() => setSelectedRecord(r)} className="rounded px-2 py-1 text-xs hover:bg-accent">詳細</button>
-                      <button onClick={() => handleDownload(r.return_id, r.tax_year.toString())} disabled={downloadLoading === r.return_id} className="inline-flex items-center justify-center rounded p-1 hover:bg-accent disabled:opacity-50" title="CSV出力">
+                      <button onClick={() => handleDownload(r.return_id, r.tax_year.toString())} disabled={downloadLoading === r.return_id} className="inline-flex items-center justify-center rounded p-2 hover:bg-accent disabled:opacity-50" title="CSV出力" aria-label="CSV出力">
                         {downloadLoading === r.return_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-muted-foreground" />}
                       </button>
                     </div>

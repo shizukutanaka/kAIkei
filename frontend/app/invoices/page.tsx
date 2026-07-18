@@ -8,6 +8,7 @@ import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
+import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 import { FileText, Plus, X, Search, Download, Send, CheckCircle, XCircle, Loader2, RefreshCw } from "lucide-react";
 import { Pagination } from "@/components/pagination";
 
@@ -86,6 +87,7 @@ export default function InvoicesPage() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -104,6 +106,9 @@ export default function InvoicesPage() {
   const [lines, setLines] = useState([{ ...emptyLine }]);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [downloadLoading, setDownloadLoading] = useState<string | null>(null);
+
+  const isDirty = showForm && (formData.invoice_number !== "" || lines.some((l) => l.description !== ""));
+  useUnsavedChanges(isDirty);
 
   const fetchInvoices = async () => {
     if (!companyId) return;
@@ -160,15 +165,28 @@ export default function InvoicesPage() {
   const taxAmount = subtotal * (parseFloat(formData.tax_rate) || 0) / 100;
   const totalAmount = subtotal + taxAmount;
 
-  const handleSubmit = async () => {
-    if (!companyId || !formData.invoice_number || !formData.invoice_date || !formData.due_date) {
-      toast("請求書番号、請求日、支払期限は必須です", "warning");
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const errors: Record<string, string> = {};
+    if (!formData.invoice_number) errors.inv_number = "請求書番号は必須です";
+    if (!formData.invoice_date) errors.inv_date = "請求日は必須です";
+    if (!formData.due_date) errors.inv_due_date = "支払期限は必須です";
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      toast("必須項目を入力してください", "warning");
       return;
     }
     if (lines.length === 0 || lines.some((l) => !l.description || !l.unit_price)) {
       toast("明細の内容と単価を入力してください", "warning");
       return;
     }
+    setFieldErrors({});
+    const ok = await confirm({
+      title: "請求書作成",
+      message: "この請求書を登録しますか？",
+      confirmText: "登録",
+    });
+    if (!ok) return;
     setSubmitLoading(true);
     try {
       await apiPost("/invoices/invoices", {
@@ -198,7 +216,9 @@ export default function InvoicesPage() {
       setLines([{ ...emptyLine }]);
       fetchInvoices();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "作成に失敗しました", "error");
+      const msg = err instanceof Error ? err.message : "作成に失敗しました";
+      setError(msg);
+      toast(msg, "error");
     } finally {
       setSubmitLoading(false);
     }
@@ -256,8 +276,33 @@ export default function InvoicesPage() {
     }
   };
 
+  const handleDownloadPeppol = async (invoiceId: string, number: string) => {
+    setDownloadLoading(invoiceId);
+    try {
+      const token = localStorage.getItem("token");
+      const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
+      const res = await fetch(`${base}/invoices/invoices/${invoiceId}/peppol-xml`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("取得に失敗しました");
+      const text = await res.text();
+      const blob = new Blob([text], { type: "application/xml;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `invoice_${number}_peppol.xml`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("Peppol XMLをダウンロードしました", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "ダウンロードに失敗しました", "error");
+    } finally {
+      setDownloadLoading(null);
+    }
+  };
+
   return (
-    <PageLayout>
+    <PageLayout title="請求書管理">
       <div className="mb-6 flex items-center gap-3">
         <FileText className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">請求書管理</h1>
@@ -270,18 +315,20 @@ export default function InvoicesPage() {
       )}
 
       {error && (
-        <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+        <div role="alert" className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
           {error}
         </div>
       )}
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
-          <div className="relative">
+          <div className="relative" role="search">
             <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
+              aria-label="請求書検索"
               placeholder="請求書番号・取引先名で検索..."
+              enterKeyHint="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-56 rounded-md border py-1.5 pl-8 pr-7 text-sm"
@@ -289,6 +336,7 @@ export default function InvoicesPage() {
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery("")}
+                aria-label="クリア"
                 className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
               >
                 <X className="h-3 w-3 text-muted-foreground" />
@@ -296,6 +344,7 @@ export default function InvoicesPage() {
             )}
           </div>
           <select
+            aria-label="ステータスフィルター"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="rounded-md border px-2 py-1.5 text-sm"
@@ -333,21 +382,22 @@ export default function InvoicesPage() {
       </div>
 
       {showForm && (
-        <div className="mb-6 rounded-lg border bg-card p-6">
+        <form onSubmit={handleSubmit} className="mb-6 rounded-lg border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">新規請求書</h2>
-            <button onClick={() => setShowForm(false)} className="rounded p-1 hover:bg-accent">
+            <button type="button" onClick={() => setShowForm(false)} className="rounded p-2 hover:bg-accent" aria-label="閉じる">
               <X className="h-4 w-4" />
             </button>
           </div>
           <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-3">
             <div>
-              <label className="mb-1 block text-sm font-medium">請求書番号</label>
-              <input type="text" value={formData.invoice_number} onChange={(e) => setFormData({ ...formData, invoice_number: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" placeholder="例: INV-2026-001" />
+              <label htmlFor="inv_number" className="mb-1 block text-sm font-medium">請求書番号 <span className="text-destructive" aria-hidden="true">*</span></label>
+              <input id="inv_number" type="text" value={formData.invoice_number} onChange={(e) => { setFormData({ ...formData, invoice_number: e.target.value }); if (fieldErrors.inv_number) setFieldErrors({ ...fieldErrors, inv_number: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.inv_number} aria-describedby={fieldErrors.inv_number ? "inv_number-error" : undefined} className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive" placeholder="例: INV-2026-001" />
+              {fieldErrors.inv_number && <p id="inv_number-error" className="mt-1 text-xs text-destructive">{fieldErrors.inv_number}</p>}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">取引先</label>
-              <select value={formData.partner_id} onChange={(e) => setFormData({ ...formData, partner_id: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm">
+              <label htmlFor="inv_partner" className="mb-1 block text-sm font-medium">取引先</label>
+              <select id="inv_partner" value={formData.partner_id} onChange={(e) => setFormData({ ...formData, partner_id: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm">
                 <option value="">（なし）</option>
                 {partners.map((p) => (
                   <option key={p.partner_id} value={p.partner_id}>{p.partner_name}</option>
@@ -355,16 +405,18 @@ export default function InvoicesPage() {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">請求日</label>
-              <input type="date" value={formData.invoice_date} onChange={(e) => setFormData({ ...formData, invoice_date: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+              <label htmlFor="inv_date" className="mb-1 block text-sm font-medium">請求日 <span className="text-destructive" aria-hidden="true">*</span></label>
+              <input id="inv_date" type="date" value={formData.invoice_date} onChange={(e) => { setFormData({ ...formData, invoice_date: e.target.value }); if (fieldErrors.inv_date) setFieldErrors({ ...fieldErrors, inv_date: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.inv_date} aria-describedby={fieldErrors.inv_date ? "inv_date-error" : undefined} className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive" />
+              {fieldErrors.inv_date && <p id="inv_date-error" className="mt-1 text-xs text-destructive">{fieldErrors.inv_date}</p>}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">支払期限</label>
-              <input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+              <label htmlFor="inv_due_date" className="mb-1 block text-sm font-medium">支払期限 <span className="text-destructive" aria-hidden="true">*</span></label>
+              <input id="inv_due_date" type="date" value={formData.due_date} onChange={(e) => { setFormData({ ...formData, due_date: e.target.value }); if (fieldErrors.inv_due_date) setFieldErrors({ ...fieldErrors, inv_due_date: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.inv_due_date} aria-describedby={fieldErrors.inv_due_date ? "inv_due_date-error" : undefined} className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive" />
+              {fieldErrors.inv_due_date && <p id="inv_due_date-error" className="mt-1 text-xs text-destructive">{fieldErrors.inv_due_date}</p>}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">消費税率(%)</label>
-              <input type="number" step="0.01" value={formData.tax_rate} onChange={(e) => setFormData({ ...formData, tax_rate: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+              <label htmlFor="inv_tax_rate" className="mb-1 block text-sm font-medium">消費税率(%)</label>
+              <input id="inv_tax_rate" type="number" step="0.01" value={formData.tax_rate} onChange={(e) => setFormData({ ...formData, tax_rate: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
             </div>
           </div>
 
@@ -385,7 +437,7 @@ export default function InvoicesPage() {
                   <div className="col-span-1 flex items-center text-right text-sm font-medium">
                     ¥{((parseFloat(line.quantity) || 0) * (parseFloat(line.unit_price) || 0)).toLocaleString()}
                   </div>
-                  <button onClick={() => handleRemoveLine(idx)} className="col-span-1 flex items-center justify-center rounded hover:bg-accent">
+                  <button onClick={() => handleRemoveLine(idx)} aria-label="明細を削除" className="col-span-1 flex items-center justify-center rounded hover:bg-accent">
                     <X className="h-4 w-4 text-muted-foreground" />
                   </button>
                 </div>
@@ -393,8 +445,8 @@ export default function InvoicesPage() {
             </div>
             <div className="mt-2 flex items-center justify-between border-t pt-2">
               <div>
-                <label className="text-sm font-medium">備考</label>
-                <input type="text" value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} className="ml-2 rounded-md border px-3 py-1 text-sm" placeholder="任意" />
+                <label htmlFor="inv-note" className="text-sm font-medium">備考</label>
+                <input id="inv-note" type="text" value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} className="ml-2 rounded-md border px-3 py-1 text-sm" placeholder="任意" />
               </div>
               <div className="text-right text-sm">
                 <div>小計: ¥{Math.round(subtotal).toLocaleString()}</div>
@@ -405,22 +457,22 @@ export default function InvoicesPage() {
           </div>
 
           <div className="flex gap-2">
-            <button onClick={handleSubmit} disabled={submitLoading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+            <button type="submit" disabled={submitLoading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
               {submitLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {submitLoading ? "作成中..." : "作成"}
             </button>
-            <button onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
+            <button type="button" onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
               キャンセル
             </button>
           </div>
-        </div>
+        </form>
       )}
 
       {selectedInvoice && (
         <div className="mb-6 rounded-lg border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">請求書詳細: {selectedInvoice.invoice_number}</h2>
-            <button onClick={() => setSelectedInvoice(null)} className="rounded p-1 hover:bg-accent">
+            <button onClick={() => setSelectedInvoice(null)} className="rounded p-2 hover:bg-accent" aria-label="閉じる">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -446,13 +498,14 @@ export default function InvoicesPage() {
           </div>
           <div className="overflow-x-auto rounded-lg border">
             <table className="w-full text-sm">
+              <caption className="sr-only">請求書明細</caption>
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="px-4 py-3 text-center font-medium">No</th>
-                  <th className="px-4 py-3 text-left font-medium">内容</th>
-                  <th className="px-4 py-3 text-right font-medium">数量</th>
-                  <th className="px-4 py-3 text-right font-medium">単価</th>
-                  <th className="px-4 py-3 text-right font-medium">金額</th>
+                  <th scope="col" className="px-4 py-3 text-center font-medium">No</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">内容</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">数量</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">単価</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">金額</th>
                 </tr>
               </thead>
               <tbody>
@@ -510,20 +563,21 @@ export default function InvoicesPage() {
       ) : filteredInvoices.length > 0 ? (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
+            <caption className="sr-only">請求書一覧</caption>
             <thead className="bg-muted/50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">請求書番号</th>
-                <th className="px-4 py-3 text-left font-medium">請求日</th>
-                <th className="px-4 py-3 text-left font-medium">支払期限</th>
-                <th className="px-4 py-3 text-left font-medium">取引先</th>
-                <th className="px-4 py-3 text-right font-medium">合計金額</th>
-                <th className="px-4 py-3 text-center font-medium">ステータス</th>
-                <th className="px-4 py-3 text-center font-medium">操作</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">請求書番号</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">請求日</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">支払期限</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">取引先</th>
+                <th scope="col" className="px-4 py-3 text-right font-medium">合計金額</th>
+                <th scope="col" className="px-4 py-3 text-center font-medium">ステータス</th>
+                <th scope="col" className="px-4 py-3 text-center font-medium">操作</th>
               </tr>
             </thead>
             <tbody>
               {filteredInvoices.map((inv) => (
-                <tr key={inv.invoice_id} className="cursor-pointer border-t hover:bg-muted/30" onClick={() => setSelectedInvoice(inv)}>
+                <tr key={inv.invoice_id} tabIndex={0} className="cursor-pointer border-t hover:bg-muted/30 focus:outline-none focus:ring-2 focus:ring-ring" onClick={() => setSelectedInvoice(inv)} onKeyDown={(e) => { if (e.key === "Enter") setSelectedInvoice(inv); }}>
                   <td className="px-4 py-3 font-mono font-medium">{inv.invoice_number}</td>
                   <td className="px-4 py-3">{inv.invoice_date}</td>
                   <td className="px-4 py-3">{inv.due_date}</td>
@@ -537,8 +591,11 @@ export default function InvoicesPage() {
                   <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1">
                       <button onClick={() => setSelectedInvoice(inv)} className="rounded px-2 py-1 text-xs hover:bg-accent">詳細</button>
-                      <button onClick={() => handleDownload(inv.invoice_id, inv.invoice_number)} disabled={downloadLoading === inv.invoice_id} className="inline-flex items-center justify-center rounded p-1 hover:bg-accent disabled:opacity-50" title="CSV出力">
+                      <button onClick={() => handleDownload(inv.invoice_id, inv.invoice_number)} disabled={downloadLoading === inv.invoice_id} className="inline-flex items-center justify-center rounded p-2 hover:bg-accent disabled:opacity-50" title="CSV出力" aria-label="CSV出力">
                         {downloadLoading === inv.invoice_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-muted-foreground" />}
+                      </button>
+                      <button onClick={() => handleDownloadPeppol(inv.invoice_id, inv.invoice_number)} disabled={downloadLoading === inv.invoice_id} className="rounded px-2 py-1 text-xs hover:bg-accent disabled:opacity-50" title="Peppol/JP PINT XML出力" aria-label="Peppol XML出力">
+                        XML
                       </button>
                     </div>
                   </td>

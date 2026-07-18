@@ -382,6 +382,19 @@
 
 ## 11. 定期運用タスク
 
+### 11.0 アプリ内蔵バックグラウンドワーカー
+
+APIプロセス内のasyncioワーカー（`app/services/background_jobs.py`、
+起動/停止は `app/main.py` のstartup/shutdown）。外部スケジューラ不要。
+
+| ジョブ | 間隔 | 内容 | 設定 |
+|--------|------|------|------|
+| webhook_delivery_worker | 60秒（既定） | 再試行時刻を過ぎたWebhook配信（pending）を送信 | `WEBHOOK_WORKER_INTERVAL_SECONDS` |
+
+環境変数 `BACKGROUND_JOBS_ENABLED=false` で全ジョブを停止できる
+（複数APIレプリカ構成では1レプリカのみ有効化するか、将来の分散ロック導入まで
+多重送信を許容する運用とする。配信は冪等な署名付きPOSTで再送安全）。
+
 ### 11.1 日次タスク
 
 | 時刻 | タスク | 担当 | 自動/手動 |

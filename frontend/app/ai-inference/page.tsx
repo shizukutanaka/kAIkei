@@ -102,7 +102,7 @@ export default function AiInferencePage() {
   };
 
   return (
-    <PageLayout>
+    <PageLayout title="AI仕訳推論">
         <div className="mb-6 flex items-center gap-3">
           <Sparkles className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold">AI仕訳推論</h1>
@@ -127,7 +127,7 @@ export default function AiInferencePage() {
             />
           </div>
 
-          <div className="mb-4 grid grid-cols-2 gap-4">
+          <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-medium">摘要</label>
               <input
@@ -181,7 +181,7 @@ export default function AiInferencePage() {
         </div>
 
         {error && (
-          <div className="mb-4 flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+          <div role="alert" className="mb-4 flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
             <AlertCircle className="h-4 w-4" />
             {error}
           </div>
@@ -258,15 +258,16 @@ export default function AiInferencePage() {
 
               <div className="overflow-x-auto">
               <table className="w-full border-collapse">
+                <caption className="sr-only">AI推論結果</caption>
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    <th className="p-2 text-left text-sm">借貸</th>
-                    <th className="p-2 text-left text-sm">科目コード</th>
-                    <th className="p-2 text-left text-sm">科目名</th>
-                    <th className="p-2 text-right text-sm">金額</th>
-                    <th className="p-2 text-right text-sm">税率</th>
-                    <th className="p-2 text-right text-sm">信頼度</th>
-                    <th className="p-2 text-left text-sm">推論理由</th>
+                    <th scope="col" className="p-2 text-left text-sm">借貸</th>
+                    <th scope="col" className="p-2 text-left text-sm">科目コード</th>
+                    <th scope="col" className="p-2 text-left text-sm">科目名</th>
+                    <th scope="col" className="p-2 text-right text-sm">金額</th>
+                    <th scope="col" className="p-2 text-right text-sm">税率</th>
+                    <th scope="col" className="p-2 text-right text-sm">信頼度</th>
+                    <th scope="col" className="p-2 text-left text-sm">推論理由</th>
                   </tr>
                 </thead>
                 <tbody>

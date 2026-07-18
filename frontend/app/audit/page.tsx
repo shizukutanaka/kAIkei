@@ -113,7 +113,7 @@ export default function AuditLogPage() {
 
   if (!canView) {
     return (
-      <PageLayout>
+      <PageLayout title="操作証跡ログ">
         <div className="mb-6 flex items-center gap-3">
           <ScrollText className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold">操作証跡ログ</h1>
@@ -126,7 +126,7 @@ export default function AuditLogPage() {
   }
 
   return (
-    <PageLayout>
+    <PageLayout title="操作証跡ログ">
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <ScrollText className="h-6 w-6 text-primary" />
@@ -149,13 +149,14 @@ export default function AuditLogPage() {
       )}
 
       {error && (
-        <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+        <div role="alert" className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
           {error}
         </div>
       )}
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <select
+          aria-label="アクションフィルター"
           value={actionFilter}
           onChange={(e) => { setActionFilter(e.target.value); setPage(1); }}
           className="rounded-md border px-2 py-1.5 text-sm"
@@ -167,10 +168,11 @@ export default function AuditLogPage() {
           <option value="patch">部分更新</option>
           <option value="delete">削除</option>
         </select>
-        <div className="relative">
+        <div className="relative" role="search">
           <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
+            aria-label="リソース検索"
             placeholder="リソース種別でフィルタ..."
             value={resourceFilter}
             onChange={(e) => { setResourceFilter(e.target.value); setPage(1); }}
@@ -179,6 +181,7 @@ export default function AuditLogPage() {
           {resourceFilter && (
             <button
               onClick={() => { setResourceFilter(""); setPage(1); }}
+              aria-label="クリア"
               className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
             >
               <X className="h-3 w-3 text-muted-foreground" />
@@ -201,15 +204,16 @@ export default function AuditLogPage() {
       ) : logs.length > 0 ? (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
+            <caption className="sr-only">操作証跡ログ一覧</caption>
             <thead className="bg-muted/50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">日時</th>
-                <th className="px-4 py-3 text-center font-medium">メソッド</th>
-                <th className="px-4 py-3 text-left font-medium">アクション</th>
-                <th className="px-4 py-3 text-left font-medium">リソース</th>
-                <th className="px-4 py-3 text-left font-medium">パス</th>
-                <th className="px-4 py-3 text-center font-medium">ステータス</th>
-                <th className="px-4 py-3 text-left font-medium">IP</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">日時</th>
+                <th scope="col" className="px-4 py-3 text-center font-medium">メソッド</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">アクション</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">リソース</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">パス</th>
+                <th scope="col" className="px-4 py-3 text-center font-medium">ステータス</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium">IP</th>
               </tr>
             </thead>
             <tbody>

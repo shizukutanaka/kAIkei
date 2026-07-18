@@ -21,6 +21,7 @@ class CurrentUser:
     display_name: str
     role: str
     permissions: list[str]
+    mfa_enabled: bool = False
 
 
 async def get_current_user(
@@ -71,6 +72,7 @@ async def get_current_user(
         display_name=user.display_name,
         role=user.role,
         permissions=get_role_permissions(user.role),
+        mfa_enabled=user.mfa_enabled,
     )
 
 

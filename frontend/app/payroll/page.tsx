@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useDeferredValue, useMemo, useRef } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
@@ -77,10 +77,28 @@ export default function PayrollPage() {
   const canPost = perms.includes("payroll:post");
 
   const [tab, setTab] = useState<"employees" | "payroll">("employees");
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const tabOrder: ("employees" | "payroll")[] = ["employees", "payroll"];
+
+  const handleTabKeyDown = (e: React.KeyboardEvent) => {
+    const currentIndex = tabOrder.indexOf(tab);
+    let nextIndex: number | null = null;
+    if (e.key === "ArrowRight") nextIndex = (currentIndex + 1) % tabOrder.length;
+    else if (e.key === "ArrowLeft") nextIndex = (currentIndex - 1 + tabOrder.length) % tabOrder.length;
+    else if (e.key === "Home") nextIndex = 0;
+    else if (e.key === "End") nextIndex = tabOrder.length - 1;
+    if (nextIndex !== null) {
+      e.preventDefault();
+      const nextTab = tabOrder[nextIndex];
+      setTab(nextTab);
+      requestAnimationFrame(() => tabRefs.current[nextIndex]?.focus());
+    }
+  };
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     employee_code: "",
@@ -142,21 +160,31 @@ export default function PayrollPage() {
   }, [companyId, tab, payrollYear, payrollMonth]);
 
   const departments = Array.from(new Set(employees.map((e) => e.department).filter(Boolean) as string[])).sort();
-  const filteredEmployees = employees.filter((e) => {
-    const matchesSearch =
-      !empSearch ||
-      e.employee_code.toLowerCase().includes(empSearch.toLowerCase()) ||
-      e.employee_name.toLowerCase().includes(empSearch.toLowerCase());
-    const matchesDept = !empDeptFilter || e.department === empDeptFilter;
-    const matchesActive = !empActiveFilter || (empActiveFilter === "active" ? e.is_active : !e.is_active);
-    return matchesSearch && matchesDept && matchesActive;
-  });
+  const deferredEmpSearch = useDeferredValue(empSearch);
+  const deferredEmpDeptFilter = useDeferredValue(empDeptFilter);
+  const deferredEmpActiveFilter = useDeferredValue(empActiveFilter);
 
-  const handleCreateEmployee = async () => {
-    if (!formData.employee_code || !formData.employee_name) {
-      toast("従業員コードと氏名は必須です", "warning");
+  const filteredEmployees = useMemo(() => employees.filter((e) => {
+    const matchesSearch =
+      !deferredEmpSearch ||
+      e.employee_code.toLowerCase().includes(deferredEmpSearch.toLowerCase()) ||
+      e.employee_name.toLowerCase().includes(deferredEmpSearch.toLowerCase());
+    const matchesDept = !deferredEmpDeptFilter || e.department === deferredEmpDeptFilter;
+    const matchesActive = !deferredEmpActiveFilter || (deferredEmpActiveFilter === "active" ? e.is_active : !e.is_active);
+    return matchesSearch && matchesDept && matchesActive;
+  }), [employees, deferredEmpSearch, deferredEmpDeptFilter, deferredEmpActiveFilter]);
+
+  const handleCreateEmployee = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const errors: Record<string, string> = {};
+    if (!formData.employee_code) errors.employee_code = "従業員コードは必須です";
+    if (!formData.employee_name) errors.employee_name = "氏名は必須です";
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      toast("必須項目を入力してください", "warning");
       return;
     }
+    setFieldErrors({});
     setLoading(true);
     try {
       await apiPost("/payroll/employees", {
@@ -179,7 +207,9 @@ export default function PayrollPage() {
       toast("従業員を登録しました", "success");
       await fetchEmployees();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "登録に失敗しました", "error");
+      const msg = err instanceof Error ? err.message : "登録に失敗しました";
+      setError(msg);
+      toast(msg, "error");
     } finally {
       setLoading(false);
     }
@@ -197,6 +227,12 @@ export default function PayrollPage() {
   };
 
   const handleCalculate = async () => {
+    const ok = await confirm({
+      title: "給与計算",
+      message: `${payrollYear}年${payrollMonth}月の給与を計算しますか？`,
+      confirmText: "計算実行",
+    });
+    if (!ok) return;
     setCalculating(true);
     setError("");
     try {
@@ -215,7 +251,9 @@ export default function PayrollPage() {
       setPayrollRecords(data);
       toast(`${data.length}件の給与を計算しました`, "success");
     } catch (err) {
-      toast(err instanceof Error ? err.message : "計算に失敗しました", "error");
+      const msg = err instanceof Error ? err.message : "計算に失敗しました";
+      setError(msg);
+      toast(msg, "error");
     } finally {
       setCalculating(false);
     }
@@ -276,7 +314,7 @@ export default function PayrollPage() {
   const currentStatus = payrollRecords[0]?.status;
 
   return (
-    <PageLayout>
+    <PageLayout title="給与">
       <div className="mb-6 flex items-center gap-3">
         <Users className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">給与</h1>
@@ -288,14 +326,26 @@ export default function PayrollPage() {
         </div>
       )}
 
-      <div className="mb-6 flex gap-2 border-b">
+      <div className="mb-6 flex gap-2 border-b" role="tablist" aria-orientation="horizontal" onKeyDown={handleTabKeyDown}>
         <button
+          role="tab"
+          id="tab-employees"
+          ref={(el) => { tabRefs.current[0] = el; }}
+          aria-selected={tab === "employees"}
+          aria-controls="panel-employees"
+          tabIndex={tab === "employees" ? 0 : -1}
           onClick={() => setTab("employees")}
           className={`px-4 py-2 text-sm font-medium border-b-2 ${tab === "employees" ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}
         >
           従業員マスタ
         </button>
         <button
+          role="tab"
+          id="tab-payroll"
+          ref={(el) => { tabRefs.current[1] = el; }}
+          aria-selected={tab === "payroll"}
+          aria-controls="panel-payroll"
+          tabIndex={tab === "payroll" ? 0 : -1}
           onClick={() => setTab("payroll")}
           className={`px-4 py-2 text-sm font-medium border-b-2 ${tab === "payroll" ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}
         >
@@ -304,22 +354,25 @@ export default function PayrollPage() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+        <div role="alert" className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
           {error}
         </div>
       )}
 
       {tab === "employees" && (
+        <div role="tabpanel" id="panel-employees" aria-labelledby="tab-employees" tabIndex={0}>
         <>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <p className="text-sm text-muted-foreground">{filteredEmployees.length}/{employees.length}件の従業員</p>
               <div className="flex items-center gap-2">
-                <div className="relative">
+                <div className="relative" role="search">
                   <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <input
                     type="text"
+                    aria-label="従業員検索"
                     placeholder="検索..."
+                    enterKeyHint="search"
                     value={empSearch}
                     onChange={(e) => setEmpSearch(e.target.value)}
                     className="w-40 rounded-md border py-1.5 pl-8 pr-7 text-sm"
@@ -327,6 +380,7 @@ export default function PayrollPage() {
                   {empSearch && (
                     <button
                       onClick={() => setEmpSearch("")}
+                      aria-label="クリア"
                       className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
                     >
                       <X className="h-3 w-3 text-muted-foreground" />
@@ -335,6 +389,7 @@ export default function PayrollPage() {
                 </div>
                 {departments.length > 0 && (
                   <select
+                    aria-label="部署フィルター"
                     value={empDeptFilter}
                     onChange={(e) => setEmpDeptFilter(e.target.value)}
                     className="rounded-md border px-2 py-1.5 text-sm"
@@ -346,6 +401,7 @@ export default function PayrollPage() {
                   </select>
                 )}
                 <select
+                  aria-label="状態フィルター"
                   value={empActiveFilter}
                   onChange={(e) => setEmpActiveFilter(e.target.value)}
                   className="rounded-md border px-2 py-1.5 text-sm"
@@ -376,56 +432,58 @@ export default function PayrollPage() {
           </div>
 
           {showForm && (
-            <div className="mb-6 rounded-lg border bg-card p-6">
+            <form onSubmit={handleCreateEmployee} className="mb-6 rounded-lg border bg-card p-6">
               <h2 className="mb-4 text-lg font-semibold">新規従業員登録</h2>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-sm font-medium">従業員コード</label>
-                  <input type="text" value={formData.employee_code} onChange={(e) => setFormData({ ...formData, employee_code: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+                  <label htmlFor="employee_code" className="mb-1 block text-sm font-medium">従業員コード <span className="text-destructive" aria-hidden="true">*</span></label>
+                  <input id="employee_code" type="text" value={formData.employee_code} onChange={(e) => { setFormData({ ...formData, employee_code: e.target.value }); if (fieldErrors.employee_code) setFieldErrors({ ...fieldErrors, employee_code: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.employee_code} aria-describedby={fieldErrors.employee_code ? "employee_code-error" : undefined} className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive" />
+                  {fieldErrors.employee_code && <p id="employee_code-error" className="mt-1 text-xs text-destructive">{fieldErrors.employee_code}</p>}
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">氏名</label>
-                  <input type="text" value={formData.employee_name} onChange={(e) => setFormData({ ...formData, employee_name: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+                  <label htmlFor="employee_name" className="mb-1 block text-sm font-medium">氏名 <span className="text-destructive" aria-hidden="true">*</span></label>
+                  <input id="employee_name" type="text" value={formData.employee_name} onChange={(e) => { setFormData({ ...formData, employee_name: e.target.value }); if (fieldErrors.employee_name) setFieldErrors({ ...fieldErrors, employee_name: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.employee_name} aria-describedby={fieldErrors.employee_name ? "employee_name-error" : undefined} autoComplete="name" className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive" />
+                  {fieldErrors.employee_name && <p id="employee_name-error" className="mt-1 text-xs text-destructive">{fieldErrors.employee_name}</p>}
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">部署</label>
-                  <input type="text" value={formData.department} onChange={(e) => setFormData({ ...formData, department: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+                  <label htmlFor="department" className="mb-1 block text-sm font-medium">部署</label>
+                  <input id="department" type="text" value={formData.department} onChange={(e) => setFormData({ ...formData, department: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">役職</label>
-                  <input type="text" value={formData.position} onChange={(e) => setFormData({ ...formData, position: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+                  <label htmlFor="position" className="mb-1 block text-sm font-medium">役職</label>
+                  <input id="position" type="text" value={formData.position} onChange={(e) => setFormData({ ...formData, position: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">雇用形態</label>
-                  <select value={formData.employment_type} onChange={(e) => setFormData({ ...formData, employment_type: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm">
+                  <label htmlFor="employment_type" className="mb-1 block text-sm font-medium">雇用形態</label>
+                  <select id="employment_type" value={formData.employment_type} onChange={(e) => setFormData({ ...formData, employment_type: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm">
                     {Object.entries(EMPLOYMENT_TYPE_LABELS).map(([k, v]) => (
                       <option key={k} value={k}>{v}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">入社日</label>
-                  <input type="date" value={formData.hire_date} onChange={(e) => setFormData({ ...formData, hire_date: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+                  <label htmlFor="hire_date" className="mb-1 block text-sm font-medium">入社日</label>
+                  <input id="hire_date" type="date" value={formData.hire_date} onChange={(e) => setFormData({ ...formData, hire_date: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">基本給（月額）</label>
-                  <input type="number" value={formData.base_salary} onChange={(e) => setFormData({ ...formData, base_salary: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+                  <label htmlFor="base_salary" className="mb-1 block text-sm font-medium">基本給（月額）</label>
+                  <input id="base_salary" type="number" inputMode="decimal" value={formData.base_salary} onChange={(e) => setFormData({ ...formData, base_salary: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">時給</label>
-                  <input type="number" value={formData.hourly_rate} onChange={(e) => setFormData({ ...formData, hourly_rate: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+                  <label htmlFor="hourly_rate" className="mb-1 block text-sm font-medium">時給</label>
+                  <input id="hourly_rate" type="number" inputMode="decimal" value={formData.hourly_rate} onChange={(e) => setFormData({ ...formData, hourly_rate: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
                 </div>
               </div>
               <div className="mt-4 flex gap-2">
-                <button onClick={handleCreateEmployee} disabled={loading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+                <button type="submit" disabled={loading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   {loading ? "登録中..." : "登録"}
                 </button>
-                <button onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
+                <button type="button" onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
                   キャンセル
                 </button>
               </div>
-            </div>
+            </form>
           )}
 
           {loading ? (
@@ -433,15 +491,16 @@ export default function PayrollPage() {
           ) : filteredEmployees.length > 0 ? (
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
+                <caption className="sr-only">従業員一覧</caption>
                 <thead className="bg-muted/50">
                   <tr>
-                    <th className="px-4 py-3 text-left font-medium">従業員コード</th>
-                    <th className="px-4 py-3 text-left font-medium">氏名</th>
-                    <th className="px-4 py-3 text-left font-medium">部署</th>
-                    <th className="px-4 py-3 text-left font-medium">雇用形態</th>
-                    <th className="px-4 py-3 text-center font-medium">状態</th>
-                    <th className="px-4 py-3 text-right font-medium">基本給</th>
-                    <th className="px-4 py-3 text-center font-medium">操作</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">従業員コード</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">氏名</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">部署</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">雇用形態</th>
+                    <th scope="col" className="px-4 py-3 text-center font-medium">状態</th>
+                    <th scope="col" className="px-4 py-3 text-right font-medium">基本給</th>
+                    <th scope="col" className="px-4 py-3 text-center font-medium">操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -452,7 +511,7 @@ export default function PayrollPage() {
                       <td className="px-4 py-3">{e.department || "-"}</td>
                       <td className="px-4 py-3">{EMPLOYMENT_TYPE_LABELS[e.employment_type] || e.employment_type}</td>
                       <td className="px-4 py-3 text-center">
-                        <span className={`rounded px-2 py-0.5 text-xs ${e.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                        <span className={`rounded px-2 py-0.5 text-xs ${e.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"}`}>
                           {e.is_active ? "在籍" : "退職"}
                         </span>
                       </td>
@@ -482,19 +541,21 @@ export default function PayrollPage() {
             </div>
           )}
         </>
+        </div>
       )}
 
       {tab === "payroll" && (
+        <div role="tabpanel" id="panel-payroll" aria-labelledby="tab-payroll" tabIndex={0}>
         <>
           <div className="mb-4 flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-4">
               <div>
-                <label className="mb-1 block text-xs text-muted-foreground">年</label>
-                <input type="number" value={payrollYear} onChange={(e) => setPayrollYear(e.target.value)} className="w-24 rounded-md border px-3 py-1.5 text-sm" />
+                <label htmlFor="payroll-year" className="mb-1 block text-xs text-muted-foreground">年</label>
+                <input id="payroll-year" type="number" value={payrollYear} onChange={(e) => setPayrollYear(e.target.value)} className="w-24 rounded-md border px-3 py-1.5 text-sm" />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-muted-foreground">月</label>
-                <select value={payrollMonth} onChange={(e) => setPayrollMonth(e.target.value)} className="rounded-md border px-3 py-1.5 text-sm">
+                <label htmlFor="payroll-month" className="mb-1 block text-xs text-muted-foreground">月</label>
+                <select id="payroll-month" value={payrollMonth} onChange={(e) => setPayrollMonth(e.target.value)} className="rounded-md border px-3 py-1.5 text-sm">
                   {Array.from({ length: 12 }).map((_, i) => (
                     <option key={i + 1} value={String(i + 1)}>{i + 1}月</option>
                   ))}
@@ -515,12 +576,13 @@ export default function PayrollPage() {
 
           {canCalculate && employees.length > 0 && (
             <div className="mb-4 rounded-lg border bg-card p-4">
-              <h3 className="mb-3 text-sm font-semibold">残業時間入力</h3>
+              <h2 className="mb-3 text-sm font-semibold">残業時間入力</h2>
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
                 {employees.map((e) => (
                   <div key={e.employee_id} className="flex items-center gap-2">
-                    <label className="text-xs text-muted-foreground whitespace-nowrap">{e.employee_name}</label>
+                    <label htmlFor={`ot-${e.employee_id}`} className="text-xs text-muted-foreground whitespace-nowrap">{e.employee_name}</label>
                     <input
+                      id={`ot-${e.employee_id}`}
                       type="number"
                       min="0"
                       step="0.5"
@@ -542,17 +604,18 @@ export default function PayrollPage() {
             <>
               <div className="overflow-x-auto rounded-lg border">
                 <table className="w-full text-sm">
+                  <caption className="sr-only">給与計算結果</caption>
                   <thead className="bg-muted/50">
                     <tr>
-                      <th className="px-4 py-3 text-left font-medium">従業員</th>
-                      <th className="px-4 py-3 text-right font-medium">基本給</th>
-                      <th className="px-4 py-3 text-right font-medium">残業代</th>
-                      <th className="px-4 py-3 text-right font-medium">総支給額</th>
-                      <th className="px-4 py-3 text-right font-medium">源泉所得税</th>
-                      <th className="px-4 py-3 text-right font-medium">社会保険料</th>
-                      <th className="px-4 py-3 text-right font-medium">差引合計</th>
-                      <th className="px-4 py-3 text-center font-medium">ステータス</th>
-                      <th className="px-4 py-3 text-center font-medium">明細</th>
+                      <th scope="col" className="px-4 py-3 text-left font-medium">従業員</th>
+                      <th scope="col" className="px-4 py-3 text-right font-medium">基本給</th>
+                      <th scope="col" className="px-4 py-3 text-right font-medium">残業代</th>
+                      <th scope="col" className="px-4 py-3 text-right font-medium">総支給額</th>
+                      <th scope="col" className="px-4 py-3 text-right font-medium">源泉所得税</th>
+                      <th scope="col" className="px-4 py-3 text-right font-medium">社会保険料</th>
+                      <th scope="col" className="px-4 py-3 text-right font-medium">差引合計</th>
+                      <th scope="col" className="px-4 py-3 text-center font-medium">ステータス</th>
+                      <th scope="col" className="px-4 py-3 text-center font-medium">明細</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -670,6 +733,7 @@ export default function PayrollPage() {
             </div>
           )}
         </>
+        </div>
       )}
     </PageLayout>
   );

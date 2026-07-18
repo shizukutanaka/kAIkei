@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import PageLayout from "@/components/page-layout";
 import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
@@ -74,11 +74,29 @@ export default function AttendancePage() {
   const canCreate = perms.includes("journal:create");
 
   const [tab, setTab] = useState<"records" | "summary">("records");
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const tabOrder: ("records" | "summary")[] = ["records", "summary"];
+
+  const handleTabKeyDown = (e: React.KeyboardEvent) => {
+    const currentIndex = tabOrder.indexOf(tab);
+    let nextIndex: number | null = null;
+    if (e.key === "ArrowRight") nextIndex = (currentIndex + 1) % tabOrder.length;
+    else if (e.key === "ArrowLeft") nextIndex = (currentIndex - 1 + tabOrder.length) % tabOrder.length;
+    else if (e.key === "Home") nextIndex = 0;
+    else if (e.key === "End") nextIndex = tabOrder.length - 1;
+    if (nextIndex !== null) {
+      e.preventDefault();
+      const nextTab = tabOrder[nextIndex];
+      setTab(nextTab);
+      requestAnimationFrame(() => tabRefs.current[nextIndex]?.focus());
+    }
+  };
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [summary, setSummary] = useState<AttendanceSummary[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -200,11 +218,17 @@ export default function AttendancePage() {
     }
   };
 
-  const handleManualCreate = async () => {
-    if (!companyId || !formData.employee_id || !formData.work_date) {
-      toast("従業員と日付は必須です", "warning");
+  const handleManualCreate = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const errors: Record<string, string> = {};
+    if (!formData.employee_id) errors.att_employee = "従業員を選択してください";
+    if (!formData.work_date) errors.att_work_date = "日付を入力してください";
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      toast("必須項目を入力してください", "warning");
       return;
     }
+    setFieldErrors({});
     setFormLoading(true);
     try {
       await apiPost("/attendance/manual", {
@@ -221,7 +245,9 @@ export default function AttendancePage() {
       setShowForm(false);
       fetchRecords();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "登録に失敗しました", "error");
+      const msg = err instanceof Error ? err.message : "登録に失敗しました";
+      setError(msg);
+      toast(msg, "error");
     } finally {
       setFormLoading(false);
     }
@@ -234,7 +260,7 @@ export default function AttendancePage() {
   });
 
   return (
-    <PageLayout>
+    <PageLayout title="勤怠管理">
       <div className="mb-6 flex items-center gap-3">
         <Clock className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">勤怠管理</h1>
@@ -247,19 +273,31 @@ export default function AttendancePage() {
       )}
 
       {error && (
-        <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+        <div role="alert" className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
           {error}
         </div>
       )}
 
-      <div className="mb-6 flex gap-2 border-b">
+      <div className="mb-6 flex gap-2 border-b" role="tablist" aria-orientation="horizontal" onKeyDown={handleTabKeyDown}>
         <button
+          role="tab"
+          id="tab-records"
+          ref={(el) => { tabRefs.current[0] = el; }}
+          aria-selected={tab === "records"}
+          aria-controls="panel-records"
+          tabIndex={tab === "records" ? 0 : -1}
           onClick={() => setTab("records")}
           className={`px-4 py-2 text-sm font-medium border-b-2 ${tab === "records" ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}
         >
           勤怠記録
         </button>
         <button
+          role="tab"
+          id="tab-summary"
+          ref={(el) => { tabRefs.current[1] = el; }}
+          aria-selected={tab === "summary"}
+          aria-controls="panel-summary"
+          tabIndex={tab === "summary" ? 0 : -1}
           onClick={() => setTab("summary")}
           className={`px-4 py-2 text-sm font-medium border-b-2 ${tab === "summary" ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}
         >
@@ -331,42 +369,44 @@ export default function AttendancePage() {
       </div>
 
       {showForm && tab === "records" && (
-        <div className="mb-6 rounded-lg border bg-card p-6">
+        <form onSubmit={handleManualCreate} className="mb-6 rounded-lg border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">手動勤怠登録</h2>
-            <button onClick={() => setShowForm(false)} className="rounded p-1 hover:bg-accent">
+            <button type="button" onClick={() => setShowForm(false)} className="rounded p-2 hover:bg-accent" aria-label="閉じる">
               <X className="h-4 w-4" />
             </button>
           </div>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
             <div>
-              <label className="mb-1 block text-sm font-medium">従業員</label>
-              <select value={formData.employee_id} onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm">
+              <label htmlFor="att_employee" className="mb-1 block text-sm font-medium">従業員 <span className="text-destructive" aria-hidden="true">*</span></label>
+              <select id="att_employee" value={formData.employee_id} onChange={(e) => { setFormData({ ...formData, employee_id: e.target.value }); if (fieldErrors.att_employee) setFieldErrors({ ...fieldErrors, att_employee: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.att_employee} aria-describedby={fieldErrors.att_employee ? "att_employee-error" : undefined} className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive">
                 <option value="">選択...</option>
                 {employees.map((e) => (
                   <option key={e.employee_id} value={e.employee_id}>{e.employee_name}</option>
                 ))}
               </select>
+              {fieldErrors.att_employee && <p id="att_employee-error" className="mt-1 text-xs text-destructive">{fieldErrors.att_employee}</p>}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">日付</label>
-              <input type="date" value={formData.work_date} onChange={(e) => setFormData({ ...formData, work_date: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+              <label htmlFor="att_work_date" className="mb-1 block text-sm font-medium">日付 <span className="text-destructive" aria-hidden="true">*</span></label>
+              <input id="att_work_date" type="date" value={formData.work_date} onChange={(e) => { setFormData({ ...formData, work_date: e.target.value }); if (fieldErrors.att_work_date) setFieldErrors({ ...fieldErrors, att_work_date: "" }); }} required aria-required="true" aria-invalid={!!fieldErrors.att_work_date} aria-describedby={fieldErrors.att_work_date ? "att_work_date-error" : undefined} className="w-full rounded-md border px-3 py-2 text-sm aria-[invalid=true]:border-destructive" />
+              {fieldErrors.att_work_date && <p id="att_work_date-error" className="mt-1 text-xs text-destructive">{fieldErrors.att_work_date}</p>}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">出勤時刻</label>
-              <input type="time" value={formData.clock_in} onChange={(e) => setFormData({ ...formData, clock_in: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+              <label htmlFor="att_clock_in" className="mb-1 block text-sm font-medium">出勤時刻</label>
+              <input id="att_clock_in" type="time" value={formData.clock_in} onChange={(e) => setFormData({ ...formData, clock_in: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">退勤時刻</label>
-              <input type="time" value={formData.clock_out} onChange={(e) => setFormData({ ...formData, clock_out: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+              <label htmlFor="att_clock_out" className="mb-1 block text-sm font-medium">退勤時刻</label>
+              <input id="att_clock_out" type="time" value={formData.clock_out} onChange={(e) => setFormData({ ...formData, clock_out: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">休憩時間（分）</label>
-              <input type="number" value={formData.break_minutes} onChange={(e) => setFormData({ ...formData, break_minutes: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+              <label htmlFor="att_break" className="mb-1 block text-sm font-medium">休憩時間（分）</label>
+              <input id="att_break" type="number" value={formData.break_minutes} onChange={(e) => setFormData({ ...formData, break_minutes: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">勤怠区分</label>
-              <select value={formData.leave_type} onChange={(e) => setFormData({ ...formData, leave_type: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm">
+              <label htmlFor="att_leave_type" className="mb-1 block text-sm font-medium">勤怠区分</label>
+              <select id="att_leave_type" value={formData.leave_type} onChange={(e) => setFormData({ ...formData, leave_type: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm">
                 <option value="none">出勤</option>
                 <option value="paid_leave">有給休暇</option>
                 <option value="absent">欠勤</option>
@@ -374,30 +414,33 @@ export default function AttendancePage() {
               </select>
             </div>
             <div className="col-span-2 md:col-span-3">
-              <label className="mb-1 block text-sm font-medium">備考</label>
-              <input type="text" value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+              <label htmlFor="att_note" className="mb-1 block text-sm font-medium">備考</label>
+              <input id="att_note" type="text" value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
             </div>
           </div>
           <div className="mt-4 flex gap-2">
-            <button onClick={handleManualCreate} disabled={formLoading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+            <button type="submit" disabled={formLoading} className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
               {formLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {formLoading ? "登録中..." : "登録"}
             </button>
-            <button onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
+            <button type="button" onClick={() => setShowForm(false)} className="rounded-md border px-4 py-2 text-sm">
               キャンセル
             </button>
           </div>
-        </div>
+        </form>
       )}
 
       {tab === "records" && (
+        <div role="tabpanel" id="panel-records" aria-labelledby="tab-records" tabIndex={0}>
         <>
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <div className="relative">
+            <div className="relative" role="search">
               <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
+                aria-label="従業員名検索"
                 placeholder="従業員名で検索..."
+                enterKeyHint="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-48 rounded-md border py-1.5 pl-8 pr-7 text-sm"
@@ -405,6 +448,7 @@ export default function AttendancePage() {
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
+                  aria-label="クリア"
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
                 >
                   <X className="h-3 w-3 text-muted-foreground" />
@@ -419,15 +463,16 @@ export default function AttendancePage() {
           ) : filteredRecords.length > 0 ? (
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
+                <caption className="sr-only">勤怠記録</caption>
                 <thead className="bg-muted/50">
                   <tr>
-                    <th className="px-4 py-3 text-left font-medium">日付</th>
-                    <th className="px-4 py-3 text-left font-medium">従業員</th>
-                    <th className="px-4 py-3 text-center font-medium">出勤</th>
-                    <th className="px-4 py-3 text-center font-medium">退勤</th>
-                    <th className="px-4 py-3 text-right font-medium">勤務時間</th>
-                    <th className="px-4 py-3 text-right font-medium">残業時間</th>
-                    <th className="px-4 py-3 text-center font-medium">区分</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">日付</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">従業員</th>
+                    <th scope="col" className="px-4 py-3 text-center font-medium">出勤</th>
+                    <th scope="col" className="px-4 py-3 text-center font-medium">退勤</th>
+                    <th scope="col" className="px-4 py-3 text-right font-medium">勤務時間</th>
+                    <th scope="col" className="px-4 py-3 text-right font-medium">残業時間</th>
+                    <th scope="col" className="px-4 py-3 text-center font-medium">区分</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -460,9 +505,11 @@ export default function AttendancePage() {
             </div>
           )}
         </>
+        </div>
       )}
 
       {tab === "summary" && (
+        <div role="tabpanel" id="panel-summary" aria-labelledby="tab-summary" tabIndex={0}>
         <>
           {loading ? (
             <SkeletonTable rows={5} columns={6} />
@@ -471,15 +518,16 @@ export default function AttendancePage() {
             <p className="mb-2 text-xs text-muted-foreground">{summary.length}人</p>
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
+                <caption className="sr-only">勤怠集計</caption>
                 <thead className="bg-muted/50">
                   <tr>
-                    <th className="px-4 py-3 text-left font-medium">従業員コード</th>
-                    <th className="px-4 py-3 text-left font-medium">氏名</th>
-                    <th className="px-4 py-3 text-right font-medium">出勤日数</th>
-                    <th className="px-4 py-3 text-right font-medium">総勤務時間</th>
-                    <th className="px-4 py-3 text-right font-medium">総残業時間</th>
-                    <th className="px-4 py-3 text-right font-medium">有給日数</th>
-                    <th className="px-4 py-3 text-right font-medium">欠勤日数</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">従業員コード</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">氏名</th>
+                    <th scope="col" className="px-4 py-3 text-right font-medium">出勤日数</th>
+                    <th scope="col" className="px-4 py-3 text-right font-medium">総勤務時間</th>
+                    <th scope="col" className="px-4 py-3 text-right font-medium">総残業時間</th>
+                    <th scope="col" className="px-4 py-3 text-right font-medium">有給日数</th>
+                    <th scope="col" className="px-4 py-3 text-right font-medium">欠勤日数</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -521,6 +569,7 @@ export default function AttendancePage() {
             </div>
           )}
         </>
+        </div>
       )}
     </PageLayout>
   );

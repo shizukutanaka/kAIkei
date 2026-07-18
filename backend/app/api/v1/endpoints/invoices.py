@@ -2,7 +2,7 @@ from contextlib import suppress
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import PlainTextResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,6 +30,7 @@ from app.services.auto_journal import (
 from app.services.invoice_registration import InvoiceRegistrationService
 from app.services.invoice_tax import InvoiceTaxService
 from app.services.notification_service import create_notification
+from app.services.invoice_number import is_valid_registration_number, normalize
 from app.services.qualified_invoice_check import (
     QualifiedInvoiceCheckService,
     QualifiedInvoiceInput,
@@ -37,6 +38,15 @@ from app.services.qualified_invoice_check import (
 )
 
 router = APIRouter()
+
+
+@router.get("/validate-registration-number")
+async def validate_registration_number(
+    number: str = Query(..., description="インボイス登録番号（例: T1234567890123）"),
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
+) -> dict:
+    """適格請求書発行事業者番号の書式・検査用数字をローカル検証する。"""
+    return {"number": normalize(number), "is_valid": is_valid_registration_number(number)}
 
 VALID_INVOICE_TRANSITIONS: dict[str, set[str]] = {
     "draft": {"issued"},
@@ -389,6 +399,49 @@ async def export_invoice(
     lines.append(f"合計,{inv.total_amount}")
 
     return "\n".join(lines)
+
+
+@router.get("/invoices/{invoice_id}/peppol-xml", response_class=PlainTextResponse)
+async def export_invoice_peppol(
+    invoice_id: UUID,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """請求書を Peppol / JP PINT 準拠の UBL Invoice XML で出力する。"""
+    from app.models.models import Company
+    from app.services.peppol_export import UblInvoice, UblLine, build_ubl_invoice
+
+    result = await db.execute(
+        select(Invoice, Partner.partner_name)
+        .outerjoin(Partner, Invoice.partner_id == Partner.partner_id)
+        .where(Invoice.invoice_id == invoice_id)
+        .options(selectinload(Invoice.lines))
+    )
+    row = result.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="請求書が見つかりません")
+    inv, partner_name = row
+
+    company = await db.get(Company, inv.company_id)
+
+    ubl = UblInvoice(
+        invoice_number=inv.invoice_number,
+        issue_date=inv.invoice_date,
+        due_date=inv.due_date,
+        supplier_name=company.company_name if company else "",
+        customer_name=partner_name or "",
+        subtotal=inv.subtotal,
+        tax_rate=inv.tax_rate,
+        tax_amount=inv.tax_amount,
+        total_amount=inv.total_amount,
+        supplier_registration_number=company.invoice_registration_number if company else None,
+        lines=[
+            UblLine(str(ln.line_id), ln.description, ln.quantity, ln.unit_price, ln.line_total)
+            for ln in inv.lines
+        ],
+    )
+    xml = build_ubl_invoice(ubl)
+    return Response(content=xml, media_type="application/xml")
 
 
 @router.get("/stats", response_model=dict)

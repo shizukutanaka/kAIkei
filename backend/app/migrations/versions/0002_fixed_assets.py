@@ -1,7 +1,7 @@
 """Add fixed_assets and depreciation_records tables
 
 Revision ID: 0002_fixed_assets
-Revises: 0001_initial
+Revises: 0001
 Create Date: 2026-06-26
 
 """
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision: str = "0002_fixed_assets"
-down_revision: Union[str, None] = "0001_initial"
+down_revision: Union[str, None] = "0001"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -1,70 +1,104 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
-from app.models.models import BankStatementDetail, Invoice, PaymentRequest
-from app.schemas.schemas import BankReconcileRequest, BankReconciliationCandidate, BankReconciliationItem
-from app.services.bank_reconciliation import BankReconciliationService
+from app.schemas.schemas import (
+    AutoReconcileRequest,
+    AutoReconcileResponse,
+    BankImportResponse,
+    BankStatementLineResponse,
+    ManualMatchRequest,
+)
+from app.services import bank_reconciliation
 
 router = APIRouter()
 
 
-@router.post("/reconcile", response_model=list[BankReconciliationItem])
-async def reconcile_bank(
-    payload: BankReconcileRequest,
-    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
-    db: AsyncSession = Depends(get_db),  # noqa: B008
-) -> list[BankReconciliationItem]:
-    stmt = select(BankStatementDetail).where(
-        BankStatementDetail.company_id == payload.company_id,
-        BankStatementDetail.is_reconciled == False,  # noqa: E712
+@router.post("/import-statement", response_model=BankImportResponse, status_code=status.HTTP_201_CREATED)
+async def import_statement(
+    company_id: UUID = Query(...),
+    file: UploadFile = File(...),
+    current_user: CurrentUser = Depends(require_permission(Permission.INTEGRATION_IMPORT)),
+    db: AsyncSession = Depends(get_db),
+) -> BankImportResponse:
+    """銀行明細CSVをアップロードして取り込む。"""
+    content = await file.read()
+    csv_text = content.decode("utf-8-sig")
+    lines = await bank_reconciliation.import_statement_csv(
+        db, tenant_id=current_user.tenant_id, company_id=company_id, csv_text=csv_text
     )
-    if payload.bank_account_id is not None:
-        stmt = stmt.where(BankStatementDetail.bank_account_id == payload.bank_account_id)
-    if payload.date_from is not None:
-        stmt = stmt.where(BankStatementDetail.value_date >= payload.date_from)
-    if payload.date_to is not None:
-        stmt = stmt.where(BankStatementDetail.value_date <= payload.date_to)
-    stmt = stmt.order_by(BankStatementDetail.value_date, BankStatementDetail.created_at)
-    statement_result = await db.execute(stmt)
-    statements = statement_result.scalars().all()
+    return BankImportResponse(
+        imported=len(lines),
+        lines=[BankStatementLineResponse.model_validate(line) for line in lines],
+    )
 
-    invoice_query = select(Invoice).where(Invoice.company_id == payload.company_id)
-    if payload.date_from is not None:
-        invoice_query = invoice_query.where(Invoice.due_date >= payload.date_from)
-    if payload.date_to is not None:
-        invoice_query = invoice_query.where(Invoice.due_date <= payload.date_to)
-    invoice_query = invoice_query.where(Invoice.status.in_(("issued", "paid")))
-    invoices = (await db.execute(invoice_query)).scalars().all()
 
-    payment_query = select(PaymentRequest).where(PaymentRequest.company_id == payload.company_id)
-    if payload.date_from is not None:
-        payment_query = payment_query.where(PaymentRequest.payment_date >= payload.date_from)
-    if payload.date_to is not None:
-        payment_query = payment_query.where(PaymentRequest.payment_date <= payload.date_to)
-    payment_query = payment_query.where(PaymentRequest.status.in_(("approved", "executed")))
-    payment_requests = (await db.execute(payment_query)).scalars().all()
+@router.get("/statement-lines", response_model=list[BankStatementLineResponse])
+async def list_statement_lines(
+    company_id: UUID = Query(...),
+    reconciled: bool | None = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_READ)),
+    db: AsyncSession = Depends(get_db),
+) -> list[BankStatementLineResponse]:
+    """銀行明細を一覧取得する。"""
+    lines = await bank_reconciliation.list_statement_lines(
+        db, company_id=company_id, reconciled=reconciled, limit=limit
+    )
+    return [BankStatementLineResponse.model_validate(line) for line in lines]
 
-    response: list[BankReconciliationItem] = []
-    for statement in statements:
-        candidates = BankReconciliationService.rank_candidates(statement, invoices, payment_requests)
-        response.append(
-            BankReconciliationItem(
-                statement_detail_id=statement.statement_detail_id,
-                candidates=[
-                    BankReconciliationCandidate(
-                        source_id=c.source_id,
-                        source_type=c.source_type,
-                        source_date=c.source_date,
-                        amount=c.amount,
-                        score=c.score,
-                        reason=c.reason,
-                    )
-                    for c in candidates
-                ],
-            )
-        )
-    return response
+
+@router.post("/auto-reconcile", response_model=AutoReconcileResponse)
+async def auto_reconcile(
+    payload: AutoReconcileRequest,
+    company_id: UUID = Query(...),
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_UPDATE)),
+    db: AsyncSession = Depends(get_db),
+) -> AutoReconcileResponse:
+    """未消込の銀行明細を仕訳明細に対して自動消込する。"""
+    result = await bank_reconciliation.auto_reconcile(
+        db,
+        company_id=company_id,
+        bank_account_id=payload.bank_account_id,
+        date_tolerance_days=payload.date_tolerance_days,
+        min_score=payload.min_score,
+        max_fee=payload.max_fee,
+    )
+    return AutoReconcileResponse(**result)
+
+
+@router.post("/statement-lines/{line_id}/match", response_model=BankStatementLineResponse)
+async def match_line(
+    line_id: UUID,
+    payload: ManualMatchRequest,
+    company_id: UUID = Query(...),
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_UPDATE)),
+    db: AsyncSession = Depends(get_db),
+) -> BankStatementLineResponse:
+    """銀行明細を仕訳明細に手動で消込する。"""
+    line = await bank_reconciliation.manual_match(
+        db, company_id=company_id, bank_statement_line_id=line_id, journal_line_id=payload.journal_line_id
+    )
+    if line is None:
+        raise HTTPException(status_code=404, detail="Bank statement line not found")
+    return BankStatementLineResponse.model_validate(line)
+
+
+@router.post("/statement-lines/{line_id}/unmatch", response_model=BankStatementLineResponse)
+async def unmatch_line(
+    line_id: UUID,
+    company_id: UUID = Query(...),
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_UPDATE)),
+    db: AsyncSession = Depends(get_db),
+) -> BankStatementLineResponse:
+    """銀行明細の消込を解除する。"""
+    line = await bank_reconciliation.unmatch(
+        db, company_id=company_id, bank_statement_line_id=line_id
+    )
+    if line is None:
+        raise HTTPException(status_code=404, detail="Bank statement line not found")
+    return BankStatementLineResponse.model_validate(line)
