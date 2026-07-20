@@ -1752,3 +1752,19 @@ class HighCostMedicalRequest(BaseModel):
 class HighCostMedicalResponse(BaseModel):
     self_pay_limit: Decimal
     high_cost_benefit: Decimal
+
+
+class PostnatalLeaveBenefitRequest(BaseModel):
+    wage_total_6m: Decimal
+    insured_months: int
+    leave_days: int
+    cumulative_days_before: int = 0
+    wage_paid_during_leave: Decimal = Decimal("0")
+
+
+class PostnatalLeaveBenefitResponse(BaseModel):
+    eligible: bool
+    daily_wage: Decimal
+    payable_days: int
+    benefit_amount: Decimal
+    reason: str

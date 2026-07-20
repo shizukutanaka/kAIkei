@@ -55,6 +55,8 @@ from app.schemas.schemas import (
     WorkersAccidentLeaveResponse,
     HighCostMedicalRequest,
     HighCostMedicalResponse,
+    PostnatalLeaveBenefitRequest,
+    PostnatalLeaveBenefitResponse,
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     QualificationAcquisitionExportRequest,
@@ -102,6 +104,7 @@ from app.services.childcare_leave_benefit import ChildcareLeaveBenefitService
 from app.services.caregiver_leave_benefit import CaregiverLeaveBenefitService
 from app.services.workers_accident_leave import WorkersAccidentLeaveService
 from app.services.high_cost_medical import HighCostMedicalService
+from app.services.postnatal_leave_benefit import PostnatalLeaveBenefitService
 
 router = APIRouter()
 
@@ -194,6 +197,24 @@ async def calculate_high_cost_medical(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return HighCostMedicalResponse.model_validate(result)
+
+
+@router.post("/postnatal-leave-benefit/calculate")
+async def calculate_postnatal_leave_benefit(
+    payload: PostnatalLeaveBenefitRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> PostnatalLeaveBenefitResponse:
+    try:
+        result = PostnatalLeaveBenefitService.compute(
+            wage_total_6m=payload.wage_total_6m,
+            insured_months=payload.insured_months,
+            leave_days=payload.leave_days,
+            cumulative_days_before=payload.cumulative_days_before,
+            wage_paid_during_leave=payload.wage_paid_during_leave,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return PostnatalLeaveBenefitResponse.model_validate(result)
 
 
 @router.post("/injury-allowance/calculate")
