@@ -47,6 +47,8 @@ from app.schemas.schemas import (
     HealthInsuranceBenefitResponse,
     ShortTimeInsuranceRequest,
     ShortTimeInsuranceResponse,
+    ChildcareLeaveBenefitRequest,
+    ChildcareLeaveBenefitResponse,
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     QualificationAcquisitionExportRequest,
@@ -90,6 +92,7 @@ from app.services.legal_ledger import LegalLedgerService
 from app.services.high_age_benefit import HighAgeEmploymentBenefitService
 from app.services.health_insurance_benefit import HealthInsuranceBenefitService
 from app.services.short_time_insurance import ShortTimeWorkerInsuranceService
+from app.services.childcare_leave_benefit import ChildcareLeaveBenefitService
 
 router = APIRouter()
 
@@ -112,6 +115,24 @@ async def judge_short_time_insurance(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return ShortTimeInsuranceResponse.model_validate(result)
+
+
+@router.post("/childcare-leave-benefit/calculate")
+async def calculate_childcare_leave_benefit(
+    payload: ChildcareLeaveBenefitRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> ChildcareLeaveBenefitResponse:
+    try:
+        result = ChildcareLeaveBenefitService.compute(
+            wage_total_6m=payload.wage_total_6m,
+            insured_months=payload.insured_months,
+            payment_days=payload.payment_days,
+            cumulative_days_before=payload.cumulative_days_before,
+            wage_paid_during_leave=payload.wage_paid_during_leave,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ChildcareLeaveBenefitResponse.model_validate(result)
 
 
 @router.post("/injury-allowance/calculate")

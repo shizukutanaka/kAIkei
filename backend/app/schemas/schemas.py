@@ -1692,3 +1692,19 @@ class ShortTimeInsuranceResponse(BaseModel):
     meets_employment_period: bool
     not_student: bool
     reasons: list[str]
+
+
+class ChildcareLeaveBenefitRequest(BaseModel):
+    wage_total_6m: Decimal
+    insured_months: int
+    payment_days: int = 30
+    cumulative_days_before: int = 0
+    wage_paid_during_leave: Decimal = Decimal("0")
+
+
+class ChildcareLeaveBenefitResponse(BaseModel):
+    eligible: bool
+    daily_wage: Decimal
+    benefit_rate: Decimal
+    benefit_amount: Decimal
+    reason: str
