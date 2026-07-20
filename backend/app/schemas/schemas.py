@@ -1708,3 +1708,19 @@ class ChildcareLeaveBenefitResponse(BaseModel):
     benefit_rate: Decimal
     benefit_amount: Decimal
     reason: str
+
+
+class CaregiverLeaveBenefitRequest(BaseModel):
+    wage_total_6m: Decimal
+    insured_months: int
+    payment_days: int = 30
+    cumulative_days_before: int = 0
+    wage_paid_during_leave: Decimal = Decimal("0")
+
+
+class CaregiverLeaveBenefitResponse(BaseModel):
+    eligible: bool
+    daily_wage: Decimal
+    payable_days: int
+    benefit_amount: Decimal
+    reason: str
