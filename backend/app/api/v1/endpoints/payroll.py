@@ -53,6 +53,8 @@ from app.schemas.schemas import (
     CaregiverLeaveBenefitResponse,
     WorkersAccidentLeaveRequest,
     WorkersAccidentLeaveResponse,
+    HighCostMedicalRequest,
+    HighCostMedicalResponse,
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     QualificationAcquisitionExportRequest,
@@ -99,6 +101,7 @@ from app.services.short_time_insurance import ShortTimeWorkerInsuranceService
 from app.services.childcare_leave_benefit import ChildcareLeaveBenefitService
 from app.services.caregiver_leave_benefit import CaregiverLeaveBenefitService
 from app.services.workers_accident_leave import WorkersAccidentLeaveService
+from app.services.high_cost_medical import HighCostMedicalService
 
 router = APIRouter()
 
@@ -174,6 +177,23 @@ async def calculate_workers_accident_leave(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return WorkersAccidentLeaveResponse.model_validate(result)
+
+
+@router.post("/high-cost-medical/calculate")
+async def calculate_high_cost_medical(
+    payload: HighCostMedicalRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> HighCostMedicalResponse:
+    try:
+        result = HighCostMedicalService.compute(
+            total_medical_cost=payload.total_medical_cost,
+            self_paid=payload.self_paid,
+            income_category=payload.income_category,
+            multiple_treatment=payload.multiple_treatment,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return HighCostMedicalResponse.model_validate(result)
 
 
 @router.post("/injury-allowance/calculate")

@@ -1740,3 +1740,15 @@ class WorkersAccidentLeaveResponse(BaseModel):
     total_compensation: Decimal
     total_special: Decimal
     total_benefit: Decimal
+
+
+class HighCostMedicalRequest(BaseModel):
+    total_medical_cost: Decimal
+    self_paid: Decimal
+    income_category: str
+    multiple_treatment: bool = False
+
+
+class HighCostMedicalResponse(BaseModel):
+    self_pay_limit: Decimal
+    high_cost_benefit: Decimal
