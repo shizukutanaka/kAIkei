@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.schemas.schemas import TaxForecastResponse
+from app.services.bad_debt_reserve import BadDebtReserveService
 from app.services.entertainment_expense import EntertainmentExpenseService
 from app.services.income_tax import IncomeTaxService
 from app.services.interim_consumption_tax import InterimConsumptionTaxService
@@ -206,6 +207,28 @@ async def get_purchase_tax_credit(
         "input_tax_total": result.input_tax_total,
         "individual_method_credit": result.individual_method_credit,
         "proportional_method_credit": result.proportional_method_credit,
+    }
+
+
+@router.get("/bad-debt-reserve")
+async def get_bad_debt_reserve(
+    receivables: Decimal = Query(..., description="期末一括評価金銭債権の帳簿価額"),  # noqa: B008
+    industry: str = Query(..., description="業種(wholesale_retail/manufacturing/finance_insurance/installment_retail/other)"),  # noqa: B008
+    non_receivable_amount: Decimal = Query(Decimal("0"), description="実質的に債権とみられない金額"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> dict[str, Decimal]:
+    try:
+        result = BadDebtReserveService.compute(
+            receivables=receivables,
+            industry=industry,
+            non_receivable_amount=non_receivable_amount,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "statutory_rate": result.statutory_rate,
+        "base_amount": result.base_amount,
+        "reserve_limit": result.reserve_limit,
     }
 
 
