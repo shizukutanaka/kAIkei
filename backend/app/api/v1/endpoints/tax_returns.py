@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
-from app.models.models import JournalEntry, JournalLine, TaxReturn, Account
+from app.models.models import JournalHeader, JournalLine, TaxReturn, Account
 from app.schemas.schemas import TaxReturnCalculateRequest, TaxReturnResponse, TaxReturnListResponse
 
 router = APIRouter()
@@ -73,30 +73,32 @@ async def calculate_tax_return(
     # Revenue accounts -> sales, Expense accounts -> purchases
     revenue_lines = await db.execute(
         select(
-            func.coalesce(func.sum(JournalLine.credit_amount), 0).label("total"),
+            func.coalesce(func.sum(JournalLine.amount), 0).label("total"),
         )
-        .join(JournalEntry, JournalLine.journal_id == JournalEntry.journal_id)
+        .join(JournalHeader, JournalLine.journal_header_id == JournalHeader.journal_header_id)
         .join(Account, JournalLine.account_id == Account.account_id)
         .where(
-            JournalEntry.company_id == payload.company_id,
-            extract("year", JournalEntry.entry_date) == payload.tax_year,
+            JournalHeader.company_id == payload.company_id,
+            extract("year", JournalHeader.transaction_date) == payload.tax_year,
             Account.account_type == "revenue",
-            JournalEntry.approval_status.in_(["approved", "posted"]),
+            JournalLine.debit_credit == "credit",
+            JournalHeader.approval_status.in_(["approved", "posted"]),
         )
     )
     total_revenue = revenue_lines.scalar() or Decimal("0")
 
     expense_lines = await db.execute(
         select(
-            func.coalesce(func.sum(JournalLine.debit_amount), 0).label("total"),
+            func.coalesce(func.sum(JournalLine.amount), 0).label("total"),
         )
-        .join(JournalEntry, JournalLine.journal_id == JournalEntry.journal_id)
+        .join(JournalHeader, JournalLine.journal_header_id == JournalHeader.journal_header_id)
         .join(Account, JournalLine.account_id == Account.account_id)
         .where(
-            JournalEntry.company_id == payload.company_id,
-            extract("year", JournalEntry.entry_date) == payload.tax_year,
+            JournalHeader.company_id == payload.company_id,
+            extract("year", JournalHeader.transaction_date) == payload.tax_year,
             Account.account_type == "expense",
-            JournalEntry.approval_status.in_(["approved", "posted"]),
+            JournalLine.debit_credit == "debit",
+            JournalHeader.approval_status.in_(["approved", "posted"]),
         )
     )
     total_expense = expense_lines.scalar() or Decimal("0")
