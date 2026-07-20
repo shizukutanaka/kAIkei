@@ -16,6 +16,7 @@ from app.services.interim_consumption_tax import InterimConsumptionTaxService
 from app.services.interim_corporate_tax import InterimCorporateTaxService
 from app.services.invoice_transitional_deduction import InvoiceTransitionalDeductionService
 from app.services.local_consumption_tax import LocalConsumptionTaxService
+from app.services.purchase_tax_credit import PurchaseTaxCreditService
 from app.services.simplified_consumption_tax import SimplifiedConsumptionTaxService
 from app.services.special_20_percent_consumption_tax import SpecialTwentyPercentConsumptionTaxService
 from app.services.tax_forecast import DEFAULT_FORECAST_FACTOR, TaxForecastService
@@ -177,6 +178,34 @@ async def get_special_20_percent_consumption_tax(
         "sales_consumption_tax": result.sales_consumption_tax,
         "payable_tax": result.payable_tax,
         "special_deduction": result.special_deduction,
+    }
+
+
+@router.get("/purchase-tax-credit")
+async def get_purchase_tax_credit(
+    taxable_sales: Decimal = Query(..., description="課税売上高(税抜・免税売上含む)"),  # noqa: B008
+    non_taxable_sales: Decimal = Query(..., description="非課税売上高"),  # noqa: B008
+    input_tax_taxable_only: Decimal = Query(..., description="課税売上にのみ要する課税仕入等の税額"),  # noqa: B008
+    input_tax_common: Decimal = Query(..., description="共通して要する課税仕入等の税額"),  # noqa: B008
+    input_tax_nontaxable_only: Decimal = Query(Decimal("0"), description="非課税売上にのみ要する課税仕入等の税額"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> dict[str, Decimal | bool]:
+    try:
+        result = PurchaseTaxCreditService.compute(
+            taxable_sales=taxable_sales,
+            non_taxable_sales=non_taxable_sales,
+            input_tax_taxable_only=input_tax_taxable_only,
+            input_tax_common=input_tax_common,
+            input_tax_nontaxable_only=input_tax_nontaxable_only,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "taxable_ratio": result.taxable_ratio,
+        "full_deduction": result.full_deduction,
+        "input_tax_total": result.input_tax_total,
+        "individual_method_credit": result.individual_method_credit,
+        "proportional_method_credit": result.proportional_method_credit,
     }
 
 
