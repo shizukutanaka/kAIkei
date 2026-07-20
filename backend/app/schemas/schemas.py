@@ -1724,3 +1724,19 @@ class CaregiverLeaveBenefitResponse(BaseModel):
     payable_days: int
     benefit_amount: Decimal
     reason: str
+
+
+class WorkersAccidentLeaveRequest(BaseModel):
+    daily_wage_base: Decimal
+    absent_days: int
+    waiting_completed: bool = False
+    daily_partial_wage: Decimal = Decimal("0")
+
+
+class WorkersAccidentLeaveResponse(BaseModel):
+    payable_days: int
+    daily_compensation: Decimal
+    daily_special: Decimal
+    total_compensation: Decimal
+    total_special: Decimal
+    total_benefit: Decimal
