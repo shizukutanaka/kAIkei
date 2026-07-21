@@ -16,6 +16,7 @@ from app.schemas.schemas import (
 )
 from app.services.bad_debt_consumption_tax import BadDebtConsumptionTaxService
 from app.services.bad_debt_reserve import BadDebtReserveService
+from app.services.corporate_tax import CorporateTaxService
 from app.services.entertainment_expense import EntertainmentExpenseService
 from app.services.income_tax import IncomeTaxService
 from app.services.interim_consumption_tax import InterimConsumptionTaxService
@@ -231,6 +232,33 @@ async def post_sales_return_tax(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return SalesReturnTaxResponse.model_validate(result)
+
+
+@router.get("/corporate-tax")
+async def get_corporate_tax(
+    taxable_income: Decimal = Query(..., description="課税所得金額"),  # noqa: B008
+    months: int = Query(12, description="事業年度の月数(1〜12)"),  # noqa: B008
+    small_business: bool = Query(True, description="中小法人(資本金1億円以下等)か"),  # noqa: B008
+    excluded_business: bool = Query(False, description="適用除外事業者か"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> dict[str, Decimal]:
+    try:
+        result = CorporateTaxService.compute(
+            taxable_income=taxable_income,
+            months=months,
+            small_business=small_business,
+            excluded_business=excluded_business,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "rounded_income": result.rounded_income,
+        "reduced_rate": result.reduced_rate,
+        "reduced_bracket": result.reduced_bracket,
+        "reduced_tax": result.reduced_tax,
+        "standard_tax": result.standard_tax,
+        "total_tax": result.total_tax,
+    }
 
 
 @router.get("/bad-debt-consumption-tax")
