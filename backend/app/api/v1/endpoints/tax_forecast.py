@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.schemas.schemas import TaxForecastResponse
+from app.services.bad_debt_consumption_tax import BadDebtConsumptionTaxService
 from app.services.bad_debt_reserve import BadDebtReserveService
 from app.services.entertainment_expense import EntertainmentExpenseService
 from app.services.income_tax import IncomeTaxService
@@ -207,6 +208,27 @@ async def get_purchase_tax_credit(
         "input_tax_total": result.input_tax_total,
         "individual_method_credit": result.individual_method_credit,
         "proportional_method_credit": result.proportional_method_credit,
+    }
+
+
+@router.get("/bad-debt-consumption-tax")
+async def get_bad_debt_consumption_tax(
+    bad_debt_amount: Decimal = Query(..., description="貸倒れとなった税込金額"),  # noqa: B008
+    tax_rate: Decimal = Query(Decimal("0.10"), description="適用税率(0.10 標準 / 0.08 軽減)"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> dict[str, Decimal]:
+    try:
+        result = BadDebtConsumptionTaxService.compute(
+            bad_debt_amount=bad_debt_amount,
+            tax_rate=tax_rate,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "bad_debt_amount": result.bad_debt_amount,
+        "tax_rate": result.tax_rate,
+        "taxable_base": result.taxable_base,
+        "deductible_tax": result.deductible_tax,
     }
 
 
