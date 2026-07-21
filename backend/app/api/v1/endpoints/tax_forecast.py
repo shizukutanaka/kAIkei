@@ -9,7 +9,11 @@ from app.api.v1.endpoints.reports import PL_ACCOUNT_TYPES, _get_account_balances
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
-from app.schemas.schemas import TaxForecastResponse
+from app.schemas.schemas import (
+    SalesReturnTaxRequest,
+    SalesReturnTaxResponse,
+    TaxForecastResponse,
+)
 from app.services.bad_debt_consumption_tax import BadDebtConsumptionTaxService
 from app.services.bad_debt_reserve import BadDebtReserveService
 from app.services.entertainment_expense import EntertainmentExpenseService
@@ -19,6 +23,7 @@ from app.services.interim_corporate_tax import InterimCorporateTaxService
 from app.services.invoice_transitional_deduction import InvoiceTransitionalDeductionService
 from app.services.local_consumption_tax import LocalConsumptionTaxService
 from app.services.purchase_tax_credit import PurchaseTaxCreditService
+from app.services.sales_return_tax import SalesReturnLine, SalesReturnTaxService
 from app.services.simplified_consumption_tax import SimplifiedConsumptionTaxService
 from app.services.special_20_percent_consumption_tax import SpecialTwentyPercentConsumptionTaxService
 from app.services.tax_forecast import DEFAULT_FORECAST_FACTOR, TaxForecastService
@@ -209,6 +214,23 @@ async def get_purchase_tax_credit(
         "individual_method_credit": result.individual_method_credit,
         "proportional_method_credit": result.proportional_method_credit,
     }
+
+
+@router.post("/sales-return-tax")
+async def post_sales_return_tax(
+    payload: SalesReturnTaxRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> SalesReturnTaxResponse:
+    try:
+        result = SalesReturnTaxService.compute(
+            [
+                SalesReturnLine(amount=line.amount, tax_rate=line.tax_rate)
+                for line in payload.returns
+            ]
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return SalesReturnTaxResponse.model_validate(result)
 
 
 @router.get("/bad-debt-consumption-tax")

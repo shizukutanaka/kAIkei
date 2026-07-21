@@ -1768,3 +1768,24 @@ class PostnatalLeaveBenefitResponse(BaseModel):
     payable_days: int
     benefit_amount: Decimal
     reason: str
+
+
+class SalesReturnLineSchema(BaseModel):
+    amount: Decimal
+    tax_rate: Decimal
+
+
+class SalesReturnTaxRequest(BaseModel):
+    returns: list[SalesReturnLineSchema]
+
+
+class SalesReturnRateBreakdownSchema(BaseModel):
+    tax_rate: Decimal
+    return_amount: Decimal
+    deductible_tax: Decimal
+
+
+class SalesReturnTaxResponse(BaseModel):
+    by_rate: list[SalesReturnRateBreakdownSchema]
+    total_return: Decimal
+    total_deductible_tax: Decimal
