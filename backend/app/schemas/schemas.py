@@ -1784,8 +1784,12 @@ class SalesReturnRateBreakdownSchema(BaseModel):
     return_amount: Decimal
     deductible_tax: Decimal
 
+    model_config = {"from_attributes": True}
+
 
 class SalesReturnTaxResponse(BaseModel):
     by_rate: list[SalesReturnRateBreakdownSchema]
     total_return: Decimal
     total_deductible_tax: Decimal
+
+    model_config = {"from_attributes": True}

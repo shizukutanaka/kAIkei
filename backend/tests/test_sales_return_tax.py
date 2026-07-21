@@ -2,7 +2,22 @@ from decimal import Decimal
 
 import pytest
 
+from app.schemas.schemas import SalesReturnTaxResponse
 from app.services.sales_return_tax import SalesReturnLine, SalesReturnTaxService
+
+
+def test_response_schema_validates_service_result():
+    """SalesReturnTaxResponse.model_validate must accept the service dataclass
+    (regression: response schema needs from_attributes to serialize the result)."""
+    result = SalesReturnTaxService.compute(
+        [
+            SalesReturnLine(amount=Decimal("110000"), tax_rate=Decimal("0.10")),
+            SalesReturnLine(amount=Decimal("108000"), tax_rate=Decimal("0.08")),
+        ]
+    )
+    response = SalesReturnTaxResponse.model_validate(result)
+    assert response.total_deductible_tax == Decimal("18000")
+    assert [b.tax_rate for b in response.by_rate] == [Decimal("0.08"), Decimal("0.10")]
 
 
 def test_single_standard_rate():
