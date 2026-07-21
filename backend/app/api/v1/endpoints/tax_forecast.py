@@ -23,6 +23,7 @@ from app.services.interim_consumption_tax import InterimConsumptionTaxService
 from app.services.interim_corporate_tax import InterimCorporateTaxService
 from app.services.invoice_transitional_deduction import InvoiceTransitionalDeductionService
 from app.services.local_consumption_tax import LocalConsumptionTaxService
+from app.services.local_corporate_tax import LocalCorporateTaxService
 from app.services.purchase_tax_credit import PurchaseTaxCreditService
 from app.services.sales_return_tax import SalesReturnLine, SalesReturnTaxService
 from app.services.simplified_consumption_tax import SimplifiedConsumptionTaxService
@@ -232,6 +233,24 @@ async def post_sales_return_tax(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return SalesReturnTaxResponse.model_validate(result)
+
+
+@router.get("/local-corporate-tax")
+async def get_local_corporate_tax(
+    corporate_tax_amount: Decimal = Query(..., description="基準法人税額(法人税額)"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> dict[str, Decimal]:
+    try:
+        result = LocalCorporateTaxService.compute(
+            corporate_tax_amount=corporate_tax_amount,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "tax_base": result.tax_base,
+        "rate": result.rate,
+        "tax_amount": result.tax_amount,
+    }
 
 
 @router.get("/corporate-tax")
