@@ -16,6 +16,7 @@ from app.schemas.schemas import (
 )
 from app.services.bad_debt_consumption_tax import BadDebtConsumptionTaxService
 from app.services.bad_debt_reserve import BadDebtReserveService
+from app.services.business_tax import BusinessTaxService
 from app.services.corporate_tax import CorporateTaxService
 from app.services.entertainment_expense import EntertainmentExpenseService
 from app.services.income_tax import IncomeTaxService
@@ -233,6 +234,28 @@ async def post_sales_return_tax(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return SalesReturnTaxResponse.model_validate(result)
+
+
+@router.get("/business-tax")
+async def get_business_tax(
+    taxable_income: Decimal = Query(..., description="課税所得金額"),  # noqa: B008
+    months: int = Query(12, description="事業年度の月数(1〜12)"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> dict[str, Decimal]:
+    try:
+        result = BusinessTaxService.compute(
+            taxable_income=taxable_income,
+            months=months,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "rounded_income": result.rounded_income,
+        "low_base": result.low_base,
+        "middle_base": result.middle_base,
+        "high_base": result.high_base,
+        "tax_amount": result.tax_amount,
+    }
 
 
 @router.get("/local-corporate-tax")
