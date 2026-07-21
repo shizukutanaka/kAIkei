@@ -19,6 +19,8 @@ from app.schemas.schemas import (
     LaborInsuranceEmployeeResponse,
     LaborInsuranceSummaryResponse,
     LaborInsuranceAnnualUpdateRequest,
+    PayrollWageImportRequest,
+    PayrollWageImportResponse,
     NotificationCreate,
     BonusExportRequest,
     MonthlyRevisionExportRequest,
@@ -70,6 +72,7 @@ from app.services.labor_insurance import (
     LaborInsuranceService,
 )
 from app.services.labor_insurance_annual import LaborInsuranceAnnualUpdateService
+from app.services.payroll_wage_import import PayrollWageImportService
 from app.services.bonus_employment_insurance import BonusEmploymentInsuranceService
 from app.services.bonus_withholding_tax import BonusWithholdingTaxService
 from app.services.bonus_net_pay import BonusNetPayService
@@ -914,6 +917,23 @@ async def export_labor_insurance_annual_update(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="rodo_hoken_nendo_koushin.csv"'},
     )
+
+
+@router.post("/labor-insurance/import-calculate", response_model=PayrollWageImportResponse)
+async def calculate_labor_insurance_from_payroll_data(
+    payload: PayrollWageImportRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> PayrollWageImportResponse:
+    try:
+        records = PayrollWageImportService.parse_csv(payload.csv_text, payload.column_map)
+        result = PayrollWageImportService.compute(
+            records,
+            business_type=payload.business_type,
+            workers_comp_rate=payload.workers_comp_rate,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return PayrollWageImportResponse.model_validate(result)
 
 
 @router.get("/labor-insurance", response_model=LaborInsuranceSummaryResponse)

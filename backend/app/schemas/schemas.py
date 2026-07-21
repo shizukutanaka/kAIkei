@@ -1770,6 +1770,31 @@ class PostnatalLeaveBenefitResponse(BaseModel):
     reason: str
 
 
+class PayrollWageImportRequest(BaseModel):
+    csv_text: str
+    business_type: str = "general"
+    workers_comp_rate: Decimal = DEFAULT_WORKERS_COMPENSATION_RATE
+    column_map: dict[str, str] | None = None
+
+
+class PayrollWageImportResponse(BaseModel):
+    row_count: int
+    employee_count: int
+    employment_insured_count: int
+    workers_comp_wage_total: Decimal
+    employment_wage_total: Decimal
+    workers_comp_base: Decimal
+    employment_base: Decimal
+    workers_comp_premium: Decimal
+    employment_premium: Decimal
+    employment_employee_premium: Decimal
+    employment_employer_premium: Decimal
+    general_contribution: Decimal
+    determined_premium: Decimal
+
+    model_config = {"from_attributes": True}
+
+
 class SalesReturnLineSchema(BaseModel):
     amount: Decimal
     tax_rate: Decimal
