@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     # Background jobs（Webhook配信ワーカー等の定期実行）
     BACKGROUND_JOBS_ENABLED: bool = True
     WEBHOOK_WORKER_INTERVAL_SECONDS: float = 60.0
+    # スケジュールジョブの自動ディスパッチ間隔（全社横断でdue jobをpending化）。
+    JOB_DISPATCH_WORKER_INTERVAL_SECONDS: float = 300.0
 
     # IP制限ミドルウェア: リバースプロキシ配下でのみtrueにする。
     # X-Forwarded-Forはクライアントが自由に指定できるヘッダのため、
