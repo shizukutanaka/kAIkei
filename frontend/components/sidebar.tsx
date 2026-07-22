@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, LayoutDashboard, FileText, Settings, Receipt, Users, Building2, Calculator, Sparkles, Globe, FileCheck, List, Menu, X, Handshake, Gift, CalendarClock, Clock, Wallet, FilePlus, Landmark, ScrollText, Banknote, ShieldAlert, Archive, ListChecks, ShieldCheck, Scale, GitBranch, Webhook } from "lucide-react";
+import { BookOpen, LayoutDashboard, FileText, Settings, Receipt, Users, Building2, Calculator, Sparkles, Globe, FileCheck, List, Menu, X, Handshake, Gift, CalendarClock, Clock, Wallet, FilePlus, Landmark, ScrollText, Banknote, ShieldAlert, Archive, ListChecks, ShieldCheck, Scale, GitBranch, Webhook, Activity } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import CompanySelector from "@/components/company-selector";
@@ -74,6 +74,7 @@ const navSections: NavSection[] = [
       { label: "セキュリティポリシー", href: "/security-policy", icon: ShieldCheck, permissions: ["user:manage"] },
       { label: "Webhook管理", href: "/webhooks", icon: Webhook, permissions: ["webhook:manage"] },
       { label: "スケジュールジョブ", href: "/jobs", icon: CalendarClock, permissions: ["master:read"] },
+      { label: "運用モニタリング", href: "/ops", icon: Activity, permissions: ["master:read"] },
       { label: "設定", href: "/settings", icon: Settings },
     ],
   },
