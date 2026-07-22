@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
-from app.models.models import JobExecution, OfficeTask, WebhookDelivery
+from app.models.models import JobExecution, OfficeTask, WebhookDelivery, WebhookEndpoint
 from app.schemas.schemas import (
     HealthSummaryResponse,
     OperationsHealthResponse,
@@ -29,8 +29,14 @@ async def get_operations_health(
     )
     job_summary = OperationsMonitorService.classify_statuses(list(job_rows.scalars().all()))
 
+    # WebhookDelivery は company_id を直接持たず、所属Webhookエンドポイント経由で会社に紐づく。
     webhook_rows = await db.execute(
-        select(WebhookDelivery.status).where(WebhookDelivery.company_id == company_id)
+        select(WebhookDelivery.status)
+        .join(
+            WebhookEndpoint,
+            WebhookDelivery.webhook_endpoint_id == WebhookEndpoint.webhook_endpoint_id,
+        )
+        .where(WebhookEndpoint.company_id == company_id)
     )
     webhook_summary = OperationsMonitorService.classify_statuses(list(webhook_rows.scalars().all()))
 
