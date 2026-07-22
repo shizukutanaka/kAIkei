@@ -72,6 +72,7 @@ const navSections: NavSection[] = [
       { label: "月次業務タスク", href: "/office-tasks", icon: ListChecks },
       { label: "セキュリティポリシー", href: "/security-policy", icon: ShieldCheck, permissions: ["user:manage"] },
       { label: "Webhook管理", href: "/webhooks", icon: Webhook, permissions: ["webhook:manage"] },
+      { label: "スケジュールジョブ", href: "/jobs", icon: CalendarClock, permissions: ["master:read"] },
       { label: "設定", href: "/settings", icon: Settings },
     ],
   },
