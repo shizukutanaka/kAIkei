@@ -60,6 +60,7 @@ const navSections: NavSection[] = [
       { label: "消費税申告", href: "/tax-returns", icon: Landmark },
       { label: "税務調整", href: "/tax-adjustments", icon: Scale, permissions: ["master:read"] },
       { label: "銀行明細・消込", href: "/bank", icon: Banknote, permissions: ["journal:read"] },
+      { label: "支払申請", href: "/payments", icon: Banknote, permissions: ["master:read"] },
       { label: "資金繰り予測", href: "/treasury", icon: Landmark, permissions: ["report:read"] },
     ],
   },
