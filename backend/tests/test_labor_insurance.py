@@ -39,8 +39,10 @@ class TestLaborInsuranceService:
             workers_comp_rate=Decimal("0.003"),
         )
 
+        # 建設: 労働者 7/1000=1400, 事業主 11.5/1000=2300
         assert construction.employment_insurance_employee == Decimal("1400")
-        assert construction.employment_insurance_employer == Decimal("2100")
+        assert construction.employment_insurance_employer == Decimal("2300")
+        # 農林水産等: 労働者 7/1000=1400, 事業主 10.5/1000=2100（建設より事業主が1/1000低い）
         assert agriculture.employment_insurance_employee == Decimal("1400")
         assert agriculture.employment_insurance_employer == Decimal("2100")
 

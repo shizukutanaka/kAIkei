@@ -49,6 +49,16 @@ async def _process_webhook_deliveries() -> None:
         logger.info("Webhook worker processed %d due deliveries", processed)
 
 
+async def _dispatch_scheduled_jobs() -> None:
+    from app.core.database import async_session_factory
+    from app.services.job_dispatch import dispatch_due_jobs
+
+    async with async_session_factory() as session:
+        created = await dispatch_due_jobs(session, company_id=None)
+    if created:
+        logger.info("Job dispatch worker created %d pending job executions", len(created))
+
+
 def build_default_jobs() -> list[PeriodicJob]:
     """設定に基づき既定のジョブ一覧を組み立てる。"""
     from app.core.config import settings
@@ -58,6 +68,11 @@ def build_default_jobs() -> list[PeriodicJob]:
             name="webhook_delivery_worker",
             interval_seconds=settings.WEBHOOK_WORKER_INTERVAL_SECONDS,
             func=_process_webhook_deliveries,
+        ),
+        PeriodicJob(
+            name="job_dispatch_worker",
+            interval_seconds=settings.JOB_DISPATCH_WORKER_INTERVAL_SECONDS,
+            func=_dispatch_scheduled_jobs,
         ),
     ]
 

@@ -68,3 +68,4 @@ TEST_DATABASE_URL=postgresql+asyncpg://kaikei:kaikei_dev@localhost:5432/kaikei_t
 - [docs/IntegrationSpec.md](./docs/IntegrationSpec.md) — 外部連携仕様書
 - [docs/ADR.md](./docs/ADR.md) — アーキテクチャ決定記録
 - [docs/OpsDesign.md](./docs/OpsDesign.md) — 運用設計書
+- [docs/ImprovementGuide.md](./docs/ImprovementGuide.md) — 改善指示書（長所・短所・改善案／Claude実行用）
