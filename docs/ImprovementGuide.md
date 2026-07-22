@@ -69,14 +69,14 @@ start/complete API 経由の外部ワーカーモデルを踏襲（副作用は�
 ### ✅ 済 改善B: 予算管理フロント（実装済み）
 `frontend/app/budgets/page.tsx`（一覧・作成・予実分析）。
 
-### 改善1 🟡 残りのフロント欠落画面（スコープ中〜大）
-- 背景: /payments・/treasury・/jobs・/ops・/tax(tax_forecast) にUIが無い。
-- 対象: `frontend/app/<feature>/page.tsx` を **budgets/documents/webhooks ページのパターン**で新設。
-  `lib/api.ts`（apiGet/apiPost/apiDelete）、company-context、RBAC権限ガード、SkeletonTable、
-  error/notice を再利用。バックエンドのスキーマは
-  `python -m py_compile` 不要、`backend/app/schemas/schemas.py` と各endpointを読んで型を合わせる。
-  サイドバーは `frontend/components/sidebar.tsx` の navSections に追加。
-- 検証: `tsc --noEmit` / `npm run build` / vitest。
+### ✅ 済 改善1: 残りのフロント欠落画面
+- `/budgets`（予算管理）・`/jobs`（スケジュールジョブ）・`/treasury`（資金繰り予測）・
+  `/ops`（運用モニタリング）・`/payments`（支払申請）を実装済み。
+- 併せて統合バグ2件を修正: ops.py の `WebhookDelivery.company_id` 参照（エンドポイント経由join）、
+  payments のワークフロー欠落（一覧/承認/実行/取消エンドポイントを追加し `payment_workflow` で
+  状態機械を実装）。
+- 残: `/tax`(tax_forecast) の専用画面は未（税予測は単一read-onlyエンドポイント。必要なら
+  budgets/treasuryパターンで追加可能）。
 
 ### 改善2 🟡 ドキュメント同期（スコープ小〜中）
 - 背景: mainが追加したテーブル7件（budgets/budget_lines/bank_accounts/bank_statement_details/
