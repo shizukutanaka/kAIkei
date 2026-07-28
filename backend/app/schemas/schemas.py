@@ -1770,6 +1770,39 @@ class PostnatalLeaveBenefitResponse(BaseModel):
     reason: str
 
 
+class AttendanceImportRequest(BaseModel):
+    csv_text: str
+    column_map: dict[str, str] | None = None
+
+
+class EmployeeOvertimePaySchema(BaseModel):
+    employee_id: str
+    hourly_wage: Decimal
+    overtime_hours: Decimal
+    overtime_within_60_hours: Decimal
+    overtime_over_60_hours: Decimal
+    late_night_hours: Decimal
+    holiday_hours: Decimal
+    overtime_pay: Decimal
+    overtime_over_60_pay: Decimal
+    late_night_pay: Decimal
+    holiday_pay: Decimal
+    total_premium: Decimal
+    exceeds_45_hours: bool
+
+    model_config = {"from_attributes": True}
+
+
+class AttendanceImportResponse(BaseModel):
+    row_count: int
+    employee_count: int
+    employees: list[EmployeeOvertimePaySchema]
+    total_premium: Decimal
+    exceeding_employee_ids: list[str]
+
+    model_config = {"from_attributes": True}
+
+
 class PayrollWageImportRequest(BaseModel):
     csv_text: str
     business_type: str = "general"
