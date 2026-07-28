@@ -25,6 +25,8 @@ from app.schemas.schemas import (
     AttendanceImportResponse,
     SanteiImportRequest,
     SanteiImportResponse,
+    RevisionImportRequest,
+    RevisionImportResponse,
     NotificationCreate,
     BonusExportRequest,
     MonthlyRevisionExportRequest,
@@ -79,6 +81,7 @@ from app.services.labor_insurance_annual import LaborInsuranceAnnualUpdateServic
 from app.services.payroll_wage_import import PayrollWageImportService
 from app.services.attendance_import import AttendanceImportService
 from app.services.santei_import import SanteiImportService
+from app.services.revision_import import RevisionImportService
 from app.services.bonus_employment_insurance import BonusEmploymentInsuranceService
 from app.services.bonus_withholding_tax import BonusWithholdingTaxService
 from app.services.bonus_net_pay import BonusNetPayService
@@ -923,6 +926,19 @@ async def export_labor_insurance_annual_update(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="rodo_hoken_nendo_koushin.csv"'},
     )
+
+
+@router.post("/monthly-revision/import-judge", response_model=RevisionImportResponse)
+async def judge_monthly_revision_from_payroll_data(
+    payload: RevisionImportRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> RevisionImportResponse:
+    try:
+        rows = RevisionImportService.parse_csv(payload.csv_text, payload.column_map)
+        result = RevisionImportService.compute(rows, start_year=payload.start_year)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return RevisionImportResponse.model_validate(result)
 
 
 @router.post("/santei/import-generate", response_model=SanteiImportResponse)
