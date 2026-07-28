@@ -1770,6 +1770,38 @@ class PostnatalLeaveBenefitResponse(BaseModel):
     reason: str
 
 
+class SanteiImportRequest(BaseModel):
+    csv_text: str
+    applicable_year: int
+    applicable_month: int = 9
+    column_map: dict[str, str] | None = None
+
+
+class SanteiImportEmployeeSchema(BaseModel):
+    insured_number: str
+    name: str
+    month_totals: list[Decimal]
+    total: Decimal
+    average: Decimal | None
+    health_grade: int | None
+    health_standard: Decimal | None
+    pension_grade: int | None
+    pension_standard: Decimal | None
+    requires_manual: bool
+
+    model_config = {"from_attributes": True}
+
+
+class SanteiImportResponse(BaseModel):
+    row_count: int
+    employee_count: int
+    employees: list[SanteiImportEmployeeSchema]
+    manual_review_numbers: list[str]
+    csv_text: str
+
+    model_config = {"from_attributes": True}
+
+
 class AttendanceImportRequest(BaseModel):
     csv_text: str
     column_map: dict[str, str] | None = None

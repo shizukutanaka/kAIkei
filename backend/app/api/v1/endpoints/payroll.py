@@ -23,6 +23,8 @@ from app.schemas.schemas import (
     PayrollWageImportResponse,
     AttendanceImportRequest,
     AttendanceImportResponse,
+    SanteiImportRequest,
+    SanteiImportResponse,
     NotificationCreate,
     BonusExportRequest,
     MonthlyRevisionExportRequest,
@@ -76,6 +78,7 @@ from app.services.labor_insurance import (
 from app.services.labor_insurance_annual import LaborInsuranceAnnualUpdateService
 from app.services.payroll_wage_import import PayrollWageImportService
 from app.services.attendance_import import AttendanceImportService
+from app.services.santei_import import SanteiImportService
 from app.services.bonus_employment_insurance import BonusEmploymentInsuranceService
 from app.services.bonus_withholding_tax import BonusWithholdingTaxService
 from app.services.bonus_net_pay import BonusNetPayService
@@ -920,6 +923,23 @@ async def export_labor_insurance_annual_update(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="rodo_hoken_nendo_koushin.csv"'},
     )
+
+
+@router.post("/santei/import-generate", response_model=SanteiImportResponse)
+async def generate_santei_from_payroll_data(
+    payload: SanteiImportRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> SanteiImportResponse:
+    try:
+        rows = SanteiImportService.parse_csv(payload.csv_text, payload.column_map)
+        result = SanteiImportService.compute(
+            rows,
+            applicable_year=payload.applicable_year,
+            applicable_month=payload.applicable_month,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return SanteiImportResponse.model_validate(result)
 
 
 @router.post("/attendance/import-overtime-pay", response_model=AttendanceImportResponse)
