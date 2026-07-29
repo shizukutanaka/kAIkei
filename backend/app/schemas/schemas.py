@@ -1294,6 +1294,43 @@ class QualificationAcquisitionExportRequest(BaseModel):
     employees: list[QualificationAcquisitionEmployeeInput]
 
 
+class QualificationLossEmployeeInput(BaseModel):
+    insured_number: str
+    name: str
+    event_date: date
+    reason: str
+    qualification_date: date | None = None
+    is_over_70_employee: bool = False
+
+
+class QualificationLossGenerateRequest(BaseModel):
+    employees: list[QualificationLossEmployeeInput]
+
+
+class QualificationLossResultSchema(BaseModel):
+    insured_number: str
+    name: str
+    reason: str
+    event_date: date
+    loss_date: date
+    final_premium_year: int
+    final_premium_month: int
+    event_month_premium_charged: bool
+    same_month_acquisition_loss: bool
+    requires_over70_notification: bool
+
+    model_config = {"from_attributes": True}
+
+
+class QualificationLossGenerateResponse(BaseModel):
+    employee_count: int
+    results: list[QualificationLossResultSchema]
+    same_month_numbers: list[str]
+    csv_text: str
+
+    model_config = {"from_attributes": True}
+
+
 class LaborInsuranceAnnualUpdateRequest(BaseModel):
     prior_wage_total: Decimal
     estimated_wage_total: Decimal

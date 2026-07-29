@@ -70,6 +70,8 @@ from app.schemas.schemas import (
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     QualificationAcquisitionExportRequest,
+    QualificationLossGenerateRequest,
+    QualificationLossGenerateResponse,
     ResidenceTaxResponse,
     SocialInsurancePremiumResponse,
 )
@@ -95,6 +97,7 @@ from app.services.notification_service import create_notification
 from app.services.standard_remuneration import RemunerationMonth
 from app.services.standard_bonus import BonusEmployee, StandardBonusService
 from app.services.qualification_acquisition import AcquisitionEmployee, QualificationAcquisitionService
+from app.services.qualification_loss import LossEmployee, QualificationLossService
 from app.services.social_insurance import (
     DEFAULT_CARE_INSURANCE_RATE,
     DEFAULT_HEALTH_INSURANCE_RATE,
@@ -1198,6 +1201,30 @@ async def export_qualification_acquisition(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="shikaku_shutoku.csv"'},
     )
+
+
+@router.post("/qualification-loss/generate", response_model=QualificationLossGenerateResponse)
+async def generate_qualification_loss(
+    payload: QualificationLossGenerateRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> QualificationLossGenerateResponse:
+    try:
+        result = QualificationLossService.generate(
+            [
+                LossEmployee(
+                    insured_number=employee.insured_number,
+                    name=employee.name,
+                    event_date=employee.event_date,
+                    reason=employee.reason,
+                    qualification_date=employee.qualification_date,
+                    is_over_70_employee=employee.is_over_70_employee,
+                )
+                for employee in payload.employees
+            ],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return QualificationLossGenerateResponse.model_validate(result)
 
 
 @router.post("/santei/export")
