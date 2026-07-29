@@ -1770,6 +1770,41 @@ class PostnatalLeaveBenefitResponse(BaseModel):
     reason: str
 
 
+class BonusImportRequest(BaseModel):
+    csv_text: str
+    fiscal_year: int
+    column_map: dict[str, str] | None = None
+
+
+class BonusPaymentSchema(BaseModel):
+    insured_number: str
+    name: str
+    payment_date: date
+    bonus_amount: Decimal
+    standard_bonus: Decimal
+    health_standard_bonus: Decimal
+    pension_standard_bonus: Decimal
+    fiscal_ytd_standard_bonus: Decimal
+    same_month_prior_standard_bonus: Decimal
+    health_capped: bool
+    pension_capped: bool
+
+    model_config = {"from_attributes": True}
+
+
+class BonusImportResponse(BaseModel):
+    payment_count: int
+    employee_count: int
+    payments: list[BonusPaymentSchema]
+    total_bonus_amount: Decimal
+    total_health_standard_bonus: Decimal
+    total_pension_standard_bonus: Decimal
+    capped_numbers: list[str]
+    csv_text: str
+
+    model_config = {"from_attributes": True}
+
+
 class RevisionImportRequest(BaseModel):
     csv_text: str
     start_year: int
