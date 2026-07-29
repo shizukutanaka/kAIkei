@@ -52,6 +52,8 @@ class User(Base):
     mfa_secret: Mapped[str | None] = mapped_column(String(64))
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     mfa_last_used_step: Mapped[int | None] = mapped_column(BigInteger)
+    # MFAバックアップコード: [{"hash": <sha256hex>, "used": bool}, ...]。
+    mfa_backup_codes: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

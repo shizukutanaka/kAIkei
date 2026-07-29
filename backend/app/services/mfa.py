@@ -175,6 +175,7 @@ async def setup_mfa(
     user.mfa_secret = secret
     user.mfa_enabled = False
     user.mfa_last_used_step = None
+    user.mfa_backup_codes = None  # 旧秘密鍵向けのバックアップコードを無効化
     await db.flush()
     return secret, build_otpauth_uri(secret, user.email)
 
@@ -201,5 +202,93 @@ async def disable_mfa(db: AsyncSession, user_id: UUID, code: str, timestamp: int
     user.mfa_enabled = False
     user.mfa_secret = None
     user.mfa_last_used_step = None
+    user.mfa_backup_codes = None
+    await db.flush()
+    return True
+
+
+# --- MFAバックアップコード（TOTP認証器を紛失した際の復旧手段） -----------------
+
+DEFAULT_BACKUP_CODE_COUNT = 10
+
+
+def _normalize_backup_code(code: str) -> str:
+    """入力コードを正規化する（空白/ハイフン除去・大文字化）。表示整形を吸収する。"""
+    return "".join(ch for ch in code.strip().upper() if ch.isalnum())
+
+
+def hash_backup_code(code: str) -> str:
+    """バックアップコードのSHA-256ハッシュ（16進）。コードは高エントロピー乱数のため
+    ソルト不要（APIキーと同様）。正規化してからハッシュする。"""
+    return hashlib.sha256(_normalize_backup_code(code).encode("ascii")).hexdigest()
+
+
+def generate_backup_codes(count: int = DEFAULT_BACKUP_CODE_COUNT) -> list[str]:
+    """人が書き写せる高エントロピーのバックアップコードを生成する（表示は once）。
+
+    各コードは Crockford風base32の10文字（約50bit）。表示整形のため中央にハイフンを入れる。
+    """
+    alphabet = "ABCDEFGHJKMNPQRSTVWXYZ0123456789"  # 紛らわしいI/L/O/U を除外
+    codes: list[str] = []
+    for _ in range(count):
+        raw = "".join(secrets_module.choice(alphabet) for _ in range(10))
+        codes.append(f"{raw[:5]}-{raw[5:]}")
+    return codes
+
+
+def build_backup_code_entries(codes: list[str]) -> list[dict]:
+    """平文コード一覧から保存用エントリ（ハッシュ＋未使用フラグ）を作る。"""
+    return [{"hash": hash_backup_code(c), "used": False} for c in codes]
+
+
+def count_unused_backup_codes(entries: list[dict] | None) -> int:
+    """未使用のバックアップコード数を返す。"""
+    if not entries:
+        return 0
+    return sum(1 for e in entries if not e.get("used"))
+
+
+def match_backup_code(entries: list[dict] | None, code: str) -> int | None:
+    """コードに一致する未使用エントリのインデックスを返す（定数時間比較）。無ければNone。"""
+    if not entries:
+        return None
+    target = hash_backup_code(code)
+    for i, entry in enumerate(entries):
+        if entry.get("used"):
+            continue
+        if hmac.compare_digest(str(entry.get("hash", "")), target):
+            return i
+    return None
+
+
+async def regenerate_backup_codes(
+    db: AsyncSession, user_id: UUID, current_code: str, timestamp: int
+) -> list[str] | None:
+    """現在のTOTPコードを検証し、バックアップコードを再生成して保存する。
+
+    平文コードを返す（呼び出し側で一度だけ表示）。MFA未有効・コード不正なら None。
+    既存のバックアップコードは全て無効化される（再生成）。
+    """
+    user = await _get_user(db, user_id)
+    if user is None or not user.mfa_enabled or not user.mfa_secret:
+        return None
+    if not await verify_and_consume_totp(db, user, current_code, timestamp):
+        return None
+    codes = generate_backup_codes()
+    user.mfa_backup_codes = build_backup_code_entries(codes)
+    await db.flush()
+    return codes
+
+
+async def consume_backup_code(db: AsyncSession, user, code: str) -> bool:
+    """ログイン時のバックアップコード検証＋消費（単回使用）。一致すれば used=True にする。"""
+    entries = user.mfa_backup_codes
+    idx = match_backup_code(entries, code)
+    if idx is None:
+        return False
+    # JSONBの部分更新はSQLAlchemyの変更検知に載らないため、リストを作り直して再代入する。
+    updated = [dict(e) for e in entries]
+    updated[idx]["used"] = True
+    user.mfa_backup_codes = updated
     await db.flush()
     return True
