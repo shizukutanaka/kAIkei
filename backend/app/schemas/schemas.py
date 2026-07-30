@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.services.labor_insurance import DEFAULT_WORKERS_COMPENSATION_RATE
+from app.services.labor_insurance import BUSINESS_TYPE_GENERAL, DEFAULT_WORKERS_COMPENSATION_RATE
 
 
 class TokenResponse(BaseModel):
@@ -1292,6 +1292,43 @@ class QualificationAcquisitionEmployeeInput(BaseModel):
 
 class QualificationAcquisitionExportRequest(BaseModel):
     employees: list[QualificationAcquisitionEmployeeInput]
+
+
+class PayrollCloseRequest(BaseModel):
+    fiscal_year: int
+    target_month: int
+    business_type: str = BUSINESS_TYPE_GENERAL
+    attendance_csv: str | None = None
+    santei_csv: str | None = None
+    labor_insurance_csv: str | None = None
+    revision_csv: str | None = None
+    bonus_csv: str | None = None
+    column_maps: dict[str, dict[str, str]] | None = None
+
+
+class PayrollCloseFormSchema(BaseModel):
+    form: str
+    label: str
+    status: str
+    required: bool
+    detail: str
+    statutory_deadline: date | None
+    summary: dict[str, str]
+    csv_text: str | None
+
+    model_config = {"from_attributes": True}
+
+
+class PayrollCloseResponse(BaseModel):
+    fiscal_year: int
+    target_month: int
+    outcomes: list[PayrollCloseFormSchema]
+    completed_forms: list[str]
+    failed_forms: list[str]
+    blocking_forms: list[str]
+    close_ready: bool
+
+    model_config = {"from_attributes": True}
 
 
 class QualificationLossEmployeeInput(BaseModel):

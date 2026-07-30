@@ -72,6 +72,8 @@ from app.schemas.schemas import (
     QualificationAcquisitionExportRequest,
     QualificationLossGenerateRequest,
     QualificationLossGenerateResponse,
+    PayrollCloseRequest,
+    PayrollCloseResponse,
     ResidenceTaxResponse,
     SocialInsurancePremiumResponse,
 )
@@ -98,6 +100,7 @@ from app.services.standard_remuneration import RemunerationMonth
 from app.services.standard_bonus import BonusEmployee, StandardBonusService
 from app.services.qualification_acquisition import AcquisitionEmployee, QualificationAcquisitionService
 from app.services.qualification_loss import LossEmployee, QualificationLossService
+from app.services.payroll_close import PayrollCloseInput, PayrollCloseService
 from app.services.social_insurance import (
     DEFAULT_CARE_INSURANCE_RATE,
     DEFAULT_HEALTH_INSURANCE_RATE,
@@ -1201,6 +1204,30 @@ async def export_qualification_acquisition(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="shikaku_shutoku.csv"'},
     )
+
+
+@router.post("/monthly-close/run", response_model=PayrollCloseResponse)
+async def run_monthly_payroll_close(
+    payload: PayrollCloseRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> PayrollCloseResponse:
+    try:
+        result = PayrollCloseService.run(
+            PayrollCloseInput(
+                fiscal_year=payload.fiscal_year,
+                target_month=payload.target_month,
+                business_type=payload.business_type,
+                attendance_csv=payload.attendance_csv,
+                santei_csv=payload.santei_csv,
+                labor_insurance_csv=payload.labor_insurance_csv,
+                revision_csv=payload.revision_csv,
+                bonus_csv=payload.bonus_csv,
+                column_maps=payload.column_maps,
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return PayrollCloseResponse.model_validate(result)
 
 
 @router.post("/qualification-loss/generate", response_model=QualificationLossGenerateResponse)
