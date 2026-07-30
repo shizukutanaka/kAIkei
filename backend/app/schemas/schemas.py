@@ -1294,6 +1294,54 @@ class QualificationAcquisitionExportRequest(BaseModel):
     employees: list[QualificationAcquisitionEmployeeInput]
 
 
+class PayrollJournalDraftRequest(BaseModel):
+    payroll_year: int
+    payroll_month: int
+    total_gross: Decimal
+    employee_social_insurance: Decimal = Decimal("0")
+    employee_employment_insurance: Decimal = Decimal("0")
+    income_tax: Decimal = Decimal("0")
+    residence_tax: Decimal = Decimal("0")
+    other_deductions: Decimal = Decimal("0")
+    employer_social_insurance: Decimal = Decimal("0")
+    employer_employment_insurance: Decimal = Decimal("0")
+    employer_workers_compensation: Decimal = Decimal("0")
+    payment_day: int = 25
+
+
+class PayrollJournalLineSchema(BaseModel):
+    account_role: str
+    debit: Decimal
+    credit: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class PayrollJournalDraftSchema(BaseModel):
+    draft_type: str
+    description: str
+    transaction_date: date
+    due_date: date | None
+    lines: list[PayrollJournalLineSchema]
+    total_debit: Decimal
+    total_credit: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class PayrollJournalDraftResponse(BaseModel):
+    payroll_year: int
+    payroll_month: int
+    total_gross: Decimal
+    employee_deduction_total: Decimal
+    employer_burden_total: Decimal
+    net_pay: Decimal
+    drafts: list[PayrollJournalDraftSchema]
+    balanced: bool
+
+    model_config = {"from_attributes": True}
+
+
 class PayrollCloseRequest(BaseModel):
     fiscal_year: int
     target_month: int

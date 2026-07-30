@@ -74,6 +74,8 @@ from app.schemas.schemas import (
     QualificationLossGenerateResponse,
     PayrollCloseRequest,
     PayrollCloseResponse,
+    PayrollJournalDraftRequest,
+    PayrollJournalDraftResponse,
     ResidenceTaxResponse,
     SocialInsurancePremiumResponse,
 )
@@ -101,6 +103,7 @@ from app.services.standard_bonus import BonusEmployee, StandardBonusService
 from app.services.qualification_acquisition import AcquisitionEmployee, QualificationAcquisitionService
 from app.services.qualification_loss import LossEmployee, QualificationLossService
 from app.services.payroll_close import PayrollCloseInput, PayrollCloseService
+from app.services.payroll_journal_draft import PayrollJournalDraftService, PayrollJournalInput
 from app.services.social_insurance import (
     DEFAULT_CARE_INSURANCE_RATE,
     DEFAULT_HEALTH_INSURANCE_RATE,
@@ -1204,6 +1207,33 @@ async def export_qualification_acquisition(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="shikaku_shutoku.csv"'},
     )
+
+
+@router.post("/journal-drafts/generate", response_model=PayrollJournalDraftResponse)
+async def generate_payroll_journal_drafts(
+    payload: PayrollJournalDraftRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> PayrollJournalDraftResponse:
+    try:
+        result = PayrollJournalDraftService.generate(
+            PayrollJournalInput(
+                payroll_year=payload.payroll_year,
+                payroll_month=payload.payroll_month,
+                total_gross=payload.total_gross,
+                employee_social_insurance=payload.employee_social_insurance,
+                employee_employment_insurance=payload.employee_employment_insurance,
+                income_tax=payload.income_tax,
+                residence_tax=payload.residence_tax,
+                other_deductions=payload.other_deductions,
+                employer_social_insurance=payload.employer_social_insurance,
+                employer_employment_insurance=payload.employer_employment_insurance,
+                employer_workers_compensation=payload.employer_workers_compensation,
+                payment_day=payload.payment_day,
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return PayrollJournalDraftResponse.model_validate(result)
 
 
 @router.post("/monthly-close/run", response_model=PayrollCloseResponse)
