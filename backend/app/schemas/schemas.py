@@ -1294,6 +1294,39 @@ class QualificationAcquisitionExportRequest(BaseModel):
     employees: list[QualificationAcquisitionEmployeeInput]
 
 
+class PaymentTaskRequest(BaseModel):
+    payroll_year: int
+    payroll_month: int
+    income_tax: Decimal = Decimal("0")
+    residence_tax: Decimal = Decimal("0")
+    social_insurance_total: Decimal = Decimal("0")
+    withholding_special_exception: bool = False
+    holidays: list[date] | None = None
+
+
+class PaymentTaskSchema(BaseModel):
+    task_type: str
+    title: str
+    payee: str
+    amount: Decimal
+    statutory_due_date: date
+    due_date: date
+    shifted: bool
+    legal_basis: str
+
+    model_config = {"from_attributes": True}
+
+
+class PaymentTaskResponse(BaseModel):
+    payroll_year: int
+    payroll_month: int
+    tasks: list[PaymentTaskSchema]
+    total_amount: Decimal
+    earliest_due_date: date | None
+
+    model_config = {"from_attributes": True}
+
+
 class PayrollJournalDraftRequest(BaseModel):
     payroll_year: int
     payroll_month: int

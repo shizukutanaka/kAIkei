@@ -76,6 +76,8 @@ from app.schemas.schemas import (
     PayrollCloseResponse,
     PayrollJournalDraftRequest,
     PayrollJournalDraftResponse,
+    PaymentTaskRequest,
+    PaymentTaskResponse,
     ResidenceTaxResponse,
     SocialInsurancePremiumResponse,
 )
@@ -104,6 +106,7 @@ from app.services.qualification_acquisition import AcquisitionEmployee, Qualific
 from app.services.qualification_loss import LossEmployee, QualificationLossService
 from app.services.payroll_close import PayrollCloseInput, PayrollCloseService
 from app.services.payroll_journal_draft import PayrollJournalDraftService, PayrollJournalInput
+from app.services.payment_task import PaymentTaskInput, PaymentTaskService
 from app.services.social_insurance import (
     DEFAULT_CARE_INSURANCE_RATE,
     DEFAULT_HEALTH_INSURANCE_RATE,
@@ -1207,6 +1210,28 @@ async def export_qualification_acquisition(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="shikaku_shutoku.csv"'},
     )
+
+
+@router.post("/payment-tasks/generate", response_model=PaymentTaskResponse)
+async def generate_payment_tasks(
+    payload: PaymentTaskRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> PaymentTaskResponse:
+    try:
+        result = PaymentTaskService.generate(
+            PaymentTaskInput(
+                payroll_year=payload.payroll_year,
+                payroll_month=payload.payroll_month,
+                income_tax=payload.income_tax,
+                residence_tax=payload.residence_tax,
+                social_insurance_total=payload.social_insurance_total,
+                withholding_special_exception=payload.withholding_special_exception,
+                holidays=payload.holidays,
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return PaymentTaskResponse.model_validate(result)
 
 
 @router.post("/journal-drafts/generate", response_model=PayrollJournalDraftResponse)
