@@ -9,9 +9,20 @@ from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.models.models import PaymentRequest
-from app.schemas.schemas import PaymentRequestCreate, PaymentRequestResponse, ZenginExportRequest
+from app.schemas.schemas import (
+    PaymentRequestCreate,
+    PaymentRequestResponse,
+    ZenginExportRequest,
+    ZenginTransferRequest,
+    ZenginTransferResponse,
+)
 from app.services.payment_export import ZenginExportService
 from app.services.payment_terms import PaymentTermsService
+from app.services.zengin_transfer import (
+    TransferLine,
+    TransferRequest,
+    ZenginTransferService,
+)
 
 router = APIRouter()
 
@@ -65,6 +76,46 @@ async def export_zengin(
         bank_account_id=payload.bank_account_id,
     )
     return Response(content=body, media_type="application/octet-stream")
+
+
+@router.post("/zengin/transfer-data", response_model=ZenginTransferResponse)
+async def generate_zengin_transfer_data(
+    payload: ZenginTransferRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),  # noqa: B008
+) -> ZenginTransferResponse:
+    try:
+        result = ZenginTransferService.generate(
+            TransferRequest(
+                consignor_code=payload.consignor_code,
+                consignor_name=payload.consignor_name,
+                transfer_date=payload.transfer_date,
+                bank_code=payload.bank_code,
+                bank_name=payload.bank_name,
+                branch_code=payload.branch_code,
+                branch_name=payload.branch_name,
+                account_type=payload.account_type,
+                account_number=payload.account_number,
+                lines=[
+                    TransferLine(
+                        bank_code=line.bank_code,
+                        bank_name=line.bank_name,
+                        branch_code=line.branch_code,
+                        branch_name=line.branch_name,
+                        account_type=line.account_type,
+                        account_number=line.account_number,
+                        recipient_name=line.recipient_name,
+                        amount=line.amount,
+                        customer_code=line.customer_code,
+                        fee_borne_by_recipient=line.fee_borne_by_recipient,
+                        transfer_fee=line.transfer_fee,
+                    )
+                    for line in payload.lines
+                ],
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ZenginTransferResponse.model_validate(result)
 
 
 @router.get("/payment-date")

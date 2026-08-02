@@ -1294,6 +1294,55 @@ class QualificationAcquisitionExportRequest(BaseModel):
     employees: list[QualificationAcquisitionEmployeeInput]
 
 
+class ZenginTransferLineInput(BaseModel):
+    bank_code: str
+    bank_name: str
+    branch_code: str
+    branch_name: str
+    account_type: str
+    account_number: str
+    recipient_name: str
+    amount: Decimal
+    customer_code: str = ""
+    fee_borne_by_recipient: bool = False
+    transfer_fee: Decimal = Decimal("0")
+
+
+class ZenginTransferRequest(BaseModel):
+    consignor_code: str
+    consignor_name: str
+    transfer_date: date
+    bank_code: str
+    bank_name: str
+    branch_code: str
+    branch_name: str
+    account_type: str
+    account_number: str
+    lines: list[ZenginTransferLineInput]
+
+
+class ZenginTransferLineResult(BaseModel):
+    recipient_name: str
+    payable_amount: Decimal
+    transfer_fee: Decimal
+    transfer_amount: Decimal
+    fee_borne_by_recipient: bool
+
+    model_config = {"from_attributes": True}
+
+
+class ZenginTransferResponse(BaseModel):
+    records: list[str]
+    detail_count: int
+    total_amount: Decimal
+    total_fee_deducted: Decimal
+    lines: list[ZenginTransferLineResult]
+    encoding: str
+    record_length: int
+
+    model_config = {"from_attributes": True}
+
+
 class PaymentTaskRequest(BaseModel):
     payroll_year: int
     payroll_month: int
