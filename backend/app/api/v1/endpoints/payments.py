@@ -1,4 +1,5 @@
 from datetime import date
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
@@ -18,6 +19,7 @@ from app.schemas.schemas import (
 )
 from app.services.payment_export import ZenginExportService
 from app.services.payment_terms import PaymentTermsService
+from app.services.payment_workflow import next_payment_status
 from app.services.zengin_transfer import (
     TransferLine,
     TransferRequest,
@@ -25,6 +27,41 @@ from app.services.zengin_transfer import (
 )
 
 router = APIRouter()
+
+
+@router.get("", response_model=list[PaymentRequestResponse])
+async def list_payment_requests(
+    company_id: UUID = Query(...),  # noqa: B008
+    status: str | None = Query(None, description="draft/approved/executed/cancelled"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> list[PaymentRequestResponse]:
+    """会社の支払申請を一覧取得する（任意でステータス絞り込み）。"""
+    stmt = select(PaymentRequest).where(PaymentRequest.company_id == company_id)
+    if status is not None:
+        stmt = stmt.where(PaymentRequest.status == status)
+    stmt = stmt.order_by(PaymentRequest.payment_date.asc(), PaymentRequest.created_at.asc())
+    result = await db.execute(stmt)
+    return [PaymentRequestResponse.model_validate(r) for r in result.scalars().all()]
+
+
+async def _transition(db: AsyncSession, company_id: UUID, request_id: UUID, action: str) -> PaymentRequest:
+    result = await db.execute(
+        select(PaymentRequest).where(
+            PaymentRequest.payment_request_id == request_id,
+            PaymentRequest.company_id == company_id,
+        )
+    )
+    request = result.scalar_one_or_none()
+    if request is None:
+        raise HTTPException(status_code=404, detail="Payment request not found")
+    try:
+        request.status = next_payment_status(request.status, action)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    await db.flush()
+    await db.refresh(request)
+    return request
 
 
 @router.post("", response_model=PaymentRequestResponse, status_code=201)
@@ -51,6 +88,39 @@ async def create_payment_request(
     await db.flush()
     await db.refresh(request)
     return PaymentRequestResponse.model_validate(request)
+
+
+@router.post("/{request_id}/approve", response_model=PaymentRequestResponse)
+async def approve_payment_request(
+    request_id: UUID,
+    company_id: UUID = Query(...),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_UPDATE)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> PaymentRequestResponse:
+    """下書きの支払申請を承認する（draft→approved）。"""
+    return PaymentRequestResponse.model_validate(await _transition(db, company_id, request_id, "approve"))
+
+
+@router.post("/{request_id}/execute", response_model=PaymentRequestResponse)
+async def execute_payment_request(
+    request_id: UUID,
+    company_id: UUID = Query(...),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_UPDATE)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> PaymentRequestResponse:
+    """承認済みの支払申請を実行済みにする（approved→executed）。"""
+    return PaymentRequestResponse.model_validate(await _transition(db, company_id, request_id, "execute"))
+
+
+@router.post("/{request_id}/cancel", response_model=PaymentRequestResponse)
+async def cancel_payment_request(
+    request_id: UUID,
+    company_id: UUID = Query(...),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_UPDATE)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> PaymentRequestResponse:
+    """支払申請を取り消す（draft/approved→cancelled）。"""
+    return PaymentRequestResponse.model_validate(await _transition(db, company_id, request_id, "cancel"))
 
 
 @router.post("/zengin-export")

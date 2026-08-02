@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, LayoutDashboard, FileText, Settings, Receipt, Users, Building2, Calculator, Sparkles, Globe, FileCheck, List, Menu, X, Handshake, Gift, CalendarClock, Clock, Wallet, FilePlus, Landmark, ScrollText, Banknote, ShieldAlert, Archive, ListChecks, ShieldCheck, Scale, GitBranch, Webhook } from "lucide-react";
+import { BookOpen, LayoutDashboard, FileText, Settings, Receipt, Users, Building2, Calculator, Sparkles, Globe, FileCheck, List, Menu, X, Handshake, Gift, CalendarClock, Clock, Wallet, FilePlus, Landmark, ScrollText, Banknote, ShieldAlert, Archive, ListChecks, ShieldCheck, Scale, GitBranch, Webhook, Activity } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import CompanySelector from "@/components/company-selector";
@@ -39,6 +39,7 @@ const navSections: NavSection[] = [
       { label: "マスタ", href: "/masters", icon: BookOpen, permissions: ["master:read", "master:create"] },
       { label: "取引先", href: "/partners", icon: Handshake, permissions: ["master:read", "master:create"] },
       { label: "帳票", href: "/reports", icon: FileText, permissions: ["report:read"] },
+      { label: "予算管理", href: "/budgets", icon: Wallet, permissions: ["master:read"] },
       { label: "固定資産", href: "/assets", icon: Calculator },
     ],
   },
@@ -59,6 +60,8 @@ const navSections: NavSection[] = [
       { label: "消費税申告", href: "/tax-returns", icon: Landmark },
       { label: "税務調整", href: "/tax-adjustments", icon: Scale, permissions: ["master:read"] },
       { label: "銀行明細・消込", href: "/bank", icon: Banknote, permissions: ["journal:read"] },
+      { label: "支払申請", href: "/payments", icon: Banknote, permissions: ["master:read"] },
+      { label: "資金繰り予測", href: "/treasury", icon: Landmark, permissions: ["report:read"] },
     ],
   },
   {
@@ -71,6 +74,8 @@ const navSections: NavSection[] = [
       { label: "月次業務タスク", href: "/office-tasks", icon: ListChecks },
       { label: "セキュリティポリシー", href: "/security-policy", icon: ShieldCheck, permissions: ["user:manage"] },
       { label: "Webhook管理", href: "/webhooks", icon: Webhook, permissions: ["webhook:manage"] },
+      { label: "スケジュールジョブ", href: "/jobs", icon: CalendarClock, permissions: ["master:read"] },
+      { label: "運用モニタリング", href: "/ops", icon: Activity, permissions: ["master:read"] },
       { label: "設定", href: "/settings", icon: Settings },
     ],
   },

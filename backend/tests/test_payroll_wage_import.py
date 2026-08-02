@@ -95,9 +95,9 @@ def test_construction_business_rates():
     csv_text = "社員番号,賃金\nE1,10000000\n"
     records = PayrollWageImportService.parse_csv(csv_text)
     result = PayrollWageImportService.compute(records, business_type="construction")
-    # construction 雇用 0.007 / 0.0105
+    # construction 雇用 0.007 / 0.0115
     assert result.employment_employee_premium == Decimal("70000")
-    assert result.employment_employer_premium == Decimal("105000")
+    assert result.employment_employer_premium == Decimal("115000")
 
 
 def test_workers_comp_rate_override():

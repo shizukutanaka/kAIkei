@@ -47,6 +47,16 @@
 | `/security-policy` | Security Policy | テナントセキュリティ（IP制限・MFA要求） | 本書に節なし |
 | `/ai-inference-logs` | AI Inference Logs | AI推論ログ・較正指標 | 本書§4の `/ai/inference-logs` は独立ルーターとして実装 |
 | `/office-tasks` | Office Tasks | 月次業務タスク | 本書に節なし |
+| `/budgets` | Budgets | 予算編成・予実分析（勘定科目×月） | 本書に節なし。フロント `/budgets` 実装済み |
+| `/payments` | Payments | 支払申請・全銀エクスポート | 本書に節なし。全銀は現状モック（ImprovementGuide改善3参照） |
+| `/treasury` | Treasury | 銀行口座・資金管理 | 本書に節なし |
+| `/tax` | Tax | 税予測（tax_forecast） | 本書§10の `/tax/forecast` 相当 |
+| `/jobs` | Jobs | スケジュールジョブ・実行管理 | 本書に節なし。定期ディスパッチはワーカーが自動処理。フロント `/jobs` 実装済み |
+| `/ops` | Operations | 運用モニタリング | 本書に節なし |
+
+> 注: mainへの並行統合で追加されたテーブル（budgets/budget_lines/bank_accounts/
+> bank_statement_details/payment_requests/scheduled_jobs/job_executions）は
+> DataDictionary/DatabaseDesign に順次反映する（正準は `/openapi.json` と models.py）。
 
 ---
 
