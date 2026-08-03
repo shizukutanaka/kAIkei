@@ -11,6 +11,8 @@ from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.models.models import PaymentRequest
 from app.schemas.schemas import (
+    PaymentMatchingRequest,
+    PaymentMatchingResponse,
     PaymentRequestCreate,
     PaymentRequestResponse,
     ZenginExportRequest,
@@ -18,6 +20,11 @@ from app.schemas.schemas import (
     ZenginTransferResponse,
 )
 from app.services.payment_export import ZenginExportService
+from app.services.payment_matching import (
+    BankWithdrawal,
+    ExpectedPayment,
+    PaymentMatchingService,
+)
 from app.services.payment_terms import PaymentTermsService
 from app.services.payment_workflow import next_payment_status
 from app.services.zengin_transfer import (
@@ -186,6 +193,39 @@ async def generate_zengin_transfer_data(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return ZenginTransferResponse.model_validate(result)
+
+
+@router.post("/bank-matching", response_model=PaymentMatchingResponse)
+async def match_payments_with_bank_withdrawals(
+    payload: PaymentMatchingRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),  # noqa: B008
+) -> PaymentMatchingResponse:
+    try:
+        result = PaymentMatchingService.match(
+            withdrawals=[
+                BankWithdrawal(
+                    line_id=item.line_id,
+                    transaction_date=item.transaction_date,
+                    amount=item.amount,
+                    description=item.description,
+                )
+                for item in payload.withdrawals
+            ],
+            payments=[
+                ExpectedPayment(
+                    payment_id=item.payment_id,
+                    payee_name=item.payee_name,
+                    amount=item.amount,
+                    payment_date=item.payment_date,
+                )
+                for item in payload.payments
+            ],
+            date_tolerance_days=payload.date_tolerance_days,
+            fee_tolerance=payload.fee_tolerance,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return PaymentMatchingResponse.model_validate(result)
 
 
 @router.get("/payment-date")

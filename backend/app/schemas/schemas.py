@@ -1294,6 +1294,51 @@ class QualificationAcquisitionExportRequest(BaseModel):
     employees: list[QualificationAcquisitionEmployeeInput]
 
 
+class ExpectedPaymentInput(BaseModel):
+    payment_id: str
+    payee_name: str = ""
+    amount: Decimal
+    payment_date: date
+
+
+class BankWithdrawalInput(BaseModel):
+    line_id: str
+    transaction_date: date
+    amount: Decimal
+    description: str = ""
+
+
+class PaymentMatchingRequest(BaseModel):
+    withdrawals: list[BankWithdrawalInput]
+    payments: list[ExpectedPaymentInput]
+    date_tolerance_days: int = 3
+    fee_tolerance: Decimal = Decimal("0")
+
+
+class PaymentMatchSchema(BaseModel):
+    line_id: str
+    payment_ids: list[str]
+    withdrawal_amount: Decimal
+    matched_amount: Decimal
+    difference: Decimal
+    match_type: str
+
+    model_config = {"from_attributes": True}
+
+
+class PaymentMatchingResponse(BaseModel):
+    matches: list[PaymentMatchSchema]
+    unmatched_line_ids: list[str]
+    unmatched_payment_ids: list[str]
+    matched_count: int
+    matched_amount_total: Decimal
+    unmatched_withdrawal_total: Decimal
+    unmatched_payment_total: Decimal
+    fully_reconciled: bool
+
+    model_config = {"from_attributes": True}
+
+
 class ZenginTransferLineInput(BaseModel):
     bank_code: str
     bank_name: str
