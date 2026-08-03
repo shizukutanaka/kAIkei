@@ -15,6 +15,8 @@ from app.schemas.schemas import (
     PaymentMatchingResponse,
     PaymentRequestCreate,
     PaymentRequestResponse,
+    ReceivableMatchingRequest,
+    ReceivableMatchingResponse,
     ZenginExportRequest,
     ZenginTransferRequest,
     ZenginTransferResponse,
@@ -27,6 +29,11 @@ from app.services.payment_matching import (
 )
 from app.services.payment_terms import PaymentTermsService
 from app.services.payment_workflow import next_payment_status
+from app.services.receivable_matching import (
+    Deposit,
+    OpenInvoice,
+    ReceivableMatchingService,
+)
 from app.services.zengin_transfer import (
     TransferLine,
     TransferRequest,
@@ -226,6 +233,39 @@ async def match_payments_with_bank_withdrawals(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return PaymentMatchingResponse.model_validate(result)
+
+
+@router.post("/receivable-matching", response_model=ReceivableMatchingResponse)
+async def match_deposits_with_invoices(
+    payload: ReceivableMatchingRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),  # noqa: B008
+) -> ReceivableMatchingResponse:
+    try:
+        result = ReceivableMatchingService.match(
+            deposits=[
+                Deposit(
+                    deposit_id=item.deposit_id,
+                    transaction_date=item.transaction_date,
+                    amount=item.amount,
+                    remitter_name=item.remitter_name,
+                )
+                for item in payload.deposits
+            ],
+            invoices=[
+                OpenInvoice(
+                    invoice_id=item.invoice_id,
+                    customer_name=item.customer_name,
+                    amount=item.amount,
+                    due_date=item.due_date,
+                )
+                for item in payload.invoices
+            ],
+            fee_tolerance=payload.fee_tolerance,
+            name_threshold=payload.name_threshold,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ReceivableMatchingResponse.model_validate(result)
 
 
 @router.get("/payment-date")

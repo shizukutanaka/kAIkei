@@ -1294,6 +1294,70 @@ class QualificationAcquisitionExportRequest(BaseModel):
     employees: list[QualificationAcquisitionEmployeeInput]
 
 
+class OpenInvoiceInput(BaseModel):
+    invoice_id: str
+    customer_name: str
+    amount: Decimal
+    due_date: date
+
+
+class DepositInput(BaseModel):
+    deposit_id: str
+    transaction_date: date
+    amount: Decimal
+    remitter_name: str = ""
+
+
+class ReceivableMatchingRequest(BaseModel):
+    deposits: list[DepositInput]
+    invoices: list[OpenInvoiceInput]
+    fee_tolerance: Decimal = Decimal("0")
+    name_threshold: float = 0.6
+
+
+class AllocationSchema(BaseModel):
+    invoice_id: str
+    applied_amount: Decimal
+    fee_absorbed: Decimal
+    apply_type: str
+
+    model_config = {"from_attributes": True}
+
+
+class DepositResultSchema(BaseModel):
+    deposit_id: str
+    amount: Decimal
+    status: str
+    allocations: list[AllocationSchema]
+    applied_amount: Decimal
+    advance_amount: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class InvoiceBalanceSchema(BaseModel):
+    invoice_id: str
+    amount: Decimal
+    applied_amount: Decimal
+    outstanding: Decimal
+    settled: bool
+
+    model_config = {"from_attributes": True}
+
+
+class ReceivableMatchingResponse(BaseModel):
+    deposits: list[DepositResultSchema]
+    invoices: list[InvoiceBalanceSchema]
+    total_applied: Decimal
+    total_advance: Decimal
+    total_unmatched: Decimal
+    total_outstanding: Decimal
+    settled_invoice_ids: list[str]
+    unmatched_deposit_ids: list[str]
+
+    model_config = {"from_attributes": True}
+
+
 class ExpectedPaymentInput(BaseModel):
     payment_id: str
     payee_name: str = ""
