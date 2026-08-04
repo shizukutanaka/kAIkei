@@ -15,6 +15,8 @@ from app.schemas.schemas import (
     PaymentMatchingResponse,
     PaymentRequestCreate,
     PaymentRequestResponse,
+    ReceivableJournalDraftSchema,
+    ReceivableJournalResponse,
     ReceivableMatchingRequest,
     ReceivableMatchingResponse,
     ZenginExportRequest,
@@ -29,6 +31,7 @@ from app.services.payment_matching import (
 )
 from app.services.payment_terms import PaymentTermsService
 from app.services.payment_workflow import next_payment_status
+from app.services.receivable_journal_draft import ReceivableJournalDraftService
 from app.services.receivable_matching import (
     Deposit,
     OpenInvoice,
@@ -266,6 +269,57 @@ async def match_deposits_with_invoices(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return ReceivableMatchingResponse.model_validate(result)
+
+
+@router.post("/receivable-journal-drafts", response_model=ReceivableJournalResponse)
+async def generate_receivable_journal_drafts(
+    payload: ReceivableMatchingRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),  # noqa: B008
+) -> ReceivableJournalResponse:
+    """入金明細と請求を消し込み、売掛金の消込仕訳ドラフトまで生成する。"""
+    try:
+        matched = ReceivableMatchingService.match(
+            deposits=[
+                Deposit(
+                    deposit_id=item.deposit_id,
+                    transaction_date=item.transaction_date,
+                    amount=item.amount,
+                    remitter_name=item.remitter_name,
+                )
+                for item in payload.deposits
+            ],
+            invoices=[
+                OpenInvoice(
+                    invoice_id=item.invoice_id,
+                    customer_name=item.customer_name,
+                    amount=item.amount,
+                    due_date=item.due_date,
+                )
+                for item in payload.invoices
+            ],
+            fee_tolerance=payload.fee_tolerance,
+            name_threshold=payload.name_threshold,
+        )
+        journal = ReceivableJournalDraftService.generate(
+            matched,
+            transaction_dates={
+                item.deposit_id: item.transaction_date for item in payload.deposits
+            },
+            partner_names={
+                item.invoice_id: item.customer_name for item in payload.invoices
+            },
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ReceivableJournalResponse(
+        matching=ReceivableMatchingResponse.model_validate(matched),
+        drafts=[ReceivableJournalDraftSchema.model_validate(d) for d in journal.drafts],
+        total_receivable_cleared=journal.total_receivable_cleared,
+        total_fee_expense=journal.total_fee_expense,
+        total_advance_received=journal.total_advance_received,
+        total_suspense=journal.total_suspense,
+        balanced=journal.balanced,
+    )
 
 
 @router.get("/payment-date")

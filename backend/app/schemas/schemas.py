@@ -1358,6 +1358,38 @@ class ReceivableMatchingResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ReceivableDraftLineSchema(BaseModel):
+    account_role: str
+    debit: Decimal
+    credit: Decimal
+    invoice_id: str | None = None
+    partner_name: str = ""
+
+    model_config = {"from_attributes": True}
+
+
+class ReceivableJournalDraftSchema(BaseModel):
+    draft_type: str
+    deposit_id: str
+    description: str
+    transaction_date: date
+    lines: list[ReceivableDraftLineSchema]
+    total_debit: Decimal
+    total_credit: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class ReceivableJournalResponse(BaseModel):
+    matching: ReceivableMatchingResponse
+    drafts: list[ReceivableJournalDraftSchema]
+    total_receivable_cleared: Decimal
+    total_fee_expense: Decimal
+    total_advance_received: Decimal
+    total_suspense: Decimal
+    balanced: bool
+
+
 class ExpectedPaymentInput(BaseModel):
     payment_id: str
     payee_name: str = ""
