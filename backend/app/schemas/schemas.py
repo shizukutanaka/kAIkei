@@ -1294,6 +1294,76 @@ class QualificationAcquisitionExportRequest(BaseModel):
     employees: list[QualificationAcquisitionEmployeeInput]
 
 
+class SalesLineInput(BaseModel):
+    line_id: str
+    customer_code: str
+    customer_name: str
+    sales_date: date
+    amount: Decimal
+    tax_rate: Decimal
+    description: str = ""
+
+
+class BillingTermsInput(BaseModel):
+    customer_code: str
+    closing_day: int
+    payment_month_offset: int = 1
+    payment_day: int = 31
+    adjustment: str = "next"
+
+
+class SalesClosingRequest(BaseModel):
+    lines: list[SalesLineInput]
+    terms: list[BillingTermsInput]
+    holidays: list[date] = []
+
+
+class TaxBreakdownSchema(BaseModel):
+    tax_rate: Decimal
+    taxable_base: Decimal
+    tax: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class SalesJournalLineSchema(BaseModel):
+    account_role: str
+    debit: Decimal
+    credit: Decimal
+    tax_rate: Decimal | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class ClosedInvoiceSchema(BaseModel):
+    invoice_id: str
+    customer_code: str
+    customer_name: str
+    closing_date: date
+    due_date: date
+    line_ids: list[str]
+    by_rate: list[TaxBreakdownSchema]
+    total_taxable: Decimal
+    total_tax: Decimal
+    total_amount: Decimal
+    journal_lines: list[SalesJournalLineSchema]
+    total_debit: Decimal
+    total_credit: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class SalesClosingResponse(BaseModel):
+    invoices: list[ClosedInvoiceSchema]
+    invoice_count: int
+    total_taxable: Decimal
+    total_tax: Decimal
+    total_amount: Decimal
+    balanced: bool
+
+    model_config = {"from_attributes": True}
+
+
 class OpenInvoiceInput(BaseModel):
     invoice_id: str
     customer_name: str

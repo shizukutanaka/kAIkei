@@ -22,19 +22,26 @@ from app.schemas.schemas import (
     NotificationCreate,
     QualifiedInvoiceCheckRequest,
     QualifiedInvoiceCheckResponse,
+    SalesClosingRequest,
+    SalesClosingResponse,
 )
 from app.services.auto_journal import (
     generate_invoice_issue_journal,
     generate_invoice_payment_journal,
 )
+from app.services.invoice_number import is_valid_registration_number, normalize
 from app.services.invoice_registration import InvoiceRegistrationService
 from app.services.invoice_tax import InvoiceTaxService
 from app.services.notification_service import create_notification
-from app.services.invoice_number import is_valid_registration_number, normalize
 from app.services.qualified_invoice_check import (
     QualifiedInvoiceCheckService,
     QualifiedInvoiceInput,
     QualifiedInvoiceLine,
+)
+from app.services.sales_closing import (
+    BillingTerms,
+    SalesClosingService,
+    SalesLine,
 )
 
 router = APIRouter()
@@ -261,6 +268,43 @@ async def compute_invoice_tax(
         total_tax=result.total_tax,
         total_amount=result.total_amount,
     )
+
+
+@router.post("/sales-closing", response_model=SalesClosingResponse)
+async def close_sales_into_invoices(
+    payload: SalesClosingRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> SalesClosingResponse:
+    """売上明細を締めて請求・売上計上仕訳・入金予定日を生成する。"""
+    try:
+        result = SalesClosingService.close(
+            lines=[
+                SalesLine(
+                    line_id=item.line_id,
+                    customer_code=item.customer_code,
+                    customer_name=item.customer_name,
+                    sales_date=item.sales_date,
+                    amount=item.amount,
+                    tax_rate=item.tax_rate,
+                    description=item.description,
+                )
+                for item in payload.lines
+            ],
+            terms=[
+                BillingTerms(
+                    customer_code=item.customer_code,
+                    closing_day=item.closing_day,
+                    payment_month_offset=item.payment_month_offset,
+                    payment_day=item.payment_day,
+                    adjustment=item.adjustment,
+                )
+                for item in payload.terms
+            ],
+            holidays=set(payload.holidays),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return SalesClosingResponse.model_validate(result)
 
 
 @router.get("/invoices/{invoice_id}", response_model=InvoiceResponse)
