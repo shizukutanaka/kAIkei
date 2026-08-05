@@ -1,0 +1,107 @@
+from decimal import Decimal
+
+import pytest
+
+from app.services.childcare_leave_benefit import ChildcareLeaveBenefitService
+
+
+def test_high_rate_first_180_days():
+    result = ChildcareLeaveBenefitService.compute(
+        wage_total_6m=Decimal("1800000"),
+        insured_months=24,
+    )
+    assert result.eligible is True
+    assert result.daily_wage == Decimal("10000")
+    assert result.benefit_rate == Decimal("0.67")
+    assert result.benefit_amount == Decimal("201000")
+
+
+def test_low_rate_after_180_days():
+    result = ChildcareLeaveBenefitService.compute(
+        wage_total_6m=Decimal("1800000"),
+        insured_months=24,
+        cumulative_days_before=180,
+    )
+    assert result.eligible is True
+    assert result.benefit_rate == Decimal("0.50")
+    assert result.benefit_amount == Decimal("150000")
+
+
+def test_daily_wage_cap():
+    result = ChildcareLeaveBenefitService.compute(
+        wage_total_6m=Decimal("3600000"),
+        insured_months=24,
+    )
+    assert result.daily_wage == Decimal("15430")
+    # 15430*30*0.67 = 310203 -> supply limit 310143
+    assert result.benefit_amount == Decimal("310143")
+
+
+def test_daily_wage_floor():
+    result = ChildcareLeaveBenefitService.compute(
+        wage_total_6m=Decimal("360000"),
+        insured_months=24,
+    )
+    assert result.daily_wage == Decimal("2869")
+    # 2869*30*0.67 = 57666.9 -> floor 57666
+    assert result.benefit_amount == Decimal("57666")
+
+
+def test_no_payment_when_wage_over_80_percent():
+    result = ChildcareLeaveBenefitService.compute(
+        wage_total_6m=Decimal("1800000"),
+        insured_months=24,
+        wage_paid_during_leave=Decimal("240000"),
+    )
+    assert result.eligible is False
+    assert "80%" in result.reason
+
+
+def test_reduced_when_wage_between_floor_and_80_percent():
+    result = ChildcareLeaveBenefitService.compute(
+        wage_total_6m=Decimal("1800000"),
+        insured_months=24,
+        wage_paid_during_leave=Decimal("100000"),
+    )
+    assert result.eligible is True
+    # min(201000, 300000*0.8 - 100000 = 140000) = 140000
+    assert result.benefit_amount == Decimal("140000")
+
+
+def test_full_benefit_when_wage_below_reduction_floor():
+    result = ChildcareLeaveBenefitService.compute(
+        wage_total_6m=Decimal("1800000"),
+        insured_months=24,
+        wage_paid_during_leave=Decimal("30000"),
+    )
+    assert result.eligible is True
+    assert result.benefit_amount == Decimal("201000")
+
+
+def test_ineligible_when_insured_months_below_12():
+    result = ChildcareLeaveBenefitService.compute(
+        wage_total_6m=Decimal("1800000"),
+        insured_months=6,
+    )
+    assert result.eligible is False
+    assert "12か月" in result.reason
+
+
+def test_low_rate_reduction_floor_30_percent():
+    result = ChildcareLeaveBenefitService.compute(
+        wage_total_6m=Decimal("1800000"),
+        insured_months=24,
+        cumulative_days_before=180,
+        wage_paid_during_leave=Decimal("100000"),
+    )
+    assert result.eligible is True
+    # min(150000, 240000 - 100000 = 140000) = 140000
+    assert result.benefit_amount == Decimal("140000")
+
+
+def test_invalid_wage_total_raises():
+    with pytest.raises(ValueError):
+        ChildcareLeaveBenefitService.compute(
+            wage_total_6m=Decimal("0"),
+            insured_months=24,
+        )

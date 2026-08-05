@@ -19,6 +19,16 @@ from app.schemas.schemas import (
     LaborInsuranceEmployeeResponse,
     LaborInsuranceSummaryResponse,
     LaborInsuranceAnnualUpdateRequest,
+    PayrollWageImportRequest,
+    PayrollWageImportResponse,
+    AttendanceImportRequest,
+    AttendanceImportResponse,
+    SanteiImportRequest,
+    SanteiImportResponse,
+    RevisionImportRequest,
+    RevisionImportResponse,
+    BonusImportRequest,
+    BonusImportResponse,
     NotificationCreate,
     BonusExportRequest,
     MonthlyRevisionExportRequest,
@@ -28,9 +38,47 @@ from app.schemas.schemas import (
     BonusEmploymentInsuranceResponse,
     BonusWithholdingTaxResponse,
     BonusNetPayResponse,
+    CommuteAllowanceResponse,
+    PaidLeaveGrantResponse,
+    OvertimeLimitCheckRequest,
+    OvertimeLimitCheckResponse,
+    RetirementIncomeTaxResponse,
+    MonthlyPayslipResponse,
+    MinimumWageCheckResponse,
+    DependentEligibilityResponse,
+    SocialInsuranceExemptionResponse,
+    YearEndAdjustmentCalcResponse,
+    LegalLedgerCheckRequest,
+    LegalLedgerCheckResponse,
+    HighAgeBenefitRequest,
+    HighAgeBenefitResponse,
+    InjuryAllowanceRequest,
+    MaternityAllowanceRequest,
+    HealthInsuranceBenefitResponse,
+    ShortTimeInsuranceRequest,
+    ShortTimeInsuranceResponse,
+    ChildcareLeaveBenefitRequest,
+    ChildcareLeaveBenefitResponse,
+    CaregiverLeaveBenefitRequest,
+    CaregiverLeaveBenefitResponse,
+    WorkersAccidentLeaveRequest,
+    WorkersAccidentLeaveResponse,
+    HighCostMedicalRequest,
+    HighCostMedicalResponse,
+    PostnatalLeaveBenefitRequest,
+    PostnatalLeaveBenefitResponse,
     LaborInsuranceInstallmentResponse,
     SanteiExportRequest,
     QualificationAcquisitionExportRequest,
+    QualificationLossGenerateRequest,
+    QualificationLossGenerateResponse,
+    PayrollCloseRequest,
+    PayrollCloseResponse,
+    PayrollJournalDraftRequest,
+    PayrollJournalDraftResponse,
+    PaymentTaskRequest,
+    PaymentTaskResponse,
+    ResidenceTaxResponse,
     SocialInsurancePremiumResponse,
 )
 from app.services.auto_journal import generate_payroll_journal
@@ -40,6 +88,11 @@ from app.services.labor_insurance import (
     LaborInsuranceService,
 )
 from app.services.labor_insurance_annual import LaborInsuranceAnnualUpdateService
+from app.services.payroll_wage_import import PayrollWageImportService
+from app.services.attendance_import import AttendanceImportService
+from app.services.santei_import import SanteiImportService
+from app.services.revision_import import RevisionImportService
+from app.services.bonus_import import BonusImportService
 from app.services.bonus_employment_insurance import BonusEmploymentInsuranceService
 from app.services.bonus_withholding_tax import BonusWithholdingTaxService
 from app.services.bonus_net_pay import BonusNetPayService
@@ -50,14 +103,427 @@ from app.services.notification_service import create_notification
 from app.services.standard_remuneration import RemunerationMonth
 from app.services.standard_bonus import BonusEmployee, StandardBonusService
 from app.services.qualification_acquisition import AcquisitionEmployee, QualificationAcquisitionService
+from app.services.qualification_loss import LossEmployee, QualificationLossService
+from app.services.payroll_close import PayrollCloseInput, PayrollCloseService
+from app.services.payroll_journal_draft import PayrollJournalDraftService, PayrollJournalInput
+from app.services.payment_task import PaymentTaskInput, PaymentTaskService
 from app.services.social_insurance import (
     DEFAULT_CARE_INSURANCE_RATE,
     DEFAULT_HEALTH_INSURANCE_RATE,
     SocialInsurancePremiumService,
 )
 from app.services.monthly_revision import MonthlyRevisionService, RevisionEmployee
+from app.services.residence_tax import ResidenceTaxSpecialCollectionService
+from app.services.commute_allowance import CommuteAllowanceService, MODE_TRANSIT
+from app.services.paid_leave import PaidLeaveService
+from app.services.overtime_limit import MonthlyOvertime, OvertimeLimitService
+from app.services.retirement_income_tax import RetirementIncomeTaxService
+from app.services.monthly_payslip import MonthlyPayslipService
+from app.services.minimum_wage import MinimumWageService, WAGE_TYPE_HOURLY
+from app.services.dependent_eligibility import DependentEligibilityService
+from app.services.social_insurance_exemption import LEAVE_CHILDCARE, SocialInsuranceExemptionService, TARGET_MONTHLY
+from app.services.year_end_adjustment import YearEndAdjustmentService
+from app.services.legal_ledger import LegalLedgerService
+from app.services.high_age_benefit import HighAgeEmploymentBenefitService
+from app.services.health_insurance_benefit import HealthInsuranceBenefitService
+from app.services.short_time_insurance import ShortTimeWorkerInsuranceService
+from app.services.childcare_leave_benefit import ChildcareLeaveBenefitService
+from app.services.caregiver_leave_benefit import CaregiverLeaveBenefitService
+from app.services.workers_accident_leave import WorkersAccidentLeaveService
+from app.services.high_cost_medical import HighCostMedicalService
+from app.services.postnatal_leave_benefit import PostnatalLeaveBenefitService
 
 router = APIRouter()
+
+
+@router.post("/short-time-insurance/judge")
+async def judge_short_time_insurance(
+    payload: ShortTimeInsuranceRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> ShortTimeInsuranceResponse:
+    try:
+        result = ShortTimeWorkerInsuranceService.judge(
+            weekly_hours=payload.weekly_hours,
+            monthly_wage=payload.monthly_wage,
+            employment_over_2_months=payload.employment_over_2_months,
+            is_student=payload.is_student,
+            company_insured_count=payload.company_insured_count,
+            labor_agreement=payload.labor_agreement,
+            meets_three_quarters_standard=payload.meets_three_quarters_standard,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ShortTimeInsuranceResponse.model_validate(result)
+
+
+@router.post("/childcare-leave-benefit/calculate")
+async def calculate_childcare_leave_benefit(
+    payload: ChildcareLeaveBenefitRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> ChildcareLeaveBenefitResponse:
+    try:
+        result = ChildcareLeaveBenefitService.compute(
+            wage_total_6m=payload.wage_total_6m,
+            insured_months=payload.insured_months,
+            payment_days=payload.payment_days,
+            cumulative_days_before=payload.cumulative_days_before,
+            wage_paid_during_leave=payload.wage_paid_during_leave,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ChildcareLeaveBenefitResponse.model_validate(result)
+
+
+@router.post("/caregiver-leave-benefit/calculate")
+async def calculate_caregiver_leave_benefit(
+    payload: CaregiverLeaveBenefitRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> CaregiverLeaveBenefitResponse:
+    try:
+        result = CaregiverLeaveBenefitService.compute(
+            wage_total_6m=payload.wage_total_6m,
+            insured_months=payload.insured_months,
+            payment_days=payload.payment_days,
+            cumulative_days_before=payload.cumulative_days_before,
+            wage_paid_during_leave=payload.wage_paid_during_leave,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return CaregiverLeaveBenefitResponse.model_validate(result)
+
+
+@router.post("/workers-accident-leave/calculate")
+async def calculate_workers_accident_leave(
+    payload: WorkersAccidentLeaveRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> WorkersAccidentLeaveResponse:
+    try:
+        result = WorkersAccidentLeaveService.compute(
+            daily_wage_base=payload.daily_wage_base,
+            absent_days=payload.absent_days,
+            waiting_completed=payload.waiting_completed,
+            daily_partial_wage=payload.daily_partial_wage,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return WorkersAccidentLeaveResponse.model_validate(result)
+
+
+@router.post("/high-cost-medical/calculate")
+async def calculate_high_cost_medical(
+    payload: HighCostMedicalRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> HighCostMedicalResponse:
+    try:
+        result = HighCostMedicalService.compute(
+            total_medical_cost=payload.total_medical_cost,
+            self_paid=payload.self_paid,
+            income_category=payload.income_category,
+            multiple_treatment=payload.multiple_treatment,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return HighCostMedicalResponse.model_validate(result)
+
+
+@router.post("/postnatal-leave-benefit/calculate")
+async def calculate_postnatal_leave_benefit(
+    payload: PostnatalLeaveBenefitRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> PostnatalLeaveBenefitResponse:
+    try:
+        result = PostnatalLeaveBenefitService.compute(
+            wage_total_6m=payload.wage_total_6m,
+            insured_months=payload.insured_months,
+            leave_days=payload.leave_days,
+            cumulative_days_before=payload.cumulative_days_before,
+            wage_paid_during_leave=payload.wage_paid_during_leave,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return PostnatalLeaveBenefitResponse.model_validate(result)
+
+
+@router.post("/injury-allowance/calculate")
+async def calculate_injury_allowance(
+    payload: InjuryAllowanceRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> HealthInsuranceBenefitResponse:
+    try:
+        result = HealthInsuranceBenefitService.injury_allowance(
+            avg_standard_monthly=payload.avg_standard_monthly,
+            insured_months=payload.insured_months,
+            absent_days=payload.absent_days,
+            waiting_completed=payload.waiting_completed,
+            daily_remuneration=payload.daily_remuneration,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return HealthInsuranceBenefitResponse.model_validate(result)
+
+
+@router.post("/maternity-allowance/calculate")
+async def calculate_maternity_allowance(
+    payload: MaternityAllowanceRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> HealthInsuranceBenefitResponse:
+    try:
+        result = HealthInsuranceBenefitService.maternity_allowance(
+            avg_standard_monthly=payload.avg_standard_monthly,
+            insured_months=payload.insured_months,
+            days_before_birth=payload.days_before_birth,
+            days_after_birth=payload.days_after_birth,
+            multiple_pregnancy=payload.multiple_pregnancy,
+            daily_remuneration=payload.daily_remuneration,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return HealthInsuranceBenefitResponse.model_validate(result)
+
+
+@router.post("/high-age-benefit/calculate")
+async def calculate_high_age_benefit(
+    payload: HighAgeBenefitRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> HighAgeBenefitResponse:
+    try:
+        result = HighAgeEmploymentBenefitService.compute(
+            age=payload.age,
+            insured_months=payload.insured_months,
+            wage_at_60=payload.wage_at_60,
+            current_wage=payload.current_wage,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return HighAgeBenefitResponse.model_validate(result)
+
+
+@router.post("/legal-ledger/check")
+async def check_legal_ledger(
+    payload: LegalLedgerCheckRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> LegalLedgerCheckResponse:
+    try:
+        result = LegalLedgerService.check(
+            ledger_type=payload.ledger_type,
+            present_fields=payload.present_fields,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return LegalLedgerCheckResponse.model_validate(result)
+
+
+@router.get("/year-end-adjustment")
+async def calculate_year_end_adjustment(
+    annual_gross_salary: Decimal = Query(..., description="年間給与収入"),  # noqa: B008
+    total_income_deductions: Decimal = Query(..., description="所得控除合計(社保・配偶者・扶養・基礎等)"),  # noqa: B008
+    withheld_tax_total: Decimal = Query(..., description="徴収済みの源泉徴収税額合計"),  # noqa: B008
+    housing_loan_credit: Decimal = Query(Decimal("0"), description="住宅借入金等特別控除(税額控除)"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> YearEndAdjustmentCalcResponse:
+    try:
+        result = YearEndAdjustmentService.compute(
+            annual_gross_salary=annual_gross_salary,
+            total_income_deductions=total_income_deductions,
+            withheld_tax_total=withheld_tax_total,
+            housing_loan_credit=housing_loan_credit,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return YearEndAdjustmentCalcResponse.model_validate(result)
+
+
+@router.get("/social-insurance/leave-exemption")
+async def check_social_insurance_leave_exemption(
+    leave_type: str = Query(LEAVE_CHILDCARE, description="休業区分: maternity(産前産後) / childcare(育児)"),  # noqa: B008
+    target: str = Query(TARGET_MONTHLY, description="対象: monthly(月次) / bonus(賞与)"),  # noqa: B008
+    month_last_day_on_leave: bool = Query(False, description="その月の末日が休業期間中か"),  # noqa: B008
+    days_on_leave_in_month: int = Query(0, description="当月の育児休業日数(月次14日ルール)"),  # noqa: B008
+    continuous_leave_over_one_month: bool = Query(False, description="賞与月末を含む連続1か月超の育休か"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> SocialInsuranceExemptionResponse:
+    try:
+        result = SocialInsuranceExemptionService.check(
+            leave_type=leave_type,
+            target=target,
+            month_last_day_on_leave=month_last_day_on_leave,
+            days_on_leave_in_month=days_on_leave_in_month,
+            continuous_leave_over_one_month=continuous_leave_over_one_month,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return SocialInsuranceExemptionResponse.model_validate(result)
+
+
+@router.get("/dependent-eligibility/check")
+async def check_dependent_eligibility(
+    annual_income: Decimal = Query(..., description="被扶養者の年間収入見込み"),  # noqa: B008
+    is_senior_or_disabled: bool = Query(False, description="60歳以上または障害者"),  # noqa: B008
+    cohabiting: bool = Query(True, description="被保険者と同一世帯か"),  # noqa: B008
+    insured_annual_income: Decimal | None = Query(None, description="被保険者の年間収入(同居時)"),  # noqa: B008
+    remittance_amount: Decimal | None = Query(None, description="被保険者からの仕送り額(別居時)"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> DependentEligibilityResponse:
+    try:
+        result = DependentEligibilityService.check(
+            annual_income=annual_income,
+            is_senior_or_disabled=is_senior_or_disabled,
+            cohabiting=cohabiting,
+            insured_annual_income=insured_annual_income,
+            remittance_amount=remittance_amount,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return DependentEligibilityResponse.model_validate(result)
+
+
+@router.get("/minimum-wage/check")
+async def check_minimum_wage(
+    minimum_hourly_wage: Decimal = Query(..., description="地域別最低賃金額(時間額)"),  # noqa: B008
+    wage_type: str = Query(WAGE_TYPE_HOURLY, description="賃金形態: hourly / monthly"),  # noqa: B008
+    hourly_wage: Decimal | None = Query(None, description="時給(hourly時)"),  # noqa: B008
+    monthly_wage: Decimal | None = Query(None, description="最低賃金対象の月額賃金(monthly時)"),  # noqa: B008
+    monthly_scheduled_hours: Decimal | None = Query(None, description="月平均所定労働時間(monthly時)"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> MinimumWageCheckResponse:
+    try:
+        result = MinimumWageService.check(
+            minimum_hourly_wage=minimum_hourly_wage,
+            wage_type=wage_type,
+            hourly_wage=hourly_wage,
+            monthly_wage=monthly_wage,
+            monthly_scheduled_hours=monthly_scheduled_hours,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return MinimumWageCheckResponse.model_validate(result)
+
+
+@router.get("/monthly-payslip")
+async def calculate_monthly_payslip(
+    base_salary: Decimal = Query(..., description="基本給"),  # noqa: B008
+    standard_monthly_remuneration: Decimal = Query(..., description="標準報酬月額(社保計算の基礎)"),  # noqa: B008
+    overtime_pay: Decimal = Query(Decimal("0"), description="割増賃金"),  # noqa: B008
+    other_taxable_allowances: Decimal = Query(Decimal("0"), description="課税手当合計"),  # noqa: B008
+    non_taxable_commute_allowance: Decimal = Query(Decimal("0"), description="非課税通勤手当"),  # noqa: B008
+    income_tax: Decimal = Query(Decimal("0"), description="源泉所得税(月額表 甲欄)"),  # noqa: B008
+    residence_tax: Decimal = Query(Decimal("0"), description="住民税(特別徴収額)"),  # noqa: B008
+    other_deductions: Decimal = Query(Decimal("0"), description="その他控除"),  # noqa: B008
+    business_type: str = Query(BUSINESS_TYPE_GENERAL, description="事業区分(雇用保険料率)"),  # noqa: B008
+    health_rate: Decimal = Query(DEFAULT_HEALTH_INSURANCE_RATE, description="健康保険料率"),  # noqa: B008
+    care_rate: Decimal = Query(DEFAULT_CARE_INSURANCE_RATE, description="介護保険料率"),  # noqa: B008
+    care_applicable: bool = Query(False, description="40〜64歳の介護保険適用有無"),  # noqa: B008
+    employment_insurance_exempt: bool = Query(False, description="雇用保険料免除(65歳以上等)"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> MonthlyPayslipResponse:
+    try:
+        result = MonthlyPayslipService.compute(
+            base_salary=base_salary,
+            standard_monthly_remuneration=standard_monthly_remuneration,
+            overtime_pay=overtime_pay,
+            other_taxable_allowances=other_taxable_allowances,
+            non_taxable_commute_allowance=non_taxable_commute_allowance,
+            income_tax=income_tax,
+            residence_tax=residence_tax,
+            other_deductions=other_deductions,
+            business_type=business_type,
+            health_rate=health_rate,
+            care_rate=care_rate,
+            care_applicable=care_applicable,
+            employment_insurance_exempt=employment_insurance_exempt,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return MonthlyPayslipResponse.model_validate(result)
+
+
+@router.get("/retirement-income-tax")
+async def calculate_retirement_income_tax(
+    severance_pay: Decimal = Query(..., description="退職手当等の額"),  # noqa: B008
+    months_of_service: int = Query(..., description="勤続月数(1年未満切上)"),  # noqa: B008
+    is_specified_officer_5yr_or_less: bool = Query(False, description="特定役員退職手当等(役員等・勤続5年以下)"),  # noqa: B008
+    is_short_term_5yr_or_less: bool = Query(False, description="短期退職手当等(役員等以外・勤続5年以下)"),  # noqa: B008
+    statement_submitted: bool = Query(True, description="退職所得の受給に関する申告書の提出有無"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> RetirementIncomeTaxResponse:
+    try:
+        result = RetirementIncomeTaxService.compute(
+            severance_pay=severance_pay,
+            months_of_service=months_of_service,
+            is_specified_officer_5yr_or_less=is_specified_officer_5yr_or_less,
+            is_short_term_5yr_or_less=is_short_term_5yr_or_less,
+            statement_submitted=statement_submitted,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return RetirementIncomeTaxResponse.model_validate(result)
+
+
+@router.post("/overtime-limit/check")
+async def check_overtime_limit(
+    payload: OvertimeLimitCheckRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> OvertimeLimitCheckResponse:
+    try:
+        result = OvertimeLimitService.check(
+            [
+                MonthlyOvertime(overtime_hours=m.overtime_hours, holiday_work_hours=m.holiday_work_hours)
+                for m in payload.months
+            ]
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return OvertimeLimitCheckResponse.model_validate(result)
+
+
+@router.get("/paid-leave/grant")
+async def calculate_paid_leave_grant(
+    months_of_service: int = Query(..., description="継続勤務月数"),  # noqa: B008
+    weekly_working_days: int = Query(5, description="週所定労働日数"),  # noqa: B008
+    weekly_working_hours: Decimal = Query(Decimal("40"), description="週所定労働時間"),  # noqa: B008
+    attendance_rate: Decimal = Query(Decimal("1"), description="全労働日に対する出勤率(0〜1)"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> PaidLeaveGrantResponse:
+    try:
+        result = PaidLeaveService.grant_days(
+            months_of_service=months_of_service,
+            weekly_working_days=weekly_working_days,
+            weekly_working_hours=weekly_working_hours,
+            attendance_rate=attendance_rate,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return PaidLeaveGrantResponse.model_validate(result)
+
+
+@router.get("/commute-allowance/non-taxable")
+async def calculate_commute_allowance_non_taxable(
+    mode: str = Query(MODE_TRANSIT, description="通勤手段: transit(交通機関) / car(マイカー等)"),  # noqa: B008
+    monthly_allowance: Decimal = Query(..., description="1か月の通勤手当支給額"),  # noqa: B008
+    one_way_distance_km: Decimal | None = Query(None, description="片道通勤距離(km), car時に必須"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> CommuteAllowanceResponse:
+    try:
+        result = CommuteAllowanceService.compute(
+            mode=mode,
+            monthly_allowance=monthly_allowance,
+            one_way_distance_km=one_way_distance_km,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return CommuteAllowanceResponse.model_validate(result)
+
+
+@router.get("/residence-tax/special-collection")
+async def calculate_residence_tax_special_collection(
+    annual_tax: Decimal = Query(..., description="市町村から通知された年税額"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> ResidenceTaxResponse:
+    try:
+        result = ResidenceTaxSpecialCollectionService.compute(annual_tax=annual_tax)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ResidenceTaxResponse.model_validate(result)
 
 
 def _to_employee_response(emp: Employee) -> EmployeeResponse:
@@ -477,6 +943,79 @@ async def export_labor_insurance_annual_update(
     )
 
 
+@router.post("/bonus/import-generate", response_model=BonusImportResponse)
+async def generate_bonus_report_from_payroll_data(
+    payload: BonusImportRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> BonusImportResponse:
+    try:
+        rows = BonusImportService.parse_csv(payload.csv_text, payload.column_map)
+        result = BonusImportService.compute(rows, fiscal_year=payload.fiscal_year)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return BonusImportResponse.model_validate(result)
+
+
+@router.post("/monthly-revision/import-judge", response_model=RevisionImportResponse)
+async def judge_monthly_revision_from_payroll_data(
+    payload: RevisionImportRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> RevisionImportResponse:
+    try:
+        rows = RevisionImportService.parse_csv(payload.csv_text, payload.column_map)
+        result = RevisionImportService.compute(rows, start_year=payload.start_year)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return RevisionImportResponse.model_validate(result)
+
+
+@router.post("/santei/import-generate", response_model=SanteiImportResponse)
+async def generate_santei_from_payroll_data(
+    payload: SanteiImportRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> SanteiImportResponse:
+    try:
+        rows = SanteiImportService.parse_csv(payload.csv_text, payload.column_map)
+        result = SanteiImportService.compute(
+            rows,
+            applicable_year=payload.applicable_year,
+            applicable_month=payload.applicable_month,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return SanteiImportResponse.model_validate(result)
+
+
+@router.post("/attendance/import-overtime-pay", response_model=AttendanceImportResponse)
+async def calculate_overtime_pay_from_attendance_data(
+    payload: AttendanceImportRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> AttendanceImportResponse:
+    try:
+        records = AttendanceImportService.parse_csv(payload.csv_text, payload.column_map)
+        result = AttendanceImportService.compute(records)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return AttendanceImportResponse.model_validate(result)
+
+
+@router.post("/labor-insurance/import-calculate", response_model=PayrollWageImportResponse)
+async def calculate_labor_insurance_from_payroll_data(
+    payload: PayrollWageImportRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> PayrollWageImportResponse:
+    try:
+        records = PayrollWageImportService.parse_csv(payload.csv_text, payload.column_map)
+        result = PayrollWageImportService.compute(
+            records,
+            business_type=payload.business_type,
+            workers_comp_rate=payload.workers_comp_rate,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return PayrollWageImportResponse.model_validate(result)
+
+
 @router.get("/labor-insurance", response_model=LaborInsuranceSummaryResponse)
 async def calculate_labor_insurance(
     company_id: UUID = Query(...),  # noqa: B008
@@ -671,6 +1210,103 @@ async def export_qualification_acquisition(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="shikaku_shutoku.csv"'},
     )
+
+
+@router.post("/payment-tasks/generate", response_model=PaymentTaskResponse)
+async def generate_payment_tasks(
+    payload: PaymentTaskRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> PaymentTaskResponse:
+    try:
+        result = PaymentTaskService.generate(
+            PaymentTaskInput(
+                payroll_year=payload.payroll_year,
+                payroll_month=payload.payroll_month,
+                income_tax=payload.income_tax,
+                residence_tax=payload.residence_tax,
+                social_insurance_total=payload.social_insurance_total,
+                withholding_special_exception=payload.withholding_special_exception,
+                holidays=payload.holidays,
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return PaymentTaskResponse.model_validate(result)
+
+
+@router.post("/journal-drafts/generate", response_model=PayrollJournalDraftResponse)
+async def generate_payroll_journal_drafts(
+    payload: PayrollJournalDraftRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> PayrollJournalDraftResponse:
+    try:
+        result = PayrollJournalDraftService.generate(
+            PayrollJournalInput(
+                payroll_year=payload.payroll_year,
+                payroll_month=payload.payroll_month,
+                total_gross=payload.total_gross,
+                employee_social_insurance=payload.employee_social_insurance,
+                employee_employment_insurance=payload.employee_employment_insurance,
+                income_tax=payload.income_tax,
+                residence_tax=payload.residence_tax,
+                other_deductions=payload.other_deductions,
+                employer_social_insurance=payload.employer_social_insurance,
+                employer_employment_insurance=payload.employer_employment_insurance,
+                employer_workers_compensation=payload.employer_workers_compensation,
+                payment_day=payload.payment_day,
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return PayrollJournalDraftResponse.model_validate(result)
+
+
+@router.post("/monthly-close/run", response_model=PayrollCloseResponse)
+async def run_monthly_payroll_close(
+    payload: PayrollCloseRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> PayrollCloseResponse:
+    try:
+        result = PayrollCloseService.run(
+            PayrollCloseInput(
+                fiscal_year=payload.fiscal_year,
+                target_month=payload.target_month,
+                business_type=payload.business_type,
+                attendance_csv=payload.attendance_csv,
+                santei_csv=payload.santei_csv,
+                labor_insurance_csv=payload.labor_insurance_csv,
+                revision_csv=payload.revision_csv,
+                bonus_csv=payload.bonus_csv,
+                column_maps=payload.column_maps,
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return PayrollCloseResponse.model_validate(result)
+
+
+@router.post("/qualification-loss/generate", response_model=QualificationLossGenerateResponse)
+async def generate_qualification_loss(
+    payload: QualificationLossGenerateRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
+) -> QualificationLossGenerateResponse:
+    try:
+        result = QualificationLossService.generate(
+            [
+                LossEmployee(
+                    insured_number=employee.insured_number,
+                    name=employee.name,
+                    event_date=employee.event_date,
+                    reason=employee.reason,
+                    qualification_date=employee.qualification_date,
+                    is_over_70_employee=employee.is_over_70_employee,
+                )
+                for employee in payload.employees
+            ],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return QualificationLossGenerateResponse.model_validate(result)
 
 
 @router.post("/santei/export")

@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.services.labor_insurance import DEFAULT_WORKERS_COMPENSATION_RATE
+from app.services.labor_insurance import BUSINESS_TYPE_GENERAL, DEFAULT_WORKERS_COMPENSATION_RATE
 
 
 class TokenResponse(BaseModel):
@@ -1118,6 +1118,123 @@ class BonusWithholdingTaxResponse(BaseModel):
     reason: str
 
 
+class YearEndAdjustmentCalcResponse(BaseModel):
+    salary_income_deduction: Decimal
+    salary_income: Decimal
+    taxable_income: Decimal
+    calculated_income_tax: Decimal
+    housing_loan_credit: Decimal
+    year_adjusted_income_tax: Decimal
+    year_tax: Decimal
+    withheld_tax_total: Decimal
+    refund: Decimal
+    additional_collection: Decimal
+
+
+class LegalLedgerCheckRequest(BaseModel):
+    ledger_type: str
+    present_fields: list[str]
+
+
+class LegalLedgerCheckResponse(BaseModel):
+    ledger_type: str
+    required_fields: list[str]
+    missing_fields: list[str]
+    compliant: bool
+
+
+class SocialInsuranceExemptionResponse(BaseModel):
+    exempt: bool
+    reason: str
+
+
+class DependentEligibilityResponse(BaseModel):
+    income_limit: Decimal
+    income_requirement_met: bool
+    relationship_requirement_met: bool
+    eligible: bool
+    reason: str
+
+
+class MinimumWageCheckResponse(BaseModel):
+    effective_hourly_wage: Decimal
+    minimum_hourly_wage: Decimal
+    meets_minimum: bool
+    shortfall_per_hour: Decimal
+
+
+class MonthlyPayslipResponse(BaseModel):
+    taxable_earnings: Decimal
+    non_taxable_commute_allowance: Decimal
+    total_earnings: Decimal
+    social_insurance: SocialInsurancePremiumResponse
+    social_insurance_employee: Decimal
+    employment_insurance_employee: Decimal
+    income_tax: Decimal
+    residence_tax: Decimal
+    other_deductions: Decimal
+    total_deductions: Decimal
+    net_pay: Decimal
+
+
+class RetirementIncomeTaxResponse(BaseModel):
+    years_of_service: int
+    retirement_income_deduction: Decimal
+    taxable_base: Decimal
+    taxable_retirement_income: Decimal
+    income_tax_base: Decimal
+    statement_submitted: bool
+    withholding_tax: Decimal
+
+
+class MonthlyOvertimeInput(BaseModel):
+    overtime_hours: Decimal
+    holiday_work_hours: Decimal = Decimal("0")
+
+
+class OvertimeLimitCheckRequest(BaseModel):
+    months: list[MonthlyOvertimeInput]
+
+
+class OvertimeLimitCheckResponse(BaseModel):
+    annual_overtime_total: Decimal
+    annual_limit_exceeded: bool
+    months_over_45_count: int
+    months_over_45_limit_exceeded: bool
+    single_month_combined_exceeded: bool
+    multi_month_average_exceeded: bool
+    compliant: bool
+    violations: list[str]
+
+
+class PaidLeaveGrantResponse(BaseModel):
+    granted_days: int
+    is_proportional: bool
+    meets_attendance_requirement: bool
+    mandatory_5day_designation: bool
+
+
+class CommuteAllowanceResponse(BaseModel):
+    mode: str
+    monthly_allowance: Decimal
+    non_taxable_limit: Decimal
+    non_taxable: Decimal
+    taxable: Decimal
+
+
+class ResidenceTaxMonthlyAmountResponse(BaseModel):
+    month: int
+    amount: Decimal
+
+
+class ResidenceTaxResponse(BaseModel):
+    annual_tax: Decimal
+    first_month_amount: Decimal
+    ordinary_month_amount: Decimal
+    monthly_amounts: list[ResidenceTaxMonthlyAmountResponse]
+    total: Decimal
+
+
 class BonusNetPayResponse(BaseModel):
     gross_bonus: Decimal
     standard_bonus: Decimal
@@ -1175,6 +1292,421 @@ class QualificationAcquisitionEmployeeInput(BaseModel):
 
 class QualificationAcquisitionExportRequest(BaseModel):
     employees: list[QualificationAcquisitionEmployeeInput]
+
+
+class SalesLineInput(BaseModel):
+    line_id: str
+    customer_code: str
+    customer_name: str
+    sales_date: date
+    amount: Decimal
+    tax_rate: Decimal
+    description: str = ""
+
+
+class BillingTermsInput(BaseModel):
+    customer_code: str
+    closing_day: int
+    payment_month_offset: int = 1
+    payment_day: int = 31
+    adjustment: str = "next"
+
+
+class SalesClosingRequest(BaseModel):
+    lines: list[SalesLineInput]
+    terms: list[BillingTermsInput]
+    holidays: list[date] = []
+
+
+class TaxBreakdownSchema(BaseModel):
+    tax_rate: Decimal
+    taxable_base: Decimal
+    tax: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class SalesJournalLineSchema(BaseModel):
+    account_role: str
+    debit: Decimal
+    credit: Decimal
+    tax_rate: Decimal | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class ClosedInvoiceSchema(BaseModel):
+    invoice_id: str
+    customer_code: str
+    customer_name: str
+    closing_date: date
+    due_date: date
+    line_ids: list[str]
+    by_rate: list[TaxBreakdownSchema]
+    total_taxable: Decimal
+    total_tax: Decimal
+    total_amount: Decimal
+    journal_lines: list[SalesJournalLineSchema]
+    total_debit: Decimal
+    total_credit: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class SalesClosingResponse(BaseModel):
+    invoices: list[ClosedInvoiceSchema]
+    invoice_count: int
+    total_taxable: Decimal
+    total_tax: Decimal
+    total_amount: Decimal
+    balanced: bool
+
+    model_config = {"from_attributes": True}
+
+
+class OpenInvoiceInput(BaseModel):
+    invoice_id: str
+    customer_name: str
+    amount: Decimal
+    due_date: date
+
+
+class DepositInput(BaseModel):
+    deposit_id: str
+    transaction_date: date
+    amount: Decimal
+    remitter_name: str = ""
+
+
+class ReceivableMatchingRequest(BaseModel):
+    deposits: list[DepositInput]
+    invoices: list[OpenInvoiceInput]
+    fee_tolerance: Decimal = Decimal("0")
+    name_threshold: float = 0.6
+
+
+class AllocationSchema(BaseModel):
+    invoice_id: str
+    applied_amount: Decimal
+    fee_absorbed: Decimal
+    apply_type: str
+
+    model_config = {"from_attributes": True}
+
+
+class DepositResultSchema(BaseModel):
+    deposit_id: str
+    amount: Decimal
+    status: str
+    allocations: list[AllocationSchema]
+    applied_amount: Decimal
+    advance_amount: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class InvoiceBalanceSchema(BaseModel):
+    invoice_id: str
+    amount: Decimal
+    applied_amount: Decimal
+    outstanding: Decimal
+    settled: bool
+
+    model_config = {"from_attributes": True}
+
+
+class ReceivableMatchingResponse(BaseModel):
+    deposits: list[DepositResultSchema]
+    invoices: list[InvoiceBalanceSchema]
+    total_applied: Decimal
+    total_advance: Decimal
+    total_unmatched: Decimal
+    total_outstanding: Decimal
+    settled_invoice_ids: list[str]
+    unmatched_deposit_ids: list[str]
+
+    model_config = {"from_attributes": True}
+
+
+class ReceivableDraftLineSchema(BaseModel):
+    account_role: str
+    debit: Decimal
+    credit: Decimal
+    invoice_id: str | None = None
+    partner_name: str = ""
+
+    model_config = {"from_attributes": True}
+
+
+class ReceivableJournalDraftSchema(BaseModel):
+    draft_type: str
+    deposit_id: str
+    description: str
+    transaction_date: date
+    lines: list[ReceivableDraftLineSchema]
+    total_debit: Decimal
+    total_credit: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class ReceivableJournalResponse(BaseModel):
+    matching: ReceivableMatchingResponse
+    drafts: list[ReceivableJournalDraftSchema]
+    total_receivable_cleared: Decimal
+    total_fee_expense: Decimal
+    total_advance_received: Decimal
+    total_suspense: Decimal
+    balanced: bool
+
+
+class ExpectedPaymentInput(BaseModel):
+    payment_id: str
+    payee_name: str = ""
+    amount: Decimal
+    payment_date: date
+
+
+class BankWithdrawalInput(BaseModel):
+    line_id: str
+    transaction_date: date
+    amount: Decimal
+    description: str = ""
+
+
+class PaymentMatchingRequest(BaseModel):
+    withdrawals: list[BankWithdrawalInput]
+    payments: list[ExpectedPaymentInput]
+    date_tolerance_days: int = 3
+    fee_tolerance: Decimal = Decimal("0")
+
+
+class PaymentMatchSchema(BaseModel):
+    line_id: str
+    payment_ids: list[str]
+    withdrawal_amount: Decimal
+    matched_amount: Decimal
+    difference: Decimal
+    match_type: str
+
+    model_config = {"from_attributes": True}
+
+
+class PaymentMatchingResponse(BaseModel):
+    matches: list[PaymentMatchSchema]
+    unmatched_line_ids: list[str]
+    unmatched_payment_ids: list[str]
+    matched_count: int
+    matched_amount_total: Decimal
+    unmatched_withdrawal_total: Decimal
+    unmatched_payment_total: Decimal
+    fully_reconciled: bool
+
+    model_config = {"from_attributes": True}
+
+
+class ZenginTransferLineInput(BaseModel):
+    bank_code: str
+    bank_name: str
+    branch_code: str
+    branch_name: str
+    account_type: str
+    account_number: str
+    recipient_name: str
+    amount: Decimal
+    customer_code: str = ""
+    fee_borne_by_recipient: bool = False
+    transfer_fee: Decimal = Decimal("0")
+
+
+class ZenginTransferRequest(BaseModel):
+    consignor_code: str
+    consignor_name: str
+    transfer_date: date
+    bank_code: str
+    bank_name: str
+    branch_code: str
+    branch_name: str
+    account_type: str
+    account_number: str
+    lines: list[ZenginTransferLineInput]
+
+
+class ZenginTransferLineResult(BaseModel):
+    recipient_name: str
+    payable_amount: Decimal
+    transfer_fee: Decimal
+    transfer_amount: Decimal
+    fee_borne_by_recipient: bool
+
+    model_config = {"from_attributes": True}
+
+
+class ZenginTransferResponse(BaseModel):
+    records: list[str]
+    detail_count: int
+    total_amount: Decimal
+    total_fee_deducted: Decimal
+    lines: list[ZenginTransferLineResult]
+    encoding: str
+    record_length: int
+
+    model_config = {"from_attributes": True}
+
+
+class PaymentTaskRequest(BaseModel):
+    payroll_year: int
+    payroll_month: int
+    income_tax: Decimal = Decimal("0")
+    residence_tax: Decimal = Decimal("0")
+    social_insurance_total: Decimal = Decimal("0")
+    withholding_special_exception: bool = False
+    holidays: list[date] | None = None
+
+
+class PaymentTaskSchema(BaseModel):
+    task_type: str
+    title: str
+    payee: str
+    amount: Decimal
+    statutory_due_date: date
+    due_date: date
+    shifted: bool
+    legal_basis: str
+
+    model_config = {"from_attributes": True}
+
+
+class PaymentTaskResponse(BaseModel):
+    payroll_year: int
+    payroll_month: int
+    tasks: list[PaymentTaskSchema]
+    total_amount: Decimal
+    earliest_due_date: date | None
+
+    model_config = {"from_attributes": True}
+
+
+class PayrollJournalDraftRequest(BaseModel):
+    payroll_year: int
+    payroll_month: int
+    total_gross: Decimal
+    employee_social_insurance: Decimal = Decimal("0")
+    employee_employment_insurance: Decimal = Decimal("0")
+    income_tax: Decimal = Decimal("0")
+    residence_tax: Decimal = Decimal("0")
+    other_deductions: Decimal = Decimal("0")
+    employer_social_insurance: Decimal = Decimal("0")
+    employer_employment_insurance: Decimal = Decimal("0")
+    employer_workers_compensation: Decimal = Decimal("0")
+    payment_day: int = 25
+
+
+class PayrollJournalLineSchema(BaseModel):
+    account_role: str
+    debit: Decimal
+    credit: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class PayrollJournalDraftSchema(BaseModel):
+    draft_type: str
+    description: str
+    transaction_date: date
+    due_date: date | None
+    lines: list[PayrollJournalLineSchema]
+    total_debit: Decimal
+    total_credit: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class PayrollJournalDraftResponse(BaseModel):
+    payroll_year: int
+    payroll_month: int
+    total_gross: Decimal
+    employee_deduction_total: Decimal
+    employer_burden_total: Decimal
+    net_pay: Decimal
+    drafts: list[PayrollJournalDraftSchema]
+    balanced: bool
+
+    model_config = {"from_attributes": True}
+
+
+class PayrollCloseRequest(BaseModel):
+    fiscal_year: int
+    target_month: int
+    business_type: str = BUSINESS_TYPE_GENERAL
+    attendance_csv: str | None = None
+    santei_csv: str | None = None
+    labor_insurance_csv: str | None = None
+    revision_csv: str | None = None
+    bonus_csv: str | None = None
+    column_maps: dict[str, dict[str, str]] | None = None
+
+
+class PayrollCloseFormSchema(BaseModel):
+    form: str
+    label: str
+    status: str
+    required: bool
+    detail: str
+    statutory_deadline: date | None
+    summary: dict[str, str]
+    csv_text: str | None
+
+    model_config = {"from_attributes": True}
+
+
+class PayrollCloseResponse(BaseModel):
+    fiscal_year: int
+    target_month: int
+    outcomes: list[PayrollCloseFormSchema]
+    completed_forms: list[str]
+    failed_forms: list[str]
+    blocking_forms: list[str]
+    close_ready: bool
+
+    model_config = {"from_attributes": True}
+
+
+class QualificationLossEmployeeInput(BaseModel):
+    insured_number: str
+    name: str
+    event_date: date
+    reason: str
+    qualification_date: date | None = None
+    is_over_70_employee: bool = False
+
+
+class QualificationLossGenerateRequest(BaseModel):
+    employees: list[QualificationLossEmployeeInput]
+
+
+class QualificationLossResultSchema(BaseModel):
+    insured_number: str
+    name: str
+    reason: str
+    event_date: date
+    loss_date: date
+    final_premium_year: int
+    final_premium_month: int
+    event_month_premium_charged: bool
+    same_month_acquisition_loss: bool
+    requires_over70_notification: bool
+
+    model_config = {"from_attributes": True}
+
+
+class QualificationLossGenerateResponse(BaseModel):
+    employee_count: int
+    results: list[QualificationLossResultSchema]
+    same_month_numbers: list[str]
+    csv_text: str
+
+    model_config = {"from_attributes": True}
 
 
 class LaborInsuranceAnnualUpdateRequest(BaseModel):
@@ -1467,3 +1999,375 @@ class CashflowForecastResponse(BaseModel):
     company_id: UUID
     as_of: date
     buckets: list[CashflowForecastBucket]
+
+
+class DenchouElectronicCheckRequest(BaseModel):
+    has_timestamp: bool = False
+    has_correction_deletion_history: bool = False
+    has_operational_rules: bool = False
+    has_display_device: bool = True
+    can_search_by_date: bool = False
+    can_search_by_amount: bool = False
+    can_search_by_counterparty: bool = False
+    can_search_by_range: bool = False
+    can_search_by_combination: bool = False
+    base_period_sales: Decimal = Decimal("0")
+    can_provide_download: bool = False
+
+
+class DenchouElectronicCheckResponse(BaseModel):
+    authenticity_met: bool
+    visibility_met: bool
+    required_search_level: str
+    search_requirement_met: bool
+    compliant: bool
+    missing_requirements: list[str]
+
+
+class DenchouScannerCheckRequest(BaseModel):
+    resolution_dpi: int
+    is_color: bool = True
+    is_general_document: bool = False
+    input_period_type: str = "prompt"
+    days_until_input: int = 0
+    has_operational_rules: bool = False
+    has_timestamp: bool = False
+    has_correction_deletion_history: bool = False
+    has_display_device: bool = True
+    can_search_by_date: bool = False
+    can_search_by_amount: bool = False
+    can_search_by_counterparty: bool = False
+    can_search_by_range: bool = False
+    can_search_by_combination: bool = False
+
+
+class DenchouScannerCheckResponse(BaseModel):
+    resolution_met: bool
+    color_met: bool
+    input_period_met: bool
+    authenticity_met: bool
+    visibility_met: bool
+    compliant: bool
+    missing_requirements: list[str]
+
+
+class HighAgeBenefitRequest(BaseModel):
+    age: int
+    insured_months: int
+    wage_at_60: Decimal
+    current_wage: Decimal
+
+
+class HighAgeBenefitResponse(BaseModel):
+    eligible: bool
+    reduction_ratio: Decimal
+    benefit_amount: Decimal
+    reason: str
+
+
+class InjuryAllowanceRequest(BaseModel):
+    avg_standard_monthly: Decimal
+    insured_months: int
+    absent_days: int
+    waiting_completed: bool = False
+    daily_remuneration: Decimal = Decimal("0")
+
+
+class MaternityAllowanceRequest(BaseModel):
+    avg_standard_monthly: Decimal
+    insured_months: int
+    days_before_birth: int
+    days_after_birth: int
+    multiple_pregnancy: bool = False
+    daily_remuneration: Decimal = Decimal("0")
+
+
+class HealthInsuranceBenefitResponse(BaseModel):
+    daily_benefit: Decimal
+    effective_daily_benefit: Decimal
+    payable_days: int
+    total_amount: Decimal
+
+
+class ShortTimeInsuranceRequest(BaseModel):
+    weekly_hours: Decimal
+    monthly_wage: Decimal
+    employment_over_2_months: bool
+    is_student: bool
+    company_insured_count: int
+    labor_agreement: bool = False
+    meets_three_quarters_standard: bool = False
+
+
+class ShortTimeInsuranceResponse(BaseModel):
+    covered: bool
+    is_specified_workplace: bool
+    meets_hours: bool
+    meets_wage: bool
+    meets_employment_period: bool
+    not_student: bool
+    reasons: list[str]
+
+
+class ChildcareLeaveBenefitRequest(BaseModel):
+    wage_total_6m: Decimal
+    insured_months: int
+    payment_days: int = 30
+    cumulative_days_before: int = 0
+    wage_paid_during_leave: Decimal = Decimal("0")
+
+
+class ChildcareLeaveBenefitResponse(BaseModel):
+    eligible: bool
+    daily_wage: Decimal
+    benefit_rate: Decimal
+    benefit_amount: Decimal
+    reason: str
+
+
+class CaregiverLeaveBenefitRequest(BaseModel):
+    wage_total_6m: Decimal
+    insured_months: int
+    payment_days: int = 30
+    cumulative_days_before: int = 0
+    wage_paid_during_leave: Decimal = Decimal("0")
+
+
+class CaregiverLeaveBenefitResponse(BaseModel):
+    eligible: bool
+    daily_wage: Decimal
+    payable_days: int
+    benefit_amount: Decimal
+    reason: str
+
+
+class WorkersAccidentLeaveRequest(BaseModel):
+    daily_wage_base: Decimal
+    absent_days: int
+    waiting_completed: bool = False
+    daily_partial_wage: Decimal = Decimal("0")
+
+
+class WorkersAccidentLeaveResponse(BaseModel):
+    payable_days: int
+    daily_compensation: Decimal
+    daily_special: Decimal
+    total_compensation: Decimal
+    total_special: Decimal
+    total_benefit: Decimal
+
+
+class HighCostMedicalRequest(BaseModel):
+    total_medical_cost: Decimal
+    self_paid: Decimal
+    income_category: str
+    multiple_treatment: bool = False
+
+
+class HighCostMedicalResponse(BaseModel):
+    self_pay_limit: Decimal
+    high_cost_benefit: Decimal
+
+
+class PostnatalLeaveBenefitRequest(BaseModel):
+    wage_total_6m: Decimal
+    insured_months: int
+    leave_days: int
+    cumulative_days_before: int = 0
+    wage_paid_during_leave: Decimal = Decimal("0")
+
+
+class PostnatalLeaveBenefitResponse(BaseModel):
+    eligible: bool
+    daily_wage: Decimal
+    payable_days: int
+    benefit_amount: Decimal
+    reason: str
+
+
+class BonusImportRequest(BaseModel):
+    csv_text: str
+    fiscal_year: int
+    column_map: dict[str, str] | None = None
+
+
+class BonusPaymentSchema(BaseModel):
+    insured_number: str
+    name: str
+    payment_date: date
+    bonus_amount: Decimal
+    standard_bonus: Decimal
+    health_standard_bonus: Decimal
+    pension_standard_bonus: Decimal
+    fiscal_ytd_standard_bonus: Decimal
+    same_month_prior_standard_bonus: Decimal
+    health_capped: bool
+    pension_capped: bool
+
+    model_config = {"from_attributes": True}
+
+
+class BonusImportResponse(BaseModel):
+    payment_count: int
+    employee_count: int
+    payments: list[BonusPaymentSchema]
+    total_bonus_amount: Decimal
+    total_health_standard_bonus: Decimal
+    total_pension_standard_bonus: Decimal
+    capped_numbers: list[str]
+    csv_text: str
+
+    model_config = {"from_attributes": True}
+
+
+class RevisionImportRequest(BaseModel):
+    csv_text: str
+    start_year: int
+    column_map: dict[str, str] | None = None
+
+
+class RevisionImportEmployeeSchema(BaseModel):
+    insured_number: str
+    name: str
+    start_month: int
+    revision_year_month: str
+    month_totals: list[Decimal]
+    average: Decimal | None
+    prev_health_grade: int
+    new_health_grade: int | None
+    health_grade_diff: int
+    prev_pension_grade: int
+    new_pension_grade: int | None
+    new_health_standard: Decimal | None
+    new_pension_standard: Decimal | None
+    fixed_wage_changed: bool
+    days_ok: bool
+    revision_required: bool
+    reason: str
+
+    model_config = {"from_attributes": True}
+
+
+class RevisionImportResponse(BaseModel):
+    row_count: int
+    employee_count: int
+    employees: list[RevisionImportEmployeeSchema]
+    revision_required_numbers: list[str]
+    csv_text: str
+
+    model_config = {"from_attributes": True}
+
+
+class SanteiImportRequest(BaseModel):
+    csv_text: str
+    applicable_year: int
+    applicable_month: int = 9
+    column_map: dict[str, str] | None = None
+
+
+class SanteiImportEmployeeSchema(BaseModel):
+    insured_number: str
+    name: str
+    month_totals: list[Decimal]
+    total: Decimal
+    average: Decimal | None
+    health_grade: int | None
+    health_standard: Decimal | None
+    pension_grade: int | None
+    pension_standard: Decimal | None
+    requires_manual: bool
+
+    model_config = {"from_attributes": True}
+
+
+class SanteiImportResponse(BaseModel):
+    row_count: int
+    employee_count: int
+    employees: list[SanteiImportEmployeeSchema]
+    manual_review_numbers: list[str]
+    csv_text: str
+
+    model_config = {"from_attributes": True}
+
+
+class AttendanceImportRequest(BaseModel):
+    csv_text: str
+    column_map: dict[str, str] | None = None
+
+
+class EmployeeOvertimePaySchema(BaseModel):
+    employee_id: str
+    hourly_wage: Decimal
+    overtime_hours: Decimal
+    overtime_within_60_hours: Decimal
+    overtime_over_60_hours: Decimal
+    late_night_hours: Decimal
+    holiday_hours: Decimal
+    overtime_pay: Decimal
+    overtime_over_60_pay: Decimal
+    late_night_pay: Decimal
+    holiday_pay: Decimal
+    total_premium: Decimal
+    exceeds_45_hours: bool
+
+    model_config = {"from_attributes": True}
+
+
+class AttendanceImportResponse(BaseModel):
+    row_count: int
+    employee_count: int
+    employees: list[EmployeeOvertimePaySchema]
+    total_premium: Decimal
+    exceeding_employee_ids: list[str]
+
+    model_config = {"from_attributes": True}
+
+
+class PayrollWageImportRequest(BaseModel):
+    csv_text: str
+    business_type: str = "general"
+    workers_comp_rate: Decimal = DEFAULT_WORKERS_COMPENSATION_RATE
+    column_map: dict[str, str] | None = None
+
+
+class PayrollWageImportResponse(BaseModel):
+    row_count: int
+    employee_count: int
+    employment_insured_count: int
+    workers_comp_wage_total: Decimal
+    employment_wage_total: Decimal
+    workers_comp_base: Decimal
+    employment_base: Decimal
+    workers_comp_premium: Decimal
+    employment_premium: Decimal
+    employment_employee_premium: Decimal
+    employment_employer_premium: Decimal
+    general_contribution: Decimal
+    determined_premium: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class SalesReturnLineSchema(BaseModel):
+    amount: Decimal
+    tax_rate: Decimal
+
+
+class SalesReturnTaxRequest(BaseModel):
+    returns: list[SalesReturnLineSchema]
+
+
+class SalesReturnRateBreakdownSchema(BaseModel):
+    tax_rate: Decimal
+    return_amount: Decimal
+    deductible_tax: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class SalesReturnTaxResponse(BaseModel):
+    by_rate: list[SalesReturnRateBreakdownSchema]
+    total_return: Decimal
+    total_deductible_tax: Decimal
+
+    model_config = {"from_attributes": True}

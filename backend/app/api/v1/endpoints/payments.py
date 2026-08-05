@@ -10,10 +10,38 @@ from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.models.models import PaymentRequest
-from app.schemas.schemas import PaymentRequestCreate, PaymentRequestResponse, ZenginExportRequest
+from app.schemas.schemas import (
+    PaymentMatchingRequest,
+    PaymentMatchingResponse,
+    PaymentRequestCreate,
+    PaymentRequestResponse,
+    ReceivableJournalDraftSchema,
+    ReceivableJournalResponse,
+    ReceivableMatchingRequest,
+    ReceivableMatchingResponse,
+    ZenginExportRequest,
+    ZenginTransferRequest,
+    ZenginTransferResponse,
+)
 from app.services.payment_export import ZenginExportService
+from app.services.payment_matching import (
+    BankWithdrawal,
+    ExpectedPayment,
+    PaymentMatchingService,
+)
 from app.services.payment_terms import PaymentTermsService
 from app.services.payment_workflow import next_payment_status
+from app.services.receivable_journal_draft import ReceivableJournalDraftService
+from app.services.receivable_matching import (
+    Deposit,
+    OpenInvoice,
+    ReceivableMatchingService,
+)
+from app.services.zengin_transfer import (
+    TransferLine,
+    TransferRequest,
+    ZenginTransferService,
+)
 
 router = APIRouter()
 
@@ -135,6 +163,163 @@ async def export_zengin(
         bank_account_id=payload.bank_account_id,
     )
     return Response(content=body, media_type="application/octet-stream")
+
+
+@router.post("/zengin/transfer-data", response_model=ZenginTransferResponse)
+async def generate_zengin_transfer_data(
+    payload: ZenginTransferRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),  # noqa: B008
+) -> ZenginTransferResponse:
+    try:
+        result = ZenginTransferService.generate(
+            TransferRequest(
+                consignor_code=payload.consignor_code,
+                consignor_name=payload.consignor_name,
+                transfer_date=payload.transfer_date,
+                bank_code=payload.bank_code,
+                bank_name=payload.bank_name,
+                branch_code=payload.branch_code,
+                branch_name=payload.branch_name,
+                account_type=payload.account_type,
+                account_number=payload.account_number,
+                lines=[
+                    TransferLine(
+                        bank_code=line.bank_code,
+                        bank_name=line.bank_name,
+                        branch_code=line.branch_code,
+                        branch_name=line.branch_name,
+                        account_type=line.account_type,
+                        account_number=line.account_number,
+                        recipient_name=line.recipient_name,
+                        amount=line.amount,
+                        customer_code=line.customer_code,
+                        fee_borne_by_recipient=line.fee_borne_by_recipient,
+                        transfer_fee=line.transfer_fee,
+                    )
+                    for line in payload.lines
+                ],
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ZenginTransferResponse.model_validate(result)
+
+
+@router.post("/bank-matching", response_model=PaymentMatchingResponse)
+async def match_payments_with_bank_withdrawals(
+    payload: PaymentMatchingRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),  # noqa: B008
+) -> PaymentMatchingResponse:
+    try:
+        result = PaymentMatchingService.match(
+            withdrawals=[
+                BankWithdrawal(
+                    line_id=item.line_id,
+                    transaction_date=item.transaction_date,
+                    amount=item.amount,
+                    description=item.description,
+                )
+                for item in payload.withdrawals
+            ],
+            payments=[
+                ExpectedPayment(
+                    payment_id=item.payment_id,
+                    payee_name=item.payee_name,
+                    amount=item.amount,
+                    payment_date=item.payment_date,
+                )
+                for item in payload.payments
+            ],
+            date_tolerance_days=payload.date_tolerance_days,
+            fee_tolerance=payload.fee_tolerance,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return PaymentMatchingResponse.model_validate(result)
+
+
+@router.post("/receivable-matching", response_model=ReceivableMatchingResponse)
+async def match_deposits_with_invoices(
+    payload: ReceivableMatchingRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),  # noqa: B008
+) -> ReceivableMatchingResponse:
+    try:
+        result = ReceivableMatchingService.match(
+            deposits=[
+                Deposit(
+                    deposit_id=item.deposit_id,
+                    transaction_date=item.transaction_date,
+                    amount=item.amount,
+                    remitter_name=item.remitter_name,
+                )
+                for item in payload.deposits
+            ],
+            invoices=[
+                OpenInvoice(
+                    invoice_id=item.invoice_id,
+                    customer_name=item.customer_name,
+                    amount=item.amount,
+                    due_date=item.due_date,
+                )
+                for item in payload.invoices
+            ],
+            fee_tolerance=payload.fee_tolerance,
+            name_threshold=payload.name_threshold,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ReceivableMatchingResponse.model_validate(result)
+
+
+@router.post("/receivable-journal-drafts", response_model=ReceivableJournalResponse)
+async def generate_receivable_journal_drafts(
+    payload: ReceivableMatchingRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),  # noqa: B008
+) -> ReceivableJournalResponse:
+    """入金明細と請求を消し込み、売掛金の消込仕訳ドラフトまで生成する。"""
+    try:
+        matched = ReceivableMatchingService.match(
+            deposits=[
+                Deposit(
+                    deposit_id=item.deposit_id,
+                    transaction_date=item.transaction_date,
+                    amount=item.amount,
+                    remitter_name=item.remitter_name,
+                )
+                for item in payload.deposits
+            ],
+            invoices=[
+                OpenInvoice(
+                    invoice_id=item.invoice_id,
+                    customer_name=item.customer_name,
+                    amount=item.amount,
+                    due_date=item.due_date,
+                )
+                for item in payload.invoices
+            ],
+            fee_tolerance=payload.fee_tolerance,
+            name_threshold=payload.name_threshold,
+        )
+        journal = ReceivableJournalDraftService.generate(
+            matched,
+            transaction_dates={
+                item.deposit_id: item.transaction_date for item in payload.deposits
+            },
+            partner_names={
+                item.invoice_id: item.customer_name for item in payload.invoices
+            },
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ReceivableJournalResponse(
+        matching=ReceivableMatchingResponse.model_validate(matched),
+        drafts=[ReceivableJournalDraftSchema.model_validate(d) for d in journal.drafts],
+        total_receivable_cleared=journal.total_receivable_cleared,
+        total_fee_expense=journal.total_fee_expense,
+        total_advance_received=journal.total_advance_received,
+        total_suspense=journal.total_suspense,
+        balanced=journal.balanced,
+    )
 
 
 @router.get("/payment-date")
