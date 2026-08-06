@@ -13,6 +13,8 @@ from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.models.models import Invoice, InvoiceLine, Partner
 from app.schemas.schemas import (
+    CreditCheckRequest,
+    CreditCheckResponse,
     InvoiceCreate,
     InvoiceLineResponse,
     InvoiceListResponse,
@@ -31,6 +33,7 @@ from app.services.auto_journal import (
     generate_invoice_issue_journal,
     generate_invoice_payment_journal,
 )
+from app.services.credit_limit import CreditLimitService, CreditRequest
 from app.services.invoice_number import is_valid_registration_number, normalize
 from app.services.invoice_registration import InvoiceRegistrationService
 from app.services.invoice_tax import InvoiceTaxService
@@ -299,6 +302,40 @@ async def analyze_receivable_aging(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return ReceivableAgingResponse.model_validate(result)
+
+
+@router.post("/credit-check", response_model=CreditCheckResponse)
+async def check_credit_limits(
+    payload: CreditCheckRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> CreditCheckResponse:
+    """受注額を含む与信使用額と滞留状況から、取引先ごとの受注可否を判定する。"""
+    try:
+        result = CreditLimitService.check(
+            as_of=payload.as_of,
+            requests=[
+                CreditRequest(
+                    customer_code=item.customer_code,
+                    customer_name=item.customer_name,
+                    order_amount=item.order_amount,
+                    credit_limit=item.credit_limit,
+                    receivable_balance=item.receivable_balance,
+                    order_backlog=item.order_backlog,
+                    notes_receivable=item.notes_receivable,
+                    advance_received=item.advance_received,
+                    temporary_limit=item.temporary_limit,
+                    temporary_limit_expiry=item.temporary_limit_expiry,
+                    max_days_overdue=item.max_days_overdue,
+                    has_default_event=item.has_default_event,
+                )
+                for item in payload.requests
+            ],
+            warning_ratio=payload.warning_ratio,
+            blocking_days_overdue=payload.blocking_days_overdue,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return CreditCheckResponse.model_validate(result)
 
 
 @router.post("/sales-closing", response_model=SalesClosingResponse)

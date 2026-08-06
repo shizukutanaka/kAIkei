@@ -2549,3 +2549,54 @@ class BadDebtJournalResponse(BaseModel):
     balanced: bool
 
     model_config = {"from_attributes": True}
+
+
+class CreditRequestSchema(BaseModel):
+    customer_code: str
+    customer_name: str
+    order_amount: Decimal = Decimal("0")
+    credit_limit: Decimal | None = None
+    receivable_balance: Decimal = Decimal("0")
+    order_backlog: Decimal = Decimal("0")
+    notes_receivable: Decimal = Decimal("0")
+    advance_received: Decimal = Decimal("0")
+    temporary_limit: Decimal = Decimal("0")
+    temporary_limit_expiry: date | None = None
+    max_days_overdue: int = 0
+    has_default_event: bool = False
+
+
+class CreditCheckRequest(BaseModel):
+    as_of: date
+    requests: list[CreditRequestSchema]
+    warning_ratio: Decimal = Decimal("0.8")
+    blocking_days_overdue: int = 61
+
+
+class CreditJudgmentSchema(BaseModel):
+    customer_code: str
+    customer_name: str
+    judgment: str
+    reason: str
+    credit_line: Decimal
+    exposure: Decimal
+    available_credit: Decimal
+    order_amount: Decimal
+    exposure_after_order: Decimal
+    excess_amount: Decimal
+    utilization_ratio: Decimal | None
+    max_days_overdue: int
+
+    model_config = {"from_attributes": True}
+
+
+class CreditCheckResponse(BaseModel):
+    as_of: date
+    judgments: list[CreditJudgmentSchema]
+    total_exposure: Decimal
+    total_available_credit: Decimal
+    blocked_customer_codes: list[str]
+    rejected_customer_codes: list[str]
+    manual_customer_codes: list[str]
+
+    model_config = {"from_attributes": True}
