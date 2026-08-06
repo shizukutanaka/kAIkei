@@ -2497,3 +2497,55 @@ class BadDebtAssessmentResponse(BaseModel):
     manual_receivable_ids: list[str]
 
     model_config = {"from_attributes": True}
+
+
+class BadDebtJournalRequest(BaseModel):
+    as_of: date
+    receivables: list[DebtorReceivableSchema]
+    industry: str
+    statutory_rate: Decimal | None = None
+    transaction_date: date
+    allowance_balance: Decimal = Decimal("0")
+    tax_rates: dict[str, Decimal] | None = None
+    tax_treatment: str = "exclusive"
+    allowance_method: str = "difference"
+
+
+class BadDebtDraftLineSchema(BaseModel):
+    account_role: str
+    debit: Decimal
+    credit: Decimal
+    receivable_id: str | None = None
+    partner_name: str = ""
+
+    model_config = {"from_attributes": True}
+
+
+class BadDebtJournalDraftSchema(BaseModel):
+    draft_type: str
+    reference_id: str
+    description: str
+    transaction_date: date
+    lines: list[BadDebtDraftLineSchema]
+    total_debit: Decimal
+    total_credit: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class BadDebtJournalResponse(BaseModel):
+    transaction_date: date
+    drafts: list[BadDebtJournalDraftSchema]
+    total_write_off: Decimal
+    total_allowance_used: Decimal
+    total_loss_expense: Decimal
+    total_consumption_tax_deduction: Decimal
+    allowance_opening_balance: Decimal
+    allowance_after_write_off: Decimal
+    allowance_target: Decimal
+    provision_amount: Decimal
+    reversal_amount: Decimal
+    allowance_closing_balance: Decimal
+    balanced: bool
+
+    model_config = {"from_attributes": True}
