@@ -22,6 +22,8 @@ from app.schemas.schemas import (
     NotificationCreate,
     QualifiedInvoiceCheckRequest,
     QualifiedInvoiceCheckResponse,
+    ReceivableAgingRequest,
+    ReceivableAgingResponse,
     SalesClosingRequest,
     SalesClosingResponse,
 )
@@ -38,6 +40,7 @@ from app.services.qualified_invoice_check import (
     QualifiedInvoiceInput,
     QualifiedInvoiceLine,
 )
+from app.services.receivable_aging import ReceivableAgingService, ReceivableItem
 from app.services.sales_closing import (
     BillingTerms,
     SalesClosingService,
@@ -268,6 +271,34 @@ async def compute_invoice_tax(
         total_tax=result.total_tax,
         total_amount=result.total_amount,
     )
+
+
+@router.post("/receivable-aging", response_model=ReceivableAgingResponse)
+async def analyze_receivable_aging(
+    payload: ReceivableAgingRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> ReceivableAgingResponse:
+    """売掛金の滞留状況を区分し、取引先単位の督促タスクを生成する。"""
+    try:
+        result = ReceivableAgingService.analyze(
+            as_of=payload.as_of,
+            receivables=[
+                ReceivableItem(
+                    invoice_id=item.invoice_id,
+                    customer_code=item.customer_code,
+                    customer_name=item.customer_name,
+                    due_date=item.due_date,
+                    amount=item.amount,
+                    paid_amount=item.paid_amount,
+                )
+                for item in payload.receivables
+            ],
+            minimum_amount=payload.minimum_amount,
+            statute_alert_days=payload.statute_alert_days,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ReceivableAgingResponse.model_validate(result)
 
 
 @router.post("/sales-closing", response_model=SalesClosingResponse)
