@@ -1294,6 +1294,71 @@ class QualificationAcquisitionExportRequest(BaseModel):
     employees: list[QualificationAcquisitionEmployeeInput]
 
 
+class ReceivableItemInput(BaseModel):
+    invoice_id: str
+    customer_code: str
+    customer_name: str
+    due_date: date
+    amount: Decimal
+    paid_amount: Decimal = Decimal("0")
+
+
+class ReceivableAgingRequest(BaseModel):
+    as_of: date
+    receivables: list[ReceivableItemInput]
+    minimum_amount: Decimal = Decimal("0")
+    statute_alert_days: int = 180
+
+
+class AgedReceivableSchema(BaseModel):
+    invoice_id: str
+    customer_code: str
+    customer_name: str
+    due_date: date
+    outstanding: Decimal
+    days_overdue: int
+    bucket: str
+    statute_expiry_date: date
+    statute_alert: bool
+
+    model_config = {"from_attributes": True}
+
+
+class BucketSummarySchema(BaseModel):
+    bucket: str
+    count: int
+    amount: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class CollectionTaskSchema(BaseModel):
+    customer_code: str
+    customer_name: str
+    action: str
+    title: str
+    invoice_ids: list[str]
+    outstanding: Decimal
+    oldest_due_date: date
+    max_days_overdue: int
+    task_due_date: date
+    statute_alert: bool
+
+    model_config = {"from_attributes": True}
+
+
+class ReceivableAgingResponse(BaseModel):
+    as_of: date
+    items: list[AgedReceivableSchema]
+    summary: list[BucketSummarySchema]
+    tasks: list[CollectionTaskSchema]
+    total_outstanding: Decimal
+    total_overdue: Decimal
+    overdue_count: int
+
+    model_config = {"from_attributes": True}
+
+
 class SalesLineInput(BaseModel):
     line_id: str
     customer_code: str
