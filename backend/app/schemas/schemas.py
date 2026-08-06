@@ -2436,3 +2436,64 @@ class SalesReturnTaxResponse(BaseModel):
     total_deductible_tax: Decimal
 
     model_config = {"from_attributes": True}
+
+
+class DebtorReceivableSchema(BaseModel):
+    receivable_id: str
+    customer_code: str
+    customer_name: str
+    amount: Decimal
+    due_date: date
+    event: str = "none"
+    event_date: date | None = None
+    secured_amount: Decimal = Decimal("0")
+    offsettable_amount: Decimal = Decimal("0")
+    written_off_amount: Decimal = Decimal("0")
+    repayment_within_5years: Decimal = Decimal("0")
+    unrecoverable: bool = False
+    is_trade_receivable: bool = True
+    last_transaction_date: date | None = None
+
+
+class BadDebtAssessmentRequest(BaseModel):
+    as_of: date
+    receivables: list[DebtorReceivableSchema]
+    industry: str
+    statutory_rate: Decimal | None = None
+
+
+class AssessedReceivableSchema(BaseModel):
+    receivable_id: str
+    customer_code: str
+    customer_name: str
+    amount: Decimal
+    treatment: str
+    basis: str
+    loss_amount: Decimal
+    reserve_limit: Decimal
+    general_base_amount: Decimal
+    note: str
+
+    model_config = {"from_attributes": True}
+
+
+class GeneralReserveSchema(BaseModel):
+    statutory_rate: Decimal
+    base_amount: Decimal
+    reserve_limit: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class BadDebtAssessmentResponse(BaseModel):
+    as_of: date
+    items: list[AssessedReceivableSchema]
+    total_loss: Decimal
+    total_individual_reserve: Decimal
+    general_receivables: Decimal
+    general_offsettable: Decimal
+    general_reserve: GeneralReserveSchema | None
+    total_reserve_limit: Decimal
+    manual_receivable_ids: list[str]
+
+    model_config = {"from_attributes": True}

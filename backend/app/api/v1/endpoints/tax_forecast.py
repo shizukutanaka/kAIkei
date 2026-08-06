@@ -10,10 +10,13 @@ from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.schemas.schemas import (
+    BadDebtAssessmentRequest,
+    BadDebtAssessmentResponse,
     SalesReturnTaxRequest,
     SalesReturnTaxResponse,
     TaxForecastResponse,
 )
+from app.services.bad_debt_assessment import BadDebtAssessmentService, DebtorReceivable
 from app.services.bad_debt_consumption_tax import BadDebtConsumptionTaxService
 from app.services.bad_debt_reserve import BadDebtReserveService
 from app.services.business_tax import BusinessTaxService
@@ -344,6 +347,42 @@ async def get_bad_debt_reserve(
         "base_amount": result.base_amount,
         "reserve_limit": result.reserve_limit,
     }
+
+
+@router.post("/bad-debt-assessment", response_model=BadDebtAssessmentResponse)
+async def assess_bad_debts(
+    payload: BadDebtAssessmentRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> BadDebtAssessmentResponse:
+    """滞留債権を貸倒損失・個別評価・一括評価に振り分け、繰入限度額を算定する。"""
+    try:
+        result = BadDebtAssessmentService.assess(
+            as_of=payload.as_of,
+            receivables=[
+                DebtorReceivable(
+                    receivable_id=item.receivable_id,
+                    customer_code=item.customer_code,
+                    customer_name=item.customer_name,
+                    amount=item.amount,
+                    due_date=item.due_date,
+                    event=item.event,
+                    event_date=item.event_date,
+                    secured_amount=item.secured_amount,
+                    offsettable_amount=item.offsettable_amount,
+                    written_off_amount=item.written_off_amount,
+                    repayment_within_5years=item.repayment_within_5years,
+                    unrecoverable=item.unrecoverable,
+                    is_trade_receivable=item.is_trade_receivable,
+                    last_transaction_date=item.last_transaction_date,
+                )
+                for item in payload.receivables
+            ],
+            industry=payload.industry,
+            statutory_rate=payload.statutory_rate,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return BadDebtAssessmentResponse.model_validate(result)
 
 
 @router.get("/taxable-enterprise")
