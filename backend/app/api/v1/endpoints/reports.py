@@ -20,8 +20,9 @@ from app.models.models import (
     PeriodClose,
 )
 from app.schemas.schemas import ArAgingBucketAmounts, ArAgingPartnerLine, ArAgingResponse
-from app.services import ar_aging
+from app.services import receivable_aging
 from app.services.financial_kpi import FinancialKpiService
+from app.services.receivable_aging import ReceivableAgingService, ReceivableItem
 
 router = APIRouter()
 
@@ -44,7 +45,7 @@ async def get_ar_aging(
         await db.execute(
             select(Invoice).where(
                 Invoice.company_id == company_id,
-                Invoice.status.in_(ar_aging.OPEN_INVOICE_STATUSES),
+                Invoice.status == "issued",
             )
         )
     ).scalars().all()
@@ -54,34 +55,81 @@ async def get_ar_aging(
     ).scalars().all()
     partner_names = {p.partner_id: p.partner_name for p in partners}
 
-    result = ar_aging.aggregate_aging(list(invoices), reference_date, partner_names)
-
-    def _buckets(values: dict) -> ArAgingBucketAmounts:
-        return ArAgingBucketAmounts(
-            not_due=values[ar_aging.BUCKET_NOT_DUE],
-            overdue_1_30=values[ar_aging.BUCKET_1_30],
-            overdue_31_60=values[ar_aging.BUCKET_31_60],
-            overdue_61_90=values[ar_aging.BUCKET_61_90],
-            overdue_over_90=values[ar_aging.BUCKET_OVER_90],
+    # 滞留区分の判定は ReceivableAgingService に一本化する（同一システム内に区分ロジックが
+    # 二つあると同じ債権に異なる集計結果が出るため）。ここはDBからの入力整形と
+    # 取引先別ロールアップに徹する。
+    receivables = [
+        ReceivableItem(
+            invoice_id=str(inv.invoice_id),
+            customer_code=str(inv.partner_id) if inv.partner_id else "",
+            customer_name=partner_names.get(inv.partner_id, "(取引先未設定)"),
+            due_date=inv.due_date,
+            amount=Decimal(str(inv.total_amount or 0)),
+            # Invoiceは部分入金額を保持しないため未充当（全額未回収）として扱う。
+            paid_amount=Decimal("0"),
         )
+        for inv in invoices
+        if Decimal(str(inv.total_amount or 0)) > 0
+    ]
+    analysis = ReceivableAgingService.analyze(as_of=reference_date, receivables=receivables)
+
+    # サービスの区分キーをAPIレスポンスのキーへ対応付ける（91日以上 = 90日超）。
+    _KEY_MAP = {
+        receivable_aging.BUCKET_NOT_DUE: "not_due",
+        receivable_aging.BUCKET_1_30: "overdue_1_30",
+        receivable_aging.BUCKET_31_60: "overdue_31_60",
+        receivable_aging.BUCKET_61_90: "overdue_61_90",
+        receivable_aging.BUCKET_91_PLUS: "overdue_over_90",
+    }
+
+    def _empty() -> dict[str, Decimal]:
+        return {k: Decimal("0") for k in _KEY_MAP.values()}
+
+    def _buckets(values: dict[str, Decimal]) -> ArAgingBucketAmounts:
+        return ArAgingBucketAmounts(**values)
+
+    totals = _empty()
+    per_partner: dict[str, dict] = {}
+    for item in analysis.items:
+        key = _KEY_MAP[item.bucket]
+        totals[key] += item.outstanding
+        entry = per_partner.setdefault(
+            item.customer_code,
+            {
+                "partner_id": item.customer_code or None,
+                "partner_name": item.customer_name,
+                "buckets": _empty(),
+                "total": Decimal("0"),
+                "invoice_count": 0,
+                "oldest_days_overdue": 0,
+            },
+        )
+        entry["buckets"][key] += item.outstanding
+        entry["total"] += item.outstanding
+        entry["invoice_count"] += 1
+        entry["oldest_days_overdue"] = max(entry["oldest_days_overdue"], item.days_overdue)
+
+    partners_sorted = sorted(
+        per_partner.values(), key=lambda e: (-e["total"], -e["oldest_days_overdue"])
+    )
 
     return ArAgingResponse(
         company_id=company_id,
         as_of=reference_date,
-        buckets=_buckets(result["buckets"]),
-        total=result["total"],
-        overdue_total=result["overdue_total"],
-        invoice_count=result["invoice_count"],
+        buckets=_buckets(totals),
+        total=analysis.total_outstanding,
+        overdue_total=analysis.total_overdue,
+        invoice_count=len(analysis.items),
         partners=[
             ArAgingPartnerLine(
-                partner_id=p.partner_id,
-                partner_name=p.partner_name,
-                buckets=_buckets(p.buckets),
-                total=p.total,
-                invoice_count=p.invoice_count,
-                oldest_days_overdue=p.oldest_days_overdue,
+                partner_id=e["partner_id"],
+                partner_name=e["partner_name"],
+                buckets=_buckets(e["buckets"]),
+                total=e["total"],
+                invoice_count=e["invoice_count"],
+                oldest_days_overdue=e["oldest_days_overdue"],
             )
-            for p in result["partners"]
+            for e in partners_sorted
         ],
     )
 
