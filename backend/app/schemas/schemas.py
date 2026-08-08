@@ -1294,6 +1294,71 @@ class QualificationAcquisitionExportRequest(BaseModel):
     employees: list[QualificationAcquisitionEmployeeInput]
 
 
+class ReceivableItemInput(BaseModel):
+    invoice_id: str
+    customer_code: str
+    customer_name: str
+    due_date: date
+    amount: Decimal
+    paid_amount: Decimal = Decimal("0")
+
+
+class ReceivableAgingRequest(BaseModel):
+    as_of: date
+    receivables: list[ReceivableItemInput]
+    minimum_amount: Decimal = Decimal("0")
+    statute_alert_days: int = 180
+
+
+class AgedReceivableSchema(BaseModel):
+    invoice_id: str
+    customer_code: str
+    customer_name: str
+    due_date: date
+    outstanding: Decimal
+    days_overdue: int
+    bucket: str
+    statute_expiry_date: date
+    statute_alert: bool
+
+    model_config = {"from_attributes": True}
+
+
+class BucketSummarySchema(BaseModel):
+    bucket: str
+    count: int
+    amount: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class CollectionTaskSchema(BaseModel):
+    customer_code: str
+    customer_name: str
+    action: str
+    title: str
+    invoice_ids: list[str]
+    outstanding: Decimal
+    oldest_due_date: date
+    max_days_overdue: int
+    task_due_date: date
+    statute_alert: bool
+
+    model_config = {"from_attributes": True}
+
+
+class ReceivableAgingResponse(BaseModel):
+    as_of: date
+    items: list[AgedReceivableSchema]
+    summary: list[BucketSummarySchema]
+    tasks: list[CollectionTaskSchema]
+    total_outstanding: Decimal
+    total_overdue: Decimal
+    overdue_count: int
+
+    model_config = {"from_attributes": True}
+
+
 class SalesLineInput(BaseModel):
     line_id: str
     customer_code: str
@@ -2395,5 +2460,169 @@ class SalesReturnTaxResponse(BaseModel):
     by_rate: list[SalesReturnRateBreakdownSchema]
     total_return: Decimal
     total_deductible_tax: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class DebtorReceivableSchema(BaseModel):
+    receivable_id: str
+    customer_code: str
+    customer_name: str
+    amount: Decimal
+    due_date: date
+    event: str = "none"
+    event_date: date | None = None
+    secured_amount: Decimal = Decimal("0")
+    offsettable_amount: Decimal = Decimal("0")
+    written_off_amount: Decimal = Decimal("0")
+    repayment_within_5years: Decimal = Decimal("0")
+    unrecoverable: bool = False
+    is_trade_receivable: bool = True
+    last_transaction_date: date | None = None
+
+
+class BadDebtAssessmentRequest(BaseModel):
+    as_of: date
+    receivables: list[DebtorReceivableSchema]
+    industry: str
+    statutory_rate: Decimal | None = None
+
+
+class AssessedReceivableSchema(BaseModel):
+    receivable_id: str
+    customer_code: str
+    customer_name: str
+    amount: Decimal
+    treatment: str
+    basis: str
+    loss_amount: Decimal
+    reserve_limit: Decimal
+    general_base_amount: Decimal
+    note: str
+
+    model_config = {"from_attributes": True}
+
+
+class GeneralReserveSchema(BaseModel):
+    statutory_rate: Decimal
+    base_amount: Decimal
+    reserve_limit: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class BadDebtAssessmentResponse(BaseModel):
+    as_of: date
+    items: list[AssessedReceivableSchema]
+    total_loss: Decimal
+    total_individual_reserve: Decimal
+    general_receivables: Decimal
+    general_offsettable: Decimal
+    general_reserve: GeneralReserveSchema | None
+    total_reserve_limit: Decimal
+    manual_receivable_ids: list[str]
+
+    model_config = {"from_attributes": True}
+
+
+class BadDebtJournalRequest(BaseModel):
+    as_of: date
+    receivables: list[DebtorReceivableSchema]
+    industry: str
+    statutory_rate: Decimal | None = None
+    transaction_date: date
+    allowance_balance: Decimal = Decimal("0")
+    tax_rates: dict[str, Decimal] | None = None
+    tax_treatment: str = "exclusive"
+    allowance_method: str = "difference"
+
+
+class BadDebtDraftLineSchema(BaseModel):
+    account_role: str
+    debit: Decimal
+    credit: Decimal
+    receivable_id: str | None = None
+    partner_name: str = ""
+
+    model_config = {"from_attributes": True}
+
+
+class BadDebtJournalDraftSchema(BaseModel):
+    draft_type: str
+    reference_id: str
+    description: str
+    transaction_date: date
+    lines: list[BadDebtDraftLineSchema]
+    total_debit: Decimal
+    total_credit: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class BadDebtJournalResponse(BaseModel):
+    transaction_date: date
+    drafts: list[BadDebtJournalDraftSchema]
+    total_write_off: Decimal
+    total_allowance_used: Decimal
+    total_loss_expense: Decimal
+    total_consumption_tax_deduction: Decimal
+    allowance_opening_balance: Decimal
+    allowance_after_write_off: Decimal
+    allowance_target: Decimal
+    provision_amount: Decimal
+    reversal_amount: Decimal
+    allowance_closing_balance: Decimal
+    balanced: bool
+
+    model_config = {"from_attributes": True}
+
+
+class CreditRequestSchema(BaseModel):
+    customer_code: str
+    customer_name: str
+    order_amount: Decimal = Decimal("0")
+    credit_limit: Decimal | None = None
+    receivable_balance: Decimal = Decimal("0")
+    order_backlog: Decimal = Decimal("0")
+    notes_receivable: Decimal = Decimal("0")
+    advance_received: Decimal = Decimal("0")
+    temporary_limit: Decimal = Decimal("0")
+    temporary_limit_expiry: date | None = None
+    max_days_overdue: int = 0
+    has_default_event: bool = False
+
+
+class CreditCheckRequest(BaseModel):
+    as_of: date
+    requests: list[CreditRequestSchema]
+    warning_ratio: Decimal = Decimal("0.8")
+    blocking_days_overdue: int = 61
+
+
+class CreditJudgmentSchema(BaseModel):
+    customer_code: str
+    customer_name: str
+    judgment: str
+    reason: str
+    credit_line: Decimal
+    exposure: Decimal
+    available_credit: Decimal
+    order_amount: Decimal
+    exposure_after_order: Decimal
+    excess_amount: Decimal
+    utilization_ratio: Decimal | None
+    max_days_overdue: int
+
+    model_config = {"from_attributes": True}
+
+
+class CreditCheckResponse(BaseModel):
+    as_of: date
+    judgments: list[CreditJudgmentSchema]
+    total_exposure: Decimal
+    total_available_credit: Decimal
+    blocked_customer_codes: list[str]
+    rejected_customer_codes: list[str]
+    manual_customer_codes: list[str]
 
     model_config = {"from_attributes": True}
