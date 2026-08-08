@@ -39,6 +39,7 @@ const navSections: NavSection[] = [
       { label: "マスタ", href: "/masters", icon: BookOpen, permissions: ["master:read", "master:create"] },
       { label: "取引先", href: "/partners", icon: Handshake, permissions: ["master:read", "master:create"] },
       { label: "帳票", href: "/reports", icon: FileText, permissions: ["report:read"] },
+      { label: "債権年齢表", href: "/ar-aging", icon: Clock, permissions: ["report:read"] },
       { label: "予算管理", href: "/budgets", icon: Wallet, permissions: ["master:read"] },
       { label: "固定資産", href: "/assets", icon: Calculator },
     ],

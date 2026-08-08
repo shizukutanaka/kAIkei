@@ -10,10 +10,80 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
-from app.models.models import Account, JournalHeader, JournalLine, MonthlyBalance, PeriodClose
+from app.models.models import (
+    Account,
+    Invoice,
+    JournalHeader,
+    JournalLine,
+    MonthlyBalance,
+    Partner,
+    PeriodClose,
+)
+from app.schemas.schemas import ArAgingBucketAmounts, ArAgingPartnerLine, ArAgingResponse
+from app.services import ar_aging
 from app.services.financial_kpi import FinancialKpiService
 
 router = APIRouter()
+
+
+@router.get("/ar-aging", response_model=ArAgingResponse)
+async def get_ar_aging(
+    company_id: UUID = Query(...),  # noqa: B008
+    as_of: date | None = Query(None, description="基準日（未指定なら本日）"),  # noqa: B008
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> ArAgingResponse:
+    """売掛金年齢調べ（債権年齢表）を取得する。
+
+    未回収（発行済み）の請求書を支払期日からの経過日数で区分し、取引先別に集計する。
+    滞留債権の回収管理や貸倒引当金の見積り基礎資料として利用する。
+    """
+    reference_date = as_of or date.today()
+
+    invoices = (
+        await db.execute(
+            select(Invoice).where(
+                Invoice.company_id == company_id,
+                Invoice.status.in_(ar_aging.OPEN_INVOICE_STATUSES),
+            )
+        )
+    ).scalars().all()
+
+    partners = (
+        await db.execute(select(Partner).where(Partner.company_id == company_id))
+    ).scalars().all()
+    partner_names = {p.partner_id: p.partner_name for p in partners}
+
+    result = ar_aging.aggregate_aging(list(invoices), reference_date, partner_names)
+
+    def _buckets(values: dict) -> ArAgingBucketAmounts:
+        return ArAgingBucketAmounts(
+            not_due=values[ar_aging.BUCKET_NOT_DUE],
+            overdue_1_30=values[ar_aging.BUCKET_1_30],
+            overdue_31_60=values[ar_aging.BUCKET_31_60],
+            overdue_61_90=values[ar_aging.BUCKET_61_90],
+            overdue_over_90=values[ar_aging.BUCKET_OVER_90],
+        )
+
+    return ArAgingResponse(
+        company_id=company_id,
+        as_of=reference_date,
+        buckets=_buckets(result["buckets"]),
+        total=result["total"],
+        overdue_total=result["overdue_total"],
+        invoice_count=result["invoice_count"],
+        partners=[
+            ArAgingPartnerLine(
+                partner_id=p.partner_id,
+                partner_name=p.partner_name,
+                buckets=_buckets(p.buckets),
+                total=p.total,
+                invoice_count=p.invoice_count,
+                oldest_days_overdue=p.oldest_days_overdue,
+            )
+            for p in result["partners"]
+        ],
+    )
 
 
 @router.get("/trial-balance")

@@ -1467,3 +1467,31 @@ class CashflowForecastResponse(BaseModel):
     company_id: UUID
     as_of: date
     buckets: list[CashflowForecastBucket]
+
+
+class ArAgingBucketAmounts(BaseModel):
+    """滞留区分別の金額（債権年齢表）。"""
+    not_due: Decimal
+    overdue_1_30: Decimal
+    overdue_31_60: Decimal
+    overdue_61_90: Decimal
+    overdue_over_90: Decimal
+
+
+class ArAgingPartnerLine(BaseModel):
+    partner_id: UUID | None
+    partner_name: str
+    buckets: ArAgingBucketAmounts
+    total: Decimal
+    invoice_count: int
+    oldest_days_overdue: int
+
+
+class ArAgingResponse(BaseModel):
+    company_id: UUID
+    as_of: date
+    buckets: ArAgingBucketAmounts
+    total: Decimal
+    overdue_total: Decimal
+    invoice_count: int
+    partners: list[ArAgingPartnerLine]
