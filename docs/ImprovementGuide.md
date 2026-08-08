@@ -24,6 +24,34 @@
   （＝マイグレーション欠落はテストでは表面化しない。§改善参照）。
 - **model↔migration列パリティ**は `backend/tests/test_migration_model_parity.py` が保証する
   （全modelテーブルにcreate_tableがあること）。新モデル追加時はマイグレーションも必ず追加。
+- **ルート重複ガード**は `backend/tests/test_route_uniqueness.py` が保証する。FastAPIは
+  同一パスを先勝ちで解決するため、merge等で重複定義が入ると後続が到達不能な死にコードになる。
+
+### 0-1. コンテナがリセットされた場合の復旧（重要）
+
+実行環境（コンテナ）はセッション中に初期化されることがある。**Gitのコミット済み内容は
+無事だが、インストール済みパッケージとPostgresのデータディレクトリは消える**。
+`ModuleNotFoundError: No module named 'pytest'` / `sh: 1: next: not found` /
+DB接続拒否 が出たら、以下で復旧する（バイナリ自体は残っている）。
+
+```bash
+# 1) Python依存（pytest含む）
+cd backend && python -m pip install -q -r requirements.txt
+
+# 2) フロント依存
+cd ../frontend && npm ci
+
+# 3) Postgres（データディレクトリごと消えるため再作成が必要）
+mkdir -p /var/lib/postgresql/pgtest && chown postgres:postgres /var/lib/postgresql/pgtest
+su postgres -c "/usr/lib/postgresql/16/bin/initdb -D /var/lib/postgresql/pgtest -A trust"
+su postgres -c "/usr/lib/postgresql/16/bin/pg_ctl -D /var/lib/postgresql/pgtest \
+  -l /var/lib/postgresql/pgtest/server.log -o '-p 5432' -w start"
+su postgres -c "/usr/lib/postgresql/16/bin/psql -p 5432 \
+  -c \"CREATE ROLE kaikei LOGIN PASSWORD 'kaikei_dev' SUPERUSER;\""
+su postgres -c "/usr/lib/postgresql/16/bin/createdb -p 5432 -O kaikei kaikei_test"
+```
+
+復旧後は必ず全テストを再実行して、失敗が環境起因でなく実装起因でないことを確認する。
 
 ## 1. 長所（強み）
 
@@ -50,8 +78,8 @@
   （予算/budgetsは実装済み）。
 - 🟡 **ドキュメントdrift**: 統合後にmainが追加したテーブル7件/エンドポイントが
   `docs/OpenAPISpec.md`・`docs/DataDictionary.md`・`docs/DatabaseDesign.md` に未反映の可能性。
-- 🟡 **全銀エクスポートがモック**: `payment_export.py` は pipe区切り・UTF-8。
-  実際の全銀は Shift-JIS・固定長120バイト・整数円・ゼロ埋め。
+- ~~🟡 全銀エクスポートがモック~~ → **解消済み**（`zengin_transfer.py` に固定長120バイトの
+  全銀協 総合振込フォーマットを実装済み）。
 - 🟡 **フロントテスト薄い**: vitest 12件程度。ページ統合テストが少ない。
 - ⚪ **マルチレプリカの完全排他なし**: FOR UPDATE SKIP LOCKED で主要窓は閉じたが、
   claim/lease方式の完全な分散ロックではない。
@@ -86,22 +114,42 @@ start/complete API 経由の外部ワーカーモデルを踏襲（副作用は�
   自動生成 `/openapi.json` である旨を明記。
 - 検証: `backend/app/api/v1/router.py`・`models.py` と記述を突き合わせて一致確認。
 
-### 改善3 🟡 全銀フォーマットの実装（スコープ中・規格準拠）
-- 背景: `app/services/payment_export.py` はモック。実全銀は Shift-JIS・固定長・整数円・ゼロ埋め、
-  ヘッダ/データ/トレーラ/エンド の4レコード。
-- 対象: 同ファイル。既存 `_fit` を活用し各フィールド幅・右詰めゼロ埋め・半角カナを実装。
-  破壊的変更のため、旧mock出力に依存するテストは新仕様に合わせて書き換える。
-- 検証: レコード種別・バイト長・文字コード・フィールド位置の純粋テスト。
+### ✅ 済 改善3: 全銀フォーマット（別PRで実装済み）
+`app/services/zengin_transfer.py` に全銀協 総合振込フォーマット（固定長120バイト）が
+実装され、`POST /payments/zengin/transfer-data` から利用できる。旧 `payment_export.py`
+（pipe区切りの簡易出力）は別用途として併存。
 
-### 改善4 🟡 フロントテスト拡充（スコープ中）
+### 改善4 🟡 フロントテスト拡充（スコープ中・**残タスク**）
 - 対象: `frontend/**/*.test.tsx`。@testing-library/react、`vitest.setup.ts` の cleanup 利用。
-  budgets等の主要ページの表示/権限分岐/エラー状態をテスト。
+  budgets/payments/ar-aging 等の主要ページの表示/権限分岐/エラー状態をテスト。
+- 現状 vitest は12件のみでページ統合テストが薄い。
 - 検証: `npm test` グリーン。
 
-### 改善5 ⚪ セキュリティ/運用の堅牢化（スコープ小〜中）
-- MFAバックアップコード（ハッシュ保存＋一度限り消費）＋管理者リセット導線。
+### ✅ 済 改善5-a: MFAバックアップコード（実装済み）
+`users.mfa_backup_codes`(JSONB, migration 0026)＋`mfa.py` の生成/ハッシュ/照合/消費。
+**平文は保存せずSHA-256のみ**、単回使用、TOTPと同一のログインゲートでのみ受理、
+再生成は現在TOTP必須、秘密鍵ローテ・MFA無効化で自動失効。
+フロントは設定画面で残数表示＋再生成（平文は一度だけ表示）。
+- 残: 管理者による強制リセット導線（本人がTOTPもバックアップコードも失った場合）は未実装。
+
+### 改善5-b ⚪ 運用の堅牢化（残タスク）
 - ジョブ/配信の claim/lease（PostgreSQL advisory lock）でマルチレプリカ完全排他。
 - Peppol実送信はアクセスポイント契約前提のため設計メモに留める。
+- `/tax`(tax_forecast) 専用画面（単一read-onlyのため優先度低）。
+
+### ✅ 済 改善6: 債権年齢表（AR aging・実装済み）
+`app/services/ar_aging.py`（純粋関数）＋`GET /reports/ar-aging`＋フロント `/ar-aging`。
+実務標準区分（期日未到来/1-30/31-60/61-90/90日超）で未回収請求書を取引先別に集計。
+滞留債権の回収管理と、金融商品会計基準の貸倒引当金見積り（貸倒実績率法）の基礎資料。
+
+### （非改善）法定帳簿は既に完備 — 実装不要と確認済み
+First Principles 分析で「仕訳帳・総勘定元帳・試算表が欠けているのでは」と疑ったが、
+**調査の結果すべて実装済み**だった。作り直さないこと:
+- 仕訳帳: `GET /journals` ＋ `GET /journals/export/csv`
+- 総勘定元帳: `GET /journals/general-ledger` ＋ `/general-ledger/export`
+- 試算表: `GET /reports/trial-balance` ＋ `/export`
+- BS/PL/CF: `GET /reports/balance-sheet` `/income-statement` `/cash-flow` ＋ 各 `/export`
+- 監査一括: `GET /audit/export`（ZIP・総勘定元帳CSV・操作証跡CSV）
 
 ### （非改善）定額法の備忘価額1円
 `depreciation.py` は汎用 straight-line。**`salvage_value=1` を渡せば最終簿価1円になり
