@@ -75,18 +75,45 @@ export default function SettingsPage() {
   const [mfaSetup, setMfaSetup] = useState<{ secret: string; otpauth_uri: string } | null>(null);
   const [mfaCode, setMfaCode] = useState("");
   const [mfaBusy, setMfaBusy] = useState(false);
+  // MFAバックアップコード（平文は再生成直後に一度だけ表示する）
+  const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
+  const [backupRemaining, setBackupRemaining] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchMfa = async () => {
       try {
         const data = await apiGet<{ mfa_enabled: boolean }>("/auth/mfa/status");
         setMfaEnabled(data.mfa_enabled);
+        if (data.mfa_enabled) {
+          try {
+            const s = await apiGet<{ remaining: number }>("/auth/mfa/backup-codes/status");
+            setBackupRemaining(s.remaining);
+          } catch {
+            // 残数が取れなくてもMFA表示は継続
+          }
+        }
       } catch {
         // API未起動時は非表示のまま
       }
     };
     fetchMfa();
   }, []);
+
+  const handleMfaRegenerateBackupCodes = async () => {
+    if (!mfaCode) return;
+    setMfaBusy(true);
+    try {
+      const data = await apiPost<{ codes: string[]; remaining: number }>("/auth/mfa/backup-codes", { code: mfaCode });
+      setBackupCodes(data.codes);
+      setBackupRemaining(data.remaining);
+      setMfaCode("");
+      toast("バックアップコードを再生成しました", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "バックアップコードの再生成に失敗しました", "error");
+    } finally {
+      setMfaBusy(false);
+    }
+  };
 
   const handleMfaSetup = async () => {
     setMfaBusy(true);
@@ -107,6 +134,7 @@ export default function SettingsPage() {
     try {
       await apiPost<{ mfa_enabled: boolean }>("/auth/mfa/enable", { code: mfaCode });
       setMfaEnabled(true);
+      setBackupRemaining(0);  // 有効化直後はバックアップコード未発行
       setMfaSetup(null);
       setMfaCode("");
       toast("MFAを有効化しました", "success");
@@ -130,6 +158,8 @@ export default function SettingsPage() {
     try {
       await apiPost<{ mfa_enabled: boolean }>("/auth/mfa/disable", { code: mfaCode });
       setMfaEnabled(false);
+      setBackupCodes(null);
+      setBackupRemaining(null);
       setMfaCode("");
       toast("MFAを無効化しました", "success");
     } catch (err) {
@@ -360,9 +390,37 @@ export default function SettingsPage() {
                     <label htmlFor="mfa-disable-code" className="mb-1 block text-xs font-medium">認証コード</label>
                     <input id="mfa-disable-code" type="text" inputMode="numeric" maxLength={8} value={mfaCode} onChange={(e) => setMfaCode(e.target.value)} placeholder="123456" className="w-32 rounded-md border px-3 py-2 text-sm tracking-widest" />
                   </div>
+                  <button type="button" onClick={handleMfaRegenerateBackupCodes} disabled={mfaBusy || !mfaCode} className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50">
+                    バックアップコード再生成
+                  </button>
                   <button type="button" onClick={handleMfaDisable} disabled={mfaBusy || !mfaCode} className="rounded-md border border-destructive/50 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50">
                     無効化
                   </button>
+                </div>
+
+                {/* バックアップコード（認証アプリ紛失時の復旧手段） */}
+                <div className="rounded-md border p-3">
+                  <p className="text-xs font-medium">バックアップコード</p>
+                  {backupCodes ? (
+                    <div className="mt-2 space-y-2">
+                      <p className="text-xs text-amber-700">
+                        以下のコードは<strong>この画面でのみ</strong>表示されます。安全な場所に保管してください。各コードは1回だけ使用できます。
+                      </p>
+                      <ul className="grid grid-cols-2 gap-1 font-mono text-sm sm:grid-cols-3">
+                        {backupCodes.map((c) => <li key={c} className="rounded bg-muted/50 px-2 py-1">{c}</li>)}
+                      </ul>
+                      <button type="button" onClick={() => setBackupCodes(null)} className="text-xs text-muted-foreground underline">
+                        保管したので閉じる
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      未使用の残数: {backupRemaining === null ? "-" : `${backupRemaining}件`}
+                      {backupRemaining === 0 && "（認証アプリを紛失するとログインできなくなります。再生成を推奨）"}
+                      <br />
+                      認証コードを入力して「バックアップコード再生成」を押すと、新しいコードを発行します（既存コードは無効化されます）。
+                    </p>
+                  )}
                 </div>
               </div>
             ) : mfaSetup ? (

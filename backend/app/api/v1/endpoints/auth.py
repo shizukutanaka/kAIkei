@@ -60,7 +60,9 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> To
     if user.mfa_enabled and user.mfa_secret:
         if not payload.mfa_code:
             raise HTTPException(status_code=401, detail=MFA_REQUIRED_DETAIL)
-        if not await mfa_service.verify_and_consume_totp(db, user, payload.mfa_code, int(time.time())):
+        # TOTP を優先し、一致しなければバックアップコード（単回使用）で復旧を許可する。
+        totp_ok = await mfa_service.verify_and_consume_totp(db, user, payload.mfa_code, int(time.time()))
+        if not totp_ok and not await mfa_service.consume_backup_code(db, user, payload.mfa_code):
             raise HTTPException(status_code=401, detail="Invalid MFA code")
 
     access_token = create_access_token(
@@ -143,6 +145,46 @@ async def mfa_enable(
     if not ok:
         raise HTTPException(status_code=400, detail="Invalid MFA code (setup required first)")
     return MfaStatusResponse(mfa_enabled=True)
+
+
+class MfaBackupCodesResponse(BaseModel):
+    codes: list[str]
+    remaining: int
+
+
+class MfaBackupCodesStatusResponse(BaseModel):
+    remaining: int
+
+
+@router.get("/mfa/backup-codes/status", response_model=MfaBackupCodesStatusResponse)
+async def mfa_backup_codes_status(
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MfaBackupCodesStatusResponse:
+    """未使用のバックアップコード残数を返す。"""
+    result = await db.execute(select(User).where(User.user_id == current_user.user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return MfaBackupCodesStatusResponse(remaining=mfa_service.count_unused_backup_codes(user.mfa_backup_codes))
+
+
+@router.post("/mfa/backup-codes", response_model=MfaBackupCodesResponse)
+async def mfa_regenerate_backup_codes(
+    payload: MfaCodeRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MfaBackupCodesResponse:
+    """現在のTOTPコードを検証し、バックアップコードを再生成する（平文は一度だけ返す）。
+
+    TOTP認証器を紛失した際のログイン復旧手段。既存のバックアップコードは無効化される。
+    """
+    codes = await mfa_service.regenerate_backup_codes(
+        db, current_user.user_id, payload.code, int(time.time())
+    )
+    if codes is None:
+        raise HTTPException(status_code=400, detail="Invalid MFA code or MFA not enabled")
+    return MfaBackupCodesResponse(codes=codes, remaining=len(codes))
 
 
 @router.post("/mfa/disable", response_model=MfaStatusResponse)

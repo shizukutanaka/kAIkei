@@ -115,16 +115,16 @@ export default function LoginPage() {
               <input
                 id="mfa-code"
                 type="text"
-                inputMode="numeric"
+                // バックアップコード（ABCDE-12345 形式・英数字）も受け付けるため numeric 固定にしない
                 value={mfaCode}
                 onChange={(e) => setMfaCode(e.target.value)}
-                placeholder="123456"
-                maxLength={8}
+                placeholder="123456 / ABCDE-12345"
+                maxLength={16}
                 className="w-full rounded-md border px-3 py-2 text-sm tracking-widest"
                 autoComplete="one-time-code"
                 autoFocus
               />
-              <p className="mt-1 text-xs text-muted-foreground">認証アプリに表示される6桁のコードを入力してください。</p>
+              <p className="mt-1 text-xs text-muted-foreground">認証アプリに表示される6桁のコード、または認証アプリを紛失した場合はバックアップコードを入力してください。</p>
             </div>
           )}
 
