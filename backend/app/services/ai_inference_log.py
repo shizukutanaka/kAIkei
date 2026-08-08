@@ -21,6 +21,11 @@ logger = logging.getLogger(__name__)
 AUTO_COMMIT_THRESHOLD = Decimal("0.95")
 HIGH_CONFIDENCE = Decimal("0.90")
 MEDIUM_CONFIDENCE = Decimal("0.70")
+# 較正指標のビン数。Guo et al. 2017 は10〜15を用いるが、ここでは20とする。
+# 10ビンだと最上位ビンが[0.90,1.00)となり自動コミット閾値0.95を内包してしまい、
+# 閾値の前後で生じる逆方向の較正ずれが相殺されて見えなくなる。20ビンなら0.95が
+# ビン境界に一致し、閾値の直前直後を分離して評価できる。
+CALIBRATION_BINS = 20
 
 
 # --- 純粋関数（DB非依存・テスト可能） ---------------------------------------
@@ -96,8 +101,13 @@ def compute_calibration_stats(logs: list[dict]) -> dict:
     自動コミット閾値(AUTO_COMMIT_THRESHOLD)の妥当性検証に用いる。
 
     Returns:
-        {"applied_total", "ece", "bands": [{band, count, avg_confidence,
-         observed_accuracy, gap}]}。ECEは件数加重した |平均信頼度-実正答率|。
+        {"applied_total", "ece", "bands": [...], "ece_binned", "ece_adaptive",
+         "signed_gap", "auto_commit": {...}}。
+
+    注意: `ece` はバンド(low/medium/high)単位の粗い指標で、幅の広いビン内で逆方向の
+    誤差が相殺されるため過小評価されうる。閾値の妥当性判断には `ece_binned` /
+    `ece_adaptive` と、特に `auto_commit.observed_accuracy` を参照すること
+    （詳細は `_fine_grained_calibration` のドキュメント）。
     """
     applied = [l for l in logs if l.get("applied")]
     total = len(applied)
@@ -129,7 +139,119 @@ def compute_calibration_stats(logs: list[dict]) -> dict:
                 "band": name, "count": 0,
                 "avg_confidence": None, "observed_accuracy": None, "gap": None,
             })
-    return {"applied_total": total, "ece": round(ece, 4) if total else 0.0, "bands": bands}
+    result = {"applied_total": total, "ece": round(ece, 4) if total else 0.0, "bands": bands}
+    result.update(_fine_grained_calibration(applied))
+    return result
+
+
+def _is_correct(log: dict) -> bool:
+    """AI提案がそのまま確定した（修正差分なし）なら正答とみなす。"""
+    return not log.get("correction_diff")
+
+
+def _ece_from_groups(groups: list[list[dict]], total: int) -> tuple[float, float]:
+    """ビン群から (ECE, 符号付き平均ギャップ) を返す。
+
+    符号付きギャップは 平均信頼度 − 実正答率。正なら自信過剰（危険側）。
+    """
+    ece = 0.0
+    signed = 0.0
+    for rows in groups:
+        n = len(rows)
+        if not n:
+            continue
+        acc = sum(1 for r in rows if _is_correct(r)) / n
+        conf = sum(float(r.get("confidence", 0)) for r in rows) / n
+        ece += (n / total) * abs(conf - acc)
+        signed += (n / total) * (conf - acc)
+    return ece, signed
+
+
+def _fine_grained_calibration(applied: list[dict], bins: int = CALIBRATION_BINS) -> dict:
+    """細分ビンによるECEと、自動コミット閾値の安全性指標を算出する。
+
+    バンド(low/medium/high)は幅が広く、特に high=[0.90,1.01) は自動コミット閾値0.95を
+    内包する。幅の広いビンでは**ビン内で逆方向の誤差が相殺**され、実際には閾値付近が
+    ずれていてもECEがほぼ0と報告されうる（例: 信頼度0.91で実正答99%、0.99で実正答91%が
+    混在すると平均は0.95/0.95で一致しギャップ0になる）。
+    そのため以下を併せて算出する:
+
+    - ece_binned: 等幅10ビンのECE（Guo et al. 2017 の標準的な算出方法）。
+    - ece_adaptive: 等件数ビンのECE。信頼度分布は高値側に偏るため等幅では特定ビンに
+      標本が集中して分解能を失う。等件数ビンはこれを避ける（Nixon et al. 2019）。
+    - signed_gap: 平均信頼度−実正答率の加重平均。**正の値は自信過剰**を意味する。
+    - auto_commit: 自動コミット対象（信頼度>=閾値）の実正答率。閾値の妥当性を直接検証する。
+    """
+    total = len(applied)
+    if not total:
+        return {
+            "ece_binned": 0.0,
+            "ece_adaptive": 0.0,
+            "signed_gap": 0.0,
+            "auto_commit": {
+                "threshold": float(AUTO_COMMIT_THRESHOLD),
+                "count": 0,
+                "observed_accuracy": None,
+                "avg_confidence": None,
+                "signed_gap": None,
+                "overconfident": False,
+            },
+        }
+
+    # 等幅ビン（Guo et al. 2017）
+    width_groups: list[list[dict]] = [[] for _ in range(bins)]
+    for log in applied:
+        conf = float(log.get("confidence", 0))
+        idx = min(int(conf * bins), bins - 1)
+        width_groups[idx].append(log)
+    ece_binned, signed_gap = _ece_from_groups(width_groups, total)
+
+    # 等件数ビン（Nixon et al. 2019）
+    ordered = sorted(applied, key=lambda l: float(l.get("confidence", 0)))
+    k = min(bins, total)
+    size, remainder = divmod(total, k)
+    mass_groups: list[list[dict]] = []
+    start = 0
+    for i in range(k):
+        end = start + size + (1 if i < remainder else 0)
+        mass_groups.append(ordered[start:end])
+        start = end
+    ece_adaptive, _ = _ece_from_groups(mass_groups, total)
+
+    # 自動コミット閾値の安全性（この領域は人手確認なしで確定されるため最重要）
+    at_threshold = [
+        l for l in applied
+        if Decimal(str(l.get("confidence", 0))) >= AUTO_COMMIT_THRESHOLD
+    ]
+    if at_threshold:
+        n = len(at_threshold)
+        acc = sum(1 for l in at_threshold if _is_correct(l)) / n
+        conf = sum(float(l.get("confidence", 0)) for l in at_threshold) / n
+        auto_commit = {
+            "threshold": float(AUTO_COMMIT_THRESHOLD),
+            "count": n,
+            "observed_accuracy": round(acc, 4),
+            "avg_confidence": round(conf, 4),
+            "signed_gap": round(conf - acc, 4),
+            # 実正答率が閾値を下回る＝自動コミットが想定より誤りを含む（要調整）
+            "overconfident": acc < float(AUTO_COMMIT_THRESHOLD),
+        }
+    else:
+        auto_commit = {
+            "threshold": float(AUTO_COMMIT_THRESHOLD),
+            "count": 0,
+            "observed_accuracy": None,
+            "avg_confidence": None,
+            "signed_gap": None,
+            "overconfident": False,
+        }
+
+    return {
+        "ece_binned": round(ece_binned, 4),
+        "ece_adaptive": round(ece_adaptive, 4),
+        "signed_gap": round(signed_gap, 4),
+        "auto_commit": auto_commit,
+    }
 
 
 # --- 非同期サービス（DB依存） ------------------------------------------------

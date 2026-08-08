@@ -122,3 +122,67 @@ class TestCalibrationStats:
         stats = compute_calibration_stats(logs)
         counts = {b["band"]: b["count"] for b in stats["bands"]}
         assert counts == {"low": 1, "medium": 1, "high": 1}
+
+
+class TestFineGrainedCalibration:
+    """粗いバンド集計では隠れる較正ずれを検出できること。"""
+
+    def _logs(self, spec: list[tuple[str, int, int]]) -> list[dict]:
+        """spec = [(confidence, 件数, 正答数)] からログ列を作る。"""
+        out: list[dict] = []
+        for conf, n, correct in spec:
+            for i in range(n):
+                out.append({
+                    "applied": True,
+                    "confidence": Decimal(conf),
+                    "correction_diff": None if i < correct else {"account": {"from": "a", "to": "b"}},
+                })
+        return out
+
+    def test_wide_band_masks_miscalibration_but_fine_bins_detect_it(self):
+        """回帰: high帯[0.90,1.01)内で逆方向の誤差が相殺されるケース。
+
+        信頼度0.91→実正答99%(自信不足)、0.99→実正答91%(自信過剰)。
+        平均は0.95/0.95で一致するためバンド単位のECEは0になるが、
+        実際には自動コミット領域(>=0.95)が9%の誤りを含む。
+        """
+        logs = self._logs([("0.91", 100, 99), ("0.99", 100, 91)])
+        stats = compute_calibration_stats(logs)
+
+        assert stats["ece"] == pytest.approx(0.0, abs=0.001)      # 粗い指標は見逃す
+        assert stats["ece_binned"] > 0.05                          # 等幅ビンは検出
+        assert stats["ece_adaptive"] > 0.05                        # 等件数ビンも検出
+
+    def test_auto_commit_accuracy_is_measured_directly(self):
+        logs = self._logs([("0.91", 100, 99), ("0.99", 100, 91)])
+        ac = compute_calibration_stats(logs)["auto_commit"]
+        assert ac["threshold"] == 0.95
+        assert ac["count"] == 100                    # 0.99の100件のみが対象
+        assert ac["observed_accuracy"] == pytest.approx(0.91, abs=0.001)
+        assert ac["signed_gap"] > 0                  # 自信過剰
+        assert ac["overconfident"] is True           # 実正答率が閾値未満 → 危険
+
+    def test_well_calibrated_auto_commit_not_flagged(self):
+        logs = self._logs([("0.96", 100, 97)])
+        ac = compute_calibration_stats(logs)["auto_commit"]
+        assert ac["observed_accuracy"] == pytest.approx(0.97, abs=0.001)
+        assert ac["overconfident"] is False          # 実正答率97% >= 閾値95%
+
+    def test_signed_gap_direction(self):
+        over = compute_calibration_stats(self._logs([("0.95", 100, 50)]))
+        under = compute_calibration_stats(self._logs([("0.50", 100, 100)]))
+        assert over["signed_gap"] > 0     # 自信過剰（危険側）
+        assert under["signed_gap"] < 0    # 自信不足（安全側）
+
+    def test_no_auto_commit_candidates(self):
+        ac = compute_calibration_stats(self._logs([("0.80", 10, 8)]))["auto_commit"]
+        assert ac["count"] == 0
+        assert ac["observed_accuracy"] is None
+        assert ac["overconfident"] is False
+
+    def test_empty_logs_have_zero_metrics(self):
+        stats = compute_calibration_stats([])
+        assert stats["ece_binned"] == 0.0
+        assert stats["ece_adaptive"] == 0.0
+        assert stats["signed_gap"] == 0.0
+        assert stats["auto_commit"]["count"] == 0
