@@ -28,7 +28,11 @@ BACKDATED_MAX_LAG_DAYS = 30                   # 起票日から遡る許容日�
 
 # Benford分析: 第1桁分布のカイ二乗検定（自由度8・有意水準1%の臨界値）。
 BENFORD_MIN_SAMPLES = 30
-BENFORD_CHI2_CRITICAL = 20.09
+BENFORD_CHI2_CRITICAL = 20.09  # χ²(自由度8, α=0.01)
+# Nigrini(2012)の第1桁MAD適合度基準（標本サイズ非依存の実務的有意性の目安）。
+BENFORD_MAD_CLOSE = 0.006
+BENFORD_MAD_ACCEPTABLE = 0.012
+BENFORD_MAD_MARGINAL = 0.015
 
 # 期末集中起票: 月末N日間への起票集中を検知する閾値。
 PERIOD_END_LAST_DAYS = 3
@@ -214,24 +218,86 @@ def benford_chi_squared(
     return chi2, n
 
 
+def benford_mad(
+    amounts: list[Decimal], min_samples: int = BENFORD_MIN_SAMPLES
+) -> tuple[float, int] | None:
+    """第1桁分布とBenford分布の平均絶対偏差（MAD）を返す。
+
+    MAD = (1/9) * Σ|実測比率 - 期待比率|。カイ二乗と異なり**標本サイズに依存しない**ため、
+    「実務的に意味のある乖離か」を判定できる（Nigrini 2012）。
+
+    Returns:
+        (MAD, 有効サンプル数)。サンプル不足の場合はNone。
+    """
+    digits = [d for d in (first_significant_digit(a) for a in amounts) if d is not None]
+    n = len(digits)
+    if n < min_samples:
+        return None
+    total = 0.0
+    for digit in range(1, 10):
+        expected_ratio = math.log10(1 + 1 / digit)
+        observed_ratio = sum(1 for x in digits if x == digit) / n
+        total += abs(observed_ratio - expected_ratio)
+    return total / 9, n
+
+
+def mad_conformity(mad: float) -> str:
+    """MADをNigrini(2012)の第1桁適合度基準で区分する。
+
+    close(<0.006) / acceptable(<0.012) / marginal(<0.015) / nonconformity(>=0.015)
+    """
+    if mad < BENFORD_MAD_CLOSE:
+        return "close"
+    if mad < BENFORD_MAD_ACCEPTABLE:
+        return "acceptable"
+    if mad < BENFORD_MAD_MARGINAL:
+        return "marginal"
+    return "nonconformity"
+
+
 def detect_benford_deviation(
     amounts: list[Decimal], critical: float = BENFORD_CHI2_CRITICAL
 ) -> DetectionFinding | None:
-    """仕訳金額の第1桁分布がBenford分布から有意に乖離していないか検知する。
+    """仕訳金額の第1桁分布がBenford分布から乖離していないか検知する。
 
     人為的な金額操作（架空計上・分割等）の統計的兆候として監査研究で定番の手法。
+
+    判定は**統計的有意性と実務的有意性の両方**を要求する:
+    - カイ二乗（統計的有意性）: 標本誤差を考慮するため、小標本での偶然の偏りを弾く。
+    - MAD（実務的有意性）: 標本サイズに依存しないため、大標本での過剰検知を弾く。
+
+    カイ二乗統計量は標本サイズに比例して増加するため、大標本では実務上無視できる
+    僅かな乖離でも「有意」と判定される（excess power problem, Nigrini 2012）。
+    例えば10万件で0.5ポイントの偏りは MAD=0.0011（close conformity＝適合）にすぎないが
+    χ²≈63 となり従来の閾値20.09を大きく超えて誤検知となっていた。MADを併用して防ぐ。
     """
-    result = benford_chi_squared(amounts)
-    if result is None:
+    chi_result = benford_chi_squared(amounts)
+    mad_result = benford_mad(amounts)
+    if chi_result is None or mad_result is None:
         return None
-    chi2, n = result
-    if chi2 <= critical:
+    chi2, n = chi_result
+    mad, _ = mad_result
+    conformity = mad_conformity(mad)
+
+    # 統計的有意 かつ 実務的にも無視できない乖離（marginal以上）のときだけ検知する。
+    if chi2 <= critical or conformity in ("close", "acceptable"):
         return None
+
+    risk_level = "high" if conformity == "nonconformity" else "medium"
     return DetectionFinding(
         category="benford_deviation",
-        risk_level="medium",
-        message=f"仕訳金額の第1桁分布がBenford分布から有意に乖離しています（χ²={chi2:.1f}）。",
-        details={"chi_squared": round(chi2, 2), "critical_value": critical, "sample_size": n},
+        risk_level=risk_level,
+        message=(
+            f"仕訳金額の第1桁分布がBenford分布から乖離しています"
+            f"（χ²={chi2:.1f}、MAD={mad:.4f}／{conformity}）。"
+        ),
+        details={
+            "chi_squared": round(chi2, 2),
+            "critical_value": critical,
+            "mad": round(mad, 5),
+            "mad_conformity": conformity,
+            "sample_size": n,
+        },
     )
 
 

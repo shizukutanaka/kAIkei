@@ -5,8 +5,11 @@ import pytest
 
 from app.services.audit_detection import (
     BENFORD_CHI2_CRITICAL,
+    BENFORD_MAD_CLOSE,
     JournalSnapshot,
     benford_chi_squared,
+    benford_mad,
+    mad_conformity,
     detect_benford_deviation,
     detect_period_end_concentration,
     first_significant_digit,
@@ -195,3 +198,64 @@ class TestPeriodEndConcentration:
         dates = [date(2026, 2, 27)] * 15 + [date(2026, 2, 10)] * 5
         finding = detect_period_end_concentration(dates)
         assert finding is not None
+
+
+class TestBenfordMad:
+    """MAD（平均絶対偏差）による実務的有意性の判定（Nigrini 2012）。"""
+
+    def _benford_amounts(self, n: int, shift: float = 0.0) -> list[Decimal]:
+        """Benford分布に従う金額列。shift>0 で第1桁1→9へ比率をずらす。"""
+        import math
+        amounts: list[Decimal] = []
+        for d in range(1, 10):
+            ratio = math.log10(1 + 1 / d)
+            if d == 1:
+                ratio -= shift
+            if d == 9:
+                ratio += shift
+            amounts.extend([Decimal(d) * 1000 + 17] * round(n * ratio))
+        return amounts
+
+    def test_mad_none_when_insufficient_samples(self):
+        assert benford_mad([Decimal("100")] * 10) is None
+
+    def test_conforming_sample_has_low_mad(self):
+        mad, n = benford_mad(self._benford_amounts(900))
+        assert mad < BENFORD_MAD_CLOSE
+        assert mad_conformity(mad) == "close"
+
+    def test_uniform_distribution_is_nonconformity(self):
+        amounts = [Decimal(d) * 1000 for d in range(1, 10)] * 12
+        mad, _ = benford_mad(amounts)
+        assert mad_conformity(mad) == "nonconformity"
+
+    def test_conformity_thresholds(self):
+        assert mad_conformity(0.0) == "close"
+        assert mad_conformity(0.0059) == "close"
+        assert mad_conformity(0.006) == "acceptable"
+        assert mad_conformity(0.0119) == "acceptable"
+        assert mad_conformity(0.012) == "marginal"
+        assert mad_conformity(0.0149) == "marginal"
+        assert mad_conformity(0.015) == "nonconformity"
+
+    def test_large_sample_tiny_deviation_is_not_flagged(self):
+        """回帰: 大標本＋実務上無視できる乖離を誤検知しないこと。
+
+        カイ二乗は標本サイズに比例するため、10万件規模では0.5ポイントの偏りでも
+        χ²が閾値を大きく超える（excess power problem）。MAD併用で誤検知を防ぐ。
+        """
+        amounts = self._benford_amounts(100_000, shift=0.005)
+        chi2, _ = benford_chi_squared(amounts)
+        mad, _ = benford_mad(amounts)
+
+        assert chi2 > BENFORD_CHI2_CRITICAL      # カイ二乗だけなら検知されてしまう
+        assert mad_conformity(mad) == "close"    # 実務的には適合している
+        assert detect_benford_deviation(amounts) is None  # 併用により検知されない
+
+    def test_genuine_manipulation_still_flagged_at_large_sample(self):
+        """大標本でも実務的に意味のある乖離は検知すること（見逃さない）。"""
+        amounts = self._benford_amounts(100_000, shift=0.10)
+        finding = detect_benford_deviation(amounts)
+        assert finding is not None
+        assert finding.details["mad_conformity"] == "nonconformity"
+        assert finding.risk_level == "high"
