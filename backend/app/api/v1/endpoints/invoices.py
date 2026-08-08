@@ -201,20 +201,6 @@ async def list_invoices(
     return InvoiceListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
-@router.get("/validate-registration-number")
-async def validate_registration_number(
-    number: str = Query(...),  # noqa: B008
-    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
-) -> dict[str, object]:
-    result = InvoiceRegistrationService.validate(number)
-    return {
-        "input": result.input,
-        "normalized": result.normalized,
-        "format_valid": result.format_valid,
-        "check_digit_valid": result.check_digit_valid,
-    }
-
-
 @router.post("/check-qualified", response_model=QualifiedInvoiceCheckResponse)
 async def check_qualified_invoice(
     payload: QualifiedInvoiceCheckRequest,
