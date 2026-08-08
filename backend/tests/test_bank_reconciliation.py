@@ -156,3 +156,46 @@ class TestFeeTolerance:
         feeish = ReconciliationCandidate(ref_id="fee", amount=Decimal("10000"), date=_date(2026, 4, 15), counterparty_name="カイケイ")
         best = find_best_match(Decimal("9120"), _date(2026, 4, 15), "カイケイ", [feeish, exact], amount_tolerance=Decimal("880"))
         assert best is not None and best[0].ref_id == "exact"
+
+
+class TestZenginNameNormalization:
+    """全銀協フォーマット由来の半角カナ振込人名を突合できること。
+
+    銀行連携の振込依頼人名は半角カタカナ、取引先マスタは全角カナ/漢字で登録される。
+    NFKC正規化前は両者の類似度が0となり、名称による自動消込が一切成立しなかった。
+    """
+
+    def test_halfwidth_kana_matches_fullwidth(self):
+        assert name_similarity("ﾀﾅｶｼｮｳｼﾞ", "タナカショウジ") == 1.0
+
+    def test_voiced_marks_are_composed(self):
+        # 半角の濁点は結合文字（"ｶ"+"ﾞ"）。NFKCで"ガ"に合成される。
+        assert normalize_name("ｶﾞｲｼﾔ") == "ガイシヤ"
+        assert name_similarity("ｽｽﾞｷ", "スズキ") == 1.0
+
+    def test_halfwidth_legal_abbreviation_prefix(self):
+        # 前株: "ｶ)ﾀﾅｶ"
+        assert name_similarity("ｶ)ﾀﾅｶ", "タナカ") == 1.0
+
+    def test_halfwidth_legal_abbreviation_suffix(self):
+        # 後株: "ﾀﾅｶ(ｶ"
+        assert name_similarity("ﾀﾅｶ(ｶ", "タナカ") == 1.0
+
+    def test_other_legal_abbreviations(self):
+        assert name_similarity("ﾕ)ﾀﾅｶ", "有限会社タナカ") == 1.0     # 有限会社
+        assert name_similarity("ﾄﾞ)ﾀﾅｶ", "合同会社タナカ") == 1.0    # 合同会社
+        assert name_similarity("ｲ)ｻｸﾗ", "医療法人サクラ") == 1.0     # 医療法人
+
+    def test_fullwidth_alphanumeric_normalized(self):
+        assert name_similarity("ＡＢＣ商事", "ABC商事") == 1.0
+
+    def test_distinct_names_still_do_not_match(self):
+        # 正規化を強めても別会社が同一視されないこと（誤消込の防止）。
+        # 判定境界は消込側の名称閾値(DEFAULT_NAME_THRESHOLD=0.6)。共通語尾"ショウ"により
+        # 0ではないが、閾値未満に留まり同一取引先とは扱われない。
+        assert name_similarity("ｽｽﾞｷｼｮｳﾃﾝ", "タナカショウジ") < 0.6
+
+    def test_bare_abbreviation_kana_is_preserved(self):
+        # 括弧なしの"カ"は社名の一部。除去してはいけない。
+        assert "カ" in normalize_name("ｶﾜｸﾞﾁ")
+        assert normalize_name("ｶﾜｸﾞﾁ") == "カワグチ"
