@@ -10,6 +10,7 @@ import csv
 import io
 import logging
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -30,10 +31,41 @@ DEFAULT_NAME_WEIGHT = 0.4
 DEFAULT_MAX_FEE = Decimal("0")
 
 # 名称正規化で除去する法人格・振込種別トークン。
+#
+# 全銀協フォーマットの振込依頼人名は**半角カタカナ**で連携されるため、比較前にNFKC正規化して
+# 全角カナへ寄せる（濁点の合成も行われる: "ｶ"+"ﾞ" → "ガ"）。したがって以下のトークンは
+# NFKC後の表記（全角カナ・半角括弧）で列挙する。
+#
+# 法人格は全銀では括弧付きの略号で表される（前株 "ｶ)ﾀﾅｶ" / 後株 "ﾀﾅｶ(ｶ"）。
+# 略号単体（"カ" 等）はごく普通の社名の一部になりうるため、**必ず括弧付きでのみ除去**する。
+_LEGAL_ABBREVIATIONS = (
+    "カ",      # 株式会社
+    "ユ",      # 有限会社
+    "ド",      # 合同会社
+    "シ",      # 合資会社
+    "メ",      # 合名会社
+    "イ",      # 医療法人
+    "ザイ",    # 財団法人
+    "シヤ",    # 社団法人
+    "ガク",    # 学校法人
+    "シユウ",  # 宗教法人
+    "トク",    # 特定非営利活動法人
+    "ドク",    # 独立行政法人
+    "ケン",    # 検査/研究法人等
+    "キョウ",  # 協同組合等
+    "ノウ",    # 農業協同組合
+    "レン",    # 連合会
+)
 _NORMALIZE_TOKENS = (
+    # 漢字表記の法人格
     "株式会社", "有限会社", "合同会社", "合資会社", "合名会社",
-    "カ)", "カ）", "(カ", "（カ", "ｶ)", "ｶ）",
-    "(株)", "（株）", "(有)", "（有）",
+    "一般社団法人", "一般財団法人", "公益社団法人", "公益財団法人",
+    "特定非営利活動法人", "独立行政法人", "医療法人", "学校法人", "宗教法人",
+    "社会福祉法人", "社団法人", "財団法人", "農業協同組合", "協同組合",
+    "(株)", "(有)", "(同)", "(資)", "(名)",
+    # 全銀の括弧付き略号（前株・後株の双方）
+    *(f"{a})" for a in _LEGAL_ABBREVIATIONS),
+    *(f"({a}" for a in _LEGAL_ABBREVIATIONS),
 )
 _NORMALIZE_STRIP = re.compile(r"[\s　・,.，。()（）\-ー]")
 
@@ -63,11 +95,18 @@ class ParsedBankRow:
 def normalize_name(name: str | None) -> str:
     """振込人名・摘要を突合用に正規化する。
 
-    法人格トークン・空白・記号を除去し大文字化する。
+    銀行から連携される振込依頼人名は全銀協フォーマットにより**半角カタカナ**である一方、
+    取引先マスタは全角カナや漢字で登録されるため、そのまま比較すると別文字列として
+    扱われ全く一致しない（"ﾀﾅｶｼｮｳｼﾞ" と "タナカショウジ" の類似度は0になる）。
+    そこで最初にNFKC正規化を行い、半角カナ→全角カナ、濁点・半濁点の合成
+    （"ｶ"+"ﾞ" → "ガ"）、全角英数→半角英数を揃えてから比較する。
+
+    その後、法人格トークン・空白・記号を除去し大文字化する。
     """
     if not name:
         return ""
-    result = name
+    # 半角カナ・全角英数・互換文字を正規形へ寄せる（比較の前提を揃える）。
+    result = unicodedata.normalize("NFKC", name)
     for token in _NORMALIZE_TOKENS:
         result = result.replace(token, "")
     result = _NORMALIZE_STRIP.sub("", result)
