@@ -1,13 +1,12 @@
 import hashlib
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from sqlalchemy import select, delete
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import async_session_factory
 from app.models.models import IdempotencyRecord
@@ -93,7 +92,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                 result = await session.execute(
                     select(IdempotencyRecord).where(
                         IdempotencyRecord.idempotency_key == key,
-                        IdempotencyRecord.expires_at > datetime.now(timezone.utc),
+                        IdempotencyRecord.expires_at > datetime.now(UTC),
                     )
                 )
                 record = result.scalar_one_or_none()
@@ -119,7 +118,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
     ) -> None:
         try:
             async with async_session_factory() as session:
-                expires_at = datetime.now(timezone.utc) + timedelta(hours=IDEMPOTENCY_TTL_HOURS)
+                expires_at = datetime.now(UTC) + timedelta(hours=IDEMPOTENCY_TTL_HOURS)
 
                 record = IdempotencyRecord(
                     idempotency_key=key,

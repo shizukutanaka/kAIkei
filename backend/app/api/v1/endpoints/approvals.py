@@ -1,17 +1,17 @@
+import contextlib
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import CurrentUser, get_current_user, require_permission
 from app.core.rbac import Permission
-from app.models.models import ApprovalLog, ApprovalWorkflow
-from app.services.approval_service import ApprovalWorkflowService
-from app.services.validation_engine import ValidationError
-from app.services.notification_service import create_notification
 from app.schemas.schemas import NotificationCreate
+from app.services.approval_service import ApprovalWorkflowService
+from app.services.notification_service import create_notification
+from app.services.validation_engine import ValidationError
 
 router = APIRouter()
 
@@ -79,7 +79,7 @@ async def submit_for_approval(
         journal = await ApprovalWorkflowService.submit_for_approval(
             db, payload.journal_header_id, current_user.user_id
         )
-        try:
+        with contextlib.suppress(Exception):
             await create_notification(db, current_user.tenant_id, NotificationCreate(
                 company_id=journal.company_id,
                 user_id=journal.created_by,
@@ -87,10 +87,8 @@ async def submit_for_approval(
                 priority="normal",
                 title=f"仕訳 {journal.journal_number} が提出されました",
                 body=f"承認待ちの仕訳があります: {journal.summary or ''}",
-                action_url=f"/approvals",
+                action_url="/approvals",
             ))
-        except Exception:
-            pass
         return {
             "journal_header_id": str(journal.journal_header_id),
             "approval_status": journal.approval_status,
@@ -113,7 +111,7 @@ async def approve_journal(
         journal = await ApprovalWorkflowService.approve(
             db, payload.journal_header_id, current_user.user_id, payload.comment
         )
-        try:
+        with contextlib.suppress(Exception):
             await create_notification(db, current_user.tenant_id, NotificationCreate(
                 company_id=journal.company_id,
                 user_id=journal.created_by,
@@ -123,8 +121,6 @@ async def approve_journal(
                 body=f"承認されました: {journal.summary or ''}",
                 action_url=f"/journals/{journal.journal_header_id}",
             ))
-        except Exception:
-            pass
         return {
             "journal_header_id": str(journal.journal_header_id),
             "approval_status": journal.approval_status,
@@ -148,7 +144,7 @@ async def reject_journal(
         journal = await ApprovalWorkflowService.reject(
             db, payload.journal_header_id, current_user.user_id, payload.comment
         )
-        try:
+        with contextlib.suppress(Exception):
             await create_notification(db, current_user.tenant_id, NotificationCreate(
                 company_id=journal.company_id,
                 user_id=journal.created_by,
@@ -158,8 +154,6 @@ async def reject_journal(
                 body=f"差し戻し理由: {payload.comment or 'コメントなし'}",
                 action_url=f"/journals/{journal.journal_header_id}",
             ))
-        except Exception:
-            pass
         return {
             "journal_header_id": str(journal.journal_header_id),
             "approval_status": journal.approval_status,
@@ -182,7 +176,7 @@ async def post_journal(
         journal = await ApprovalWorkflowService.post(
             db, payload.journal_header_id, current_user.user_id
         )
-        try:
+        with contextlib.suppress(Exception):
             await create_notification(db, current_user.tenant_id, NotificationCreate(
                 company_id=journal.company_id,
                 user_id=journal.created_by,
@@ -192,8 +186,6 @@ async def post_journal(
                 body=f"転記完了: {journal.summary or ''}",
                 action_url=f"/journals/{journal.journal_header_id}",
             ))
-        except Exception:
-            pass
         return {
             "journal_header_id": str(journal.journal_header_id),
             "approval_status": journal.approval_status,

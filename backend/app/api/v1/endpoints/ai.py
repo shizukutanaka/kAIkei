@@ -1,5 +1,4 @@
 import logging
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
@@ -214,9 +213,8 @@ async def list_local_models(
     current_user: CurrentUser = Depends(require_permission(Permission.AI_INFER)),
 ) -> dict:
     """ローカルLLMで利用可能なモデル一覧を取得する。"""
-    from app.services.ai.local_llm_provider import LocalLLMProvider
-
     from app.core.config import settings
+    from app.services.ai.local_llm_provider import LocalLLMProvider
 
     if not settings.LOCAL_LLM_ENDPOINT:
         return {"status": "unavailable", "models": [], "message": "LOCAL_LLM_ENDPOINT not configured"}

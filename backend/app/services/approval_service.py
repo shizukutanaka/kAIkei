@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.rbac import Role, has_permission, Permission
+from app.core.rbac import Permission, has_permission
 from app.models.models import (
     ApprovalLog,
     ApprovalWorkflow,

@@ -149,7 +149,7 @@ def normalize_amount_value(value: Any) -> float | None:
     """金額表現を数値に正規化する。解釈不能・非正値なら None。"""
     if value is None:
         return None
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         amount = float(value)
     else:
         cleaned = re.sub(r"[¥￥,円\s]", "", str(value))

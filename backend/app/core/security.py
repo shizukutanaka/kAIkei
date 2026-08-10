@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from jose import JWTError, jwt
@@ -18,7 +18,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def create_access_token(subject: str, extra_claims: dict[str, Any] | None = None) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(UTC) + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
     payload: dict[str, Any] = {
         "sub": subject,
         "exp": expire,
@@ -30,7 +30,7 @@ def create_access_token(subject: str, extra_claims: dict[str, Any] | None = None
 
 
 def create_refresh_token(subject: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
+    expire = datetime.now(UTC) + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
     payload = {
         "sub": subject,
         "exp": expire,

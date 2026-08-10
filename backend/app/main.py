@@ -8,8 +8,8 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.secrets_check import check_insecure_defaults
 from app.middleware.audit_log import AuditLogMiddleware
-from app.middleware.ip_restriction import IpRestrictionMiddleware
 from app.middleware.idempotency import IdempotencyMiddleware
+from app.middleware.ip_restriction import IpRestrictionMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 
 structlog.configure(
@@ -88,6 +88,7 @@ async def stop_background_jobs() -> None:
 async def health_check() -> dict[str, str]:
     """ヘルスチェックエンドポイント（DB接続確認付き）。"""
     from sqlalchemy import text as sa_text
+
     from app.core.database import engine
     try:
         async with engine.connect() as conn:

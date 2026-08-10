@@ -2,19 +2,19 @@ from datetime import date, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
-from app.models.models import Employee, AttendanceRecord
+from app.models.models import AttendanceRecord, Employee
 from app.schemas.schemas import (
     AttendanceClockInRequest,
     AttendanceClockOutRequest,
+    AttendanceListResponse,
     AttendanceManualRequest,
     AttendanceResponse,
-    AttendanceListResponse,
 )
 
 router = APIRouter()
@@ -197,10 +197,7 @@ async def attendance_summary(
 ) -> list[dict]:
     """月次勤怠サマリー（従業員ごとの集計）。"""
     start = date(year, month, 1)
-    if month == 12:
-        end = date(year, 12, 31)
-    else:
-        end = date(year, month + 1, 1) - timedelta(days=1)
+    end = date(year, 12, 31) if month == 12 else date(year, month + 1, 1) - timedelta(days=1)
 
     result = await db.execute(
         select(

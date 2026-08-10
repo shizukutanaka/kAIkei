@@ -1,16 +1,16 @@
+import csv
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from io import StringIO
-import csv
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import PlainTextResponse
-from sqlalchemy import func, select, case
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, get_current_user, require_permission
+from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.models.models import Account, JournalHeader, JournalLine
 from app.schemas.schemas import (
@@ -23,7 +23,7 @@ from app.schemas.schemas import (
 )
 from app.services.event_journal import EventJournalService
 from app.services.journal_service import JournalService
-from app.services.validation_engine import ValidationError, ValidationEngine
+from app.services.validation_engine import ValidationEngine, ValidationError
 
 router = APIRouter()
 
@@ -275,7 +275,7 @@ async def export_journals_csv(
             headers_map[header.journal_header_id]["credit_lines"].append(entry)
 
     lines = ["取引No,取引日,借方勘目,借方補助勘目,貸方勘目,貸方補助勘目,摘要,金額,税区分"]
-    for h_id, data in headers_map.items():
+    for _h_id, data in headers_map.items():
         for d in data["debit_lines"]:
             for c in data["credit_lines"]:
                 lines.append(
@@ -589,7 +589,7 @@ async def get_general_ledger(
 
     # Build response
     accounts_list = []
-    for acct_id, data in opening_map.items():
+    for _acct_id, data in opening_map.items():
         opening = data["opening_balance"]
         total_debit = data["total_debit"]
         total_credit = data["total_credit"]

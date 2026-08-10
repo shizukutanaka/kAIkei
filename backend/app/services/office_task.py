@@ -8,7 +8,7 @@
 import calendar
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -192,7 +192,7 @@ async def update_status(
     if task is None:
         return None
     task.status = new_status
-    task.completed_at = datetime.now(timezone.utc) if new_status == "done" else None
+    task.completed_at = datetime.now(UTC) if new_status == "done" else None
     await db.commit()
     await db.refresh(task)
     return task

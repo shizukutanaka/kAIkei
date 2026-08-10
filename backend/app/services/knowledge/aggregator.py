@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime
 from typing import Any
 
 from app.services.knowledge.base_source import KnowledgeItem, SearchQuery

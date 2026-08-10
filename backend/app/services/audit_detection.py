@@ -9,7 +9,7 @@ import calendar
 import logging
 import math
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -493,7 +493,7 @@ async def update_status(
         return None
     log.status = new_status
     log.reviewed_by = reviewed_by
-    log.reviewed_at = datetime.now(timezone.utc)
+    log.reviewed_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(log)
     return log

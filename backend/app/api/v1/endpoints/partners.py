@@ -1,14 +1,14 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
 from app.models.models import Partner
-from app.schemas.schemas import PartnerCreate, PartnerUpdate, PartnerResponse, PartnerListResponse
+from app.schemas.schemas import PartnerCreate, PartnerListResponse, PartnerResponse, PartnerUpdate
 
 router = APIRouter()
 

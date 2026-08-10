@@ -1,19 +1,19 @@
-from decimal import Decimal, ROUND_HALF_UP
+import contextlib
+from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
-from sqlalchemy import select, delete, func
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
-from app.models.models import Employee, BonusRecord
-from app.schemas.schemas import BonusCalculateRequest, BonusRecordResponse, BonusListResponse
+from app.models.models import BonusRecord, Employee
+from app.schemas.schemas import BonusCalculateRequest, BonusListResponse, BonusRecordResponse, NotificationCreate
 from app.services.auto_journal import generate_bonus_journal
 from app.services.notification_service import create_notification
-from app.schemas.schemas import NotificationCreate
 
 BONUS_TERM_LABELS = {
     "summer": "夏季賞与",
@@ -241,7 +241,7 @@ async def batch_transition_bonus(
 
     # Notify on batch transition
     labels = {"approved": "承認", "rejected": "差戻し", "paid": "支払完了"}
-    try:
+    with contextlib.suppress(Exception):
         await create_notification(db, current_user.tenant_id, NotificationCreate(
             company_id=company_id,
             category="payroll",
@@ -250,8 +250,6 @@ async def batch_transition_bonus(
             body=f"{len(updated)}件の賞与レコードを{labels[action]}しました。",
             action_url="/bonus",
         ))
-    except Exception:
-        pass
 
     await db.commit()
     return updated

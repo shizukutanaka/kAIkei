@@ -1,26 +1,26 @@
+import contextlib
 from datetime import datetime
-from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
-from app.models.models import Employee, ExpenseReport, ExpenseItem
+from app.models.models import Employee, ExpenseItem, ExpenseReport
 from app.schemas.schemas import (
-    ExpenseReportCreate,
-    ExpenseReportResponse,
     ExpenseItemResponse,
     ExpenseListResponse,
+    ExpenseReportCreate,
+    ExpenseReportResponse,
+    NotificationCreate,
 )
 from app.services.auto_journal import generate_expense_payment_journal
 from app.services.notification_service import create_notification
-from app.schemas.schemas import NotificationCreate
 
 router = APIRouter()
 
@@ -216,7 +216,7 @@ async def transition_expense_report(
 
     # Notify on expense transition
     action_labels = {"approved": "承認", "rejected": "差戻し", "paid": "支払完了"}
-    try:
+    with contextlib.suppress(Exception):
         await create_notification(db, current_user.tenant_id, NotificationCreate(
             company_id=rep.company_id,
             category="expense",
@@ -225,8 +225,6 @@ async def transition_expense_report(
             body=f"経費精算「{rep.title}」を{action_labels[action]}しました。",
             action_url="/expenses",
         ))
-    except Exception:
-        pass
 
     await db.commit()
     await db.refresh(rep, attribute_names=["items"])

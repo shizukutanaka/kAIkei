@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
-from sqlalchemy import select, func, case
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -367,7 +367,6 @@ async def get_income_statement(
     for row in rows:
         debit_sum = Decimal(row.debit_sum) if row.debit_sum else Decimal("0")
         credit_sum = Decimal(row.credit_sum) if row.credit_sum else Decimal("0")
-        balance = debit_sum - credit_sum
 
         if row.account_type == "revenue":
             # Revenue is credit-normal: credit - debit

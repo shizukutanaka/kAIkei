@@ -1,10 +1,11 @@
 import logging
+from datetime import UTC
 from uuid import UUID
 
-from sqlalchemy import select, func, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.models import Notification, NotificationPreference, User
+from app.models.models import Notification, NotificationPreference
 from app.schemas.schemas import NotificationCreate
 
 logger = logging.getLogger(__name__)
@@ -171,8 +172,8 @@ async def mark_as_read(
         return None
     if not notif.is_read:
         notif.is_read = True
-        from datetime import datetime, timezone
-        notif.read_at = datetime.now(timezone.utc)
+        from datetime import datetime
+        notif.read_at = datetime.now(UTC)
         await db.commit()
         await db.refresh(notif)
     return notif
@@ -184,8 +185,8 @@ async def mark_all_as_read(
     user_id: UUID,
 ) -> int:
     """ユーザーの全通知を既読にする。"""
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc)
+    from datetime import datetime
+    now = datetime.now(UTC)
     result = await db.execute(
         update(Notification)
         .where(

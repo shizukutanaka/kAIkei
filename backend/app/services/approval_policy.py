@@ -41,9 +41,7 @@ def policy_applies(spec: ApprovalPolicySpec, document_type: str, amount: Decimal
     amount = Decimal(amount)
     if spec.min_amount is not None and amount < Decimal(spec.min_amount):
         return False
-    if spec.max_amount is not None and amount > Decimal(spec.max_amount):
-        return False
-    return True
+    return not (spec.max_amount is not None and amount > Decimal(spec.max_amount))
 
 
 def select_policies(

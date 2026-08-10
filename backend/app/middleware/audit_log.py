@@ -1,3 +1,4 @@
+import contextlib
 import json
 import logging
 import uuid
@@ -86,10 +87,8 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
             token = auth.removeprefix("Bearer ")
             payload = decode_token(token)
             if payload:
-                try:
+                with contextlib.suppress(ValueError, TypeError):
                     user_id = uuid.UUID(payload.get("sub"))
-                except (ValueError, TypeError):
-                    pass
 
         path = request.url.path
         resource_type = "unknown"
@@ -104,10 +103,8 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
 
         body_text = None
         if body_bytes and request.method in ("POST", "PUT", "PATCH", "DELETE"):
-            try:
+            with contextlib.suppress(Exception):
                 body_text = redact_sensitive_fields(body_bytes.decode("utf-8", errors="replace"))[:2000]
-            except Exception:
-                pass
 
         async with async_session_factory() as session:
             log = AuditLog(

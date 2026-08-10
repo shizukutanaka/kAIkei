@@ -12,7 +12,7 @@ import logging
 import re
 import unicodedata
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 from difflib import SequenceMatcher
 from uuid import UUID
@@ -149,10 +149,7 @@ def match_score(
     if date_diff > date_tolerance_days:
         return None
 
-    if date_tolerance_days <= 0:
-        date_score = 1.0 if date_diff == 0 else 0.0
-    else:
-        date_score = 1.0 - (date_diff / date_tolerance_days)
+    date_score = (1.0 if date_diff == 0 else 0.0) if date_tolerance_days <= 0 else 1.0 - date_diff / date_tolerance_days
 
     name_score = name_similarity(counterparty_name, candidate.counterparty_name)
     score = (1.0 - name_weight) * date_score + name_weight * name_score
@@ -353,7 +350,7 @@ async def auto_reconcile(
     candidates = await _load_candidates(db, company_id, bank_account_id)
 
     pool = {c.ref_id: (c, line) for c, line in candidates}
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     matched = 0
 
     for bank_line in bank_lines:
@@ -404,7 +401,7 @@ async def manual_match(
         return None
     line.is_reconciled = True
     line.reconciled_journal_line_id = journal_line_id
-    line.reconciled_at = datetime.now(timezone.utc)
+    line.reconciled_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(line)
     return line

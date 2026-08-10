@@ -9,6 +9,22 @@ ignore = ["E501"]
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI dependency-injection helpers are intentionally used as call-in-default.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Form",
+    "fastapi.File",
+    "fastapi.Header",
+    "fastapi.Cookie",
+    "fastapi.Security",
+    "app.core.deps.require_permission",
+    "require_permission",
+]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true

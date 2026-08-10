@@ -3,7 +3,7 @@ from typing import Any
 
 from app.core.config import settings
 from app.services.ai.anthropic_provider import AnthropicProvider
-from app.services.ai.base_provider import AIProvider, InferenceRequest, InferenceResult
+from app.services.ai.base_provider import AIProvider, InferenceRequest
 from app.services.ai.local_llm_provider import LocalLLMProvider
 from app.services.ai.task_router import TaskComplexity, TaskRouter
 

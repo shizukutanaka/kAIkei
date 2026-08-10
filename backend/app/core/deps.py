@@ -1,8 +1,7 @@
 from dataclasses import dataclass
-from typing import Any
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, Header, status
+from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 

@@ -1,3 +1,4 @@
+import contextlib
 import io
 import logging
 from typing import Any
@@ -118,10 +119,8 @@ class PdfTextExtractor:
         amount_pattern = re.compile(r"[¥￥]?\s*([0-9,]{1,3}(?:,[0-9]{3})*(?:\.[0-9]+)?)\s*円?")
         for match in amount_pattern.finditer(text):
             raw = match.group(1).replace(",", "")
-            try:
+            with contextlib.suppress(ValueError):
                 entities["amounts"].append(float(raw))
-            except ValueError:
-                pass
 
         date_patterns = [
             re.compile(r"(\d{4})[年/](\d{1,2})[月/](\d{1,2})日?"),

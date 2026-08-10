@@ -1,6 +1,5 @@
 import json
 import logging
-from typing import Any
 
 from app.services.ai.base_provider import AIProvider, InferenceRequest, InferenceResult
 

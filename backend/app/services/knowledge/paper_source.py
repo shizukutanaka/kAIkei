@@ -1,6 +1,6 @@
+import contextlib
 import logging
 from datetime import datetime
-from typing import Any
 
 import httpx
 
@@ -122,10 +122,8 @@ class PaperSourceAdapter(KnowledgeSourceAdapter):
                 for paper in data.get("data", []):
                     pub_date = None
                     if paper.get("publicationDate"):
-                        try:
+                        with contextlib.suppress(ValueError):
                             pub_date = datetime.fromisoformat(paper["publicationDate"])
-                        except ValueError:
-                            pass
 
                     authors = [a.get("name", "") for a in paper.get("authors", [])[:5]]
 

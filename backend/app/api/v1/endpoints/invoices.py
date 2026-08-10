@@ -35,7 +35,6 @@ from app.services.auto_journal import (
 )
 from app.services.credit_limit import CreditLimitService, CreditRequest
 from app.services.invoice_number import is_valid_registration_number, normalize
-from app.services.invoice_registration import InvoiceRegistrationService
 from app.services.invoice_tax import InvoiceTaxService
 from app.services.notification_service import create_notification
 from app.services.qualified_invoice_check import (

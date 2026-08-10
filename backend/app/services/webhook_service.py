@@ -13,7 +13,7 @@ import ipaddress
 import json
 import logging
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
@@ -298,7 +298,7 @@ async def enqueue_event(
     実際の送信はattempt_delivery/process_due_deliveriesが行う。
     """
     endpoints = await list_endpoints(db, tenant_id, active_only=True)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     event_id = str(uuid4())
     payload = build_event_payload(event_type, data, event_id, now.isoformat())
 
@@ -335,7 +335,7 @@ async def attempt_delivery(
     指数バックオフでnext_retry_atを設定、上限到達で "failed" とする。
     """
     body = serialize_payload(delivery.payload)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     timestamp = int(now.timestamp())
     headers = {
         "Content-Type": "application/json",
@@ -403,7 +403,7 @@ async def process_due_deliveries(
     Returns:
         送信を試行した件数。
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     id_query = (
         select(WebhookDelivery.webhook_delivery_id)
         .join(
@@ -474,7 +474,7 @@ async def replay_delivery(
         return None
     delivery.status = "pending"
     delivery.attempt_count = 0
-    delivery.next_retry_at = datetime.now(timezone.utc)
+    delivery.next_retry_at = datetime.now(UTC)
     delivery.last_error = None
     delivery.last_status_code = None
     await db.commit()

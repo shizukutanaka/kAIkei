@@ -6,21 +6,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import CurrentUser, get_current_user
 from app.schemas.schemas import (
-    NotificationResponse,
-    NotificationListResponse,
     NotificationCreate,
+    NotificationListResponse,
     NotificationPreferenceResponse,
     NotificationPreferenceUpdate,
+    NotificationResponse,
 )
 from app.services.notification_service import (
-    create_notification,
-    list_notifications,
-    mark_as_read,
-    mark_all_as_read,
-    get_unread_count,
-    get_preferences,
-    upsert_preference,
     VALID_CATEGORIES,
+    create_notification,
+    get_preferences,
+    get_unread_count,
+    list_notifications,
+    mark_all_as_read,
+    mark_as_read,
+    upsert_preference,
 )
 
 router = APIRouter()

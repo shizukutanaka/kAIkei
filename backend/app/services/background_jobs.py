@@ -6,9 +6,10 @@
 """
 
 import asyncio
+import contextlib
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Awaitable, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,5 @@ async def stop_background_jobs(tasks: list[asyncio.Task]) -> None:
     for task in tasks:
         task.cancel()
     for task in tasks:
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
