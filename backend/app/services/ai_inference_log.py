@@ -81,9 +81,9 @@ def compute_accuracy_stats(logs: list[dict]) -> dict:
             "correction_rate": 0.0,
             "avg_confidence": 0.0,
         }
-    applied = sum(1 for l in logs if l.get("applied"))
-    corrected = sum(1 for l in logs if l.get("applied") and l.get("correction_diff"))
-    avg_conf = sum(float(l.get("confidence", 0)) for l in logs) / total
+    applied = sum(1 for rec in logs if rec.get("applied"))
+    corrected = sum(1 for rec in logs if rec.get("applied") and rec.get("correction_diff"))
+    avg_conf = sum(float(rec.get("confidence", 0)) for rec in logs) / total
     return {
         "total": total,
         "applied": applied,
@@ -109,7 +109,7 @@ def compute_calibration_stats(logs: list[dict]) -> dict:
     `ece_adaptive` と、特に `auto_commit.observed_accuracy` を参照すること
     （詳細は `_fine_grained_calibration` のドキュメント）。
     """
-    applied = [l for l in logs if l.get("applied")]
+    applied = [rec for rec in logs if rec.get("applied")]
     total = len(applied)
     band_specs = [
         ("low", Decimal("0"), MEDIUM_CONFIDENCE),
@@ -119,12 +119,12 @@ def compute_calibration_stats(logs: list[dict]) -> dict:
     bands: list[dict] = []
     ece = 0.0
     for name, lo, hi in band_specs:
-        rows = [l for l in applied if lo <= Decimal(str(l.get("confidence", 0))) < hi]
+        rows = [rec for rec in applied if lo <= Decimal(str(rec.get("confidence", 0))) < hi]
         count = len(rows)
         if count:
-            correct = sum(1 for l in rows if not l.get("correction_diff"))
+            correct = sum(1 for rec in rows if not rec.get("correction_diff"))
             accuracy = correct / count
-            avg_conf = sum(float(l.get("confidence", 0)) for l in rows) / count
+            avg_conf = sum(float(rec.get("confidence", 0)) for rec in rows) / count
             gap = abs(avg_conf - accuracy)
             ece += (count / total) * gap
             bands.append({
@@ -207,7 +207,7 @@ def _fine_grained_calibration(applied: list[dict], bins: int = CALIBRATION_BINS)
     ece_binned, signed_gap = _ece_from_groups(width_groups, total)
 
     # 等件数ビン（Nixon et al. 2019）
-    ordered = sorted(applied, key=lambda l: float(l.get("confidence", 0)))
+    ordered = sorted(applied, key=lambda rec: float(rec.get("confidence", 0)))
     k = min(bins, total)
     size, remainder = divmod(total, k)
     mass_groups: list[list[dict]] = []
@@ -220,13 +220,13 @@ def _fine_grained_calibration(applied: list[dict], bins: int = CALIBRATION_BINS)
 
     # 自動コミット閾値の安全性（この領域は人手確認なしで確定されるため最重要）
     at_threshold = [
-        l for l in applied
-        if Decimal(str(l.get("confidence", 0))) >= AUTO_COMMIT_THRESHOLD
+        rec for rec in applied
+        if Decimal(str(rec.get("confidence", 0))) >= AUTO_COMMIT_THRESHOLD
     ]
     if at_threshold:
         n = len(at_threshold)
-        acc = sum(1 for l in at_threshold if _is_correct(l)) / n
-        conf = sum(float(l.get("confidence", 0)) for l in at_threshold) / n
+        acc = sum(1 for rec in at_threshold if _is_correct(rec)) / n
+        conf = sum(float(rec.get("confidence", 0)) for rec in at_threshold) / n
         auto_commit = {
             "threshold": float(AUTO_COMMIT_THRESHOLD),
             "count": n,
@@ -336,8 +336,8 @@ async def get_stats(db: AsyncSession, company_id: UUID, limit: int = 1000) -> di
     """会社のAI推論精度指標を集計する。"""
     logs = await list_logs(db, company_id, limit=limit)
     return compute_accuracy_stats([
-        {"applied": l.applied, "correction_diff": l.correction_diff, "confidence": l.confidence}
-        for l in logs
+        {"applied": rec.applied, "correction_diff": rec.correction_diff, "confidence": rec.confidence}
+        for rec in logs
     ])
 
 
@@ -345,6 +345,6 @@ async def get_calibration(db: AsyncSession, company_id: UUID, limit: int = 1000)
     """会社のAI推論の信頼度較正指標を集計する。"""
     logs = await list_logs(db, company_id, limit=limit)
     return compute_calibration_stats([
-        {"applied": l.applied, "correction_diff": l.correction_diff, "confidence": l.confidence}
-        for l in logs
+        {"applied": rec.applied, "correction_diff": rec.correction_diff, "confidence": rec.confidence}
+        for rec in logs
     ])

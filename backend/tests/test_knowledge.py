@@ -1,7 +1,6 @@
-import pytest
 
+from app.services.knowledge.aggregator import DEFAULT_KEYWORDS, KnowledgeAggregator
 from app.services.knowledge.base_source import KnowledgeItem, SearchQuery
-from app.services.knowledge.aggregator import KnowledgeAggregator, DEFAULT_KEYWORDS
 
 
 class TestKnowledgeAggregator:

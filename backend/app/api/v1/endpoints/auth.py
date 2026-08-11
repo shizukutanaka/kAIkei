@@ -127,7 +127,7 @@ async def mfa_setup(
             db, current_user.user_id, payload.current_code, int(time.time())
         )
     except mfa_service.MfaReauthRequired:
-        raise HTTPException(status_code=403, detail="Current MFA code required to re-setup")
+        raise HTTPException(status_code=403, detail="Current MFA code required to re-setup") from None
     if result is None:
         raise HTTPException(status_code=404, detail="User not found")
     secret, otpauth_uri = result

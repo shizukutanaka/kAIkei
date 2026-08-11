@@ -1,6 +1,5 @@
-import pytest
 
-from app.core.rbac import Permission, Role, ROLE_PERMISSIONS, has_permission, get_role_permissions
+from app.core.rbac import ROLE_PERMISSIONS, Permission, Role, get_role_permissions, has_permission
 
 
 class TestRBAC:

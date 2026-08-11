@@ -1,6 +1,5 @@
-import pytest
 from types import SimpleNamespace
-from uuid import uuid4
+
 from app.services.notification_service import (
     DELIVERY_CHANNELS,
     VALID_CATEGORIES,

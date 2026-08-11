@@ -96,8 +96,8 @@ class ImportAdapter(ABC):
         for i, journal in enumerate(journals):
             row_errors: list[str] = []
 
-            debit_total = sum(l["amount"] for l in journal.lines if l["debit_credit"] == "debit")
-            credit_total = sum(l["amount"] for l in journal.lines if l["debit_credit"] == "credit")
+            debit_total = sum(ln["amount"] for ln in journal.lines if ln["debit_credit"] == "debit")
+            credit_total = sum(ln["amount"] for ln in journal.lines if ln["debit_credit"] == "credit")
 
             if abs(debit_total - credit_total) > 0.01:
                 row_errors.append(f"貸借不一致: 借方{debit_total} / 貸方{credit_total}")

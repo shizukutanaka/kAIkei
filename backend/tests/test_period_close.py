@@ -1,6 +1,5 @@
 """Tests for period close and CSV export functionality."""
 
-import pytest
 from decimal import Decimal
 
 

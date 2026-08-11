@@ -1,7 +1,5 @@
 from decimal import Decimal
 
-import pytest
-
 from app.services.tax_calculator import TaxCalculator
 
 

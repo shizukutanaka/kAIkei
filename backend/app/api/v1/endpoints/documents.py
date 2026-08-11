@@ -77,7 +77,7 @@ async def archive(
             registered_by=current_user.user_id,
         )
     except document_archive.CompanyNotFoundError:
-        raise HTTPException(status_code=404, detail="Company not found")
+        raise HTTPException(status_code=404, detail="Company not found") from None
     return ArchivedDocumentResponse.model_validate(document)
 
 
@@ -146,7 +146,7 @@ async def supersede(
             registered_by=current_user.user_id,
         )
     except document_archive.CompanyNotFoundError:
-        raise HTTPException(status_code=404, detail="Company not found")
+        raise HTTPException(status_code=404, detail="Company not found") from None
     if result is None:
         raise HTTPException(status_code=404, detail="Archived document not found")
     _old, new = result

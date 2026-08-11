@@ -1,9 +1,7 @@
 import json
-
-import pytest
 from uuid import uuid4
 
-from app.middleware.audit_log import AuditLogMiddleware, SKIP_PATHS, redact_sensitive_fields
+from app.middleware.audit_log import SKIP_PATHS, AuditLogMiddleware, redact_sensitive_fields
 
 
 class TestAuditLog:

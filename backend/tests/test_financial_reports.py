@@ -1,5 +1,4 @@
-import pytest
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 
 def _round2(v: Decimal) -> Decimal:
@@ -123,7 +122,7 @@ class TestAccountTypeClassification:
         assert "equity" in self.BS_TYPES
 
     def test_no_overlap(self):
-        assert self.PL_TYPES & self.BS_TYPES == set()
+        assert set() == self.PL_TYPES & self.BS_TYPES
 
     def test_all_types_covered(self):
         all_types = self.PL_TYPES | self.BS_TYPES

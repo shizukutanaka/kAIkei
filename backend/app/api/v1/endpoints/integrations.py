@@ -50,7 +50,7 @@ async def import_csv(
         raise HTTPException(
             status_code=400,
             detail=f"CSV import is not available for {software_code}",
-        )
+        ) from None
     validation = adapter.validate_import(journals)
 
     return {

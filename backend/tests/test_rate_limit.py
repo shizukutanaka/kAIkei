@@ -1,5 +1,4 @@
-import pytest
-from app.middleware.rate_limit import RateLimitMiddleware, SKIP_PATHS
+from app.middleware.rate_limit import SKIP_PATHS, RateLimitMiddleware
 
 
 class TestRateLimit:
@@ -14,7 +13,6 @@ class TestRateLimit:
         assert RateLimitMiddleware is not None
 
     def test_default_config(self):
-        import asyncio
         from starlette.applications import Starlette
         from starlette.responses import PlainTextResponse
 

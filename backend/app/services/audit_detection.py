@@ -342,7 +342,7 @@ def highest_risk(findings: list[DetectionFinding]) -> str | None:
 
 def _snapshot_from(header: JournalHeader, lines: list[JournalLine]) -> JournalSnapshot:
     debit_total = sum(
-        (l.amount for l in lines if l.debit_credit == "debit" and not l.is_deleted),
+        (ln.amount for ln in lines if ln.debit_credit == "debit" and not ln.is_deleted),
         Decimal("0"),
     )
     counterparty = ""

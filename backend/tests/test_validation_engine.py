@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 
 from app.schemas.schemas import JournalCreate, JournalLineCreate
-from app.services.validation_engine import ValidationError, ValidationEngine
+from app.services.validation_engine import ValidationEngine, ValidationError
 
 
 def _make_line(debit_credit: str, amount: str, tax: str = "0") -> JournalLineCreate:

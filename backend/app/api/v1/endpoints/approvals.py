@@ -95,9 +95,9 @@ async def submit_for_approval(
             "message": "Journal submitted for approval",
         }
     except ValidationError as e:
-        raise HTTPException(status_code=403, detail={"code": e.code, "message": e.message})
+        raise HTTPException(status_code=403, detail={"code": e.code, "message": e.message}) from e
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/approve", dependencies=[Depends(require_permission(Permission.JOURNAL_APPROVE))])
@@ -128,9 +128,9 @@ async def approve_journal(
             "message": "Journal approved",
         }
     except ValidationError as e:
-        raise HTTPException(status_code=403, detail={"code": e.code, "message": e.message})
+        raise HTTPException(status_code=403, detail={"code": e.code, "message": e.message}) from e
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/reject", dependencies=[Depends(require_permission(Permission.JOURNAL_APPROVE))])
@@ -160,9 +160,9 @@ async def reject_journal(
             "message": "Journal rejected",
         }
     except ValidationError as e:
-        raise HTTPException(status_code=403, detail={"code": e.code, "message": e.message})
+        raise HTTPException(status_code=403, detail={"code": e.code, "message": e.message}) from e
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/post", dependencies=[Depends(require_permission(Permission.JOURNAL_POST))])
@@ -192,9 +192,9 @@ async def post_journal(
             "message": "Journal posted",
         }
     except ValidationError as e:
-        raise HTTPException(status_code=403, detail={"code": e.code, "message": e.message})
+        raise HTTPException(status_code=403, detail={"code": e.code, "message": e.message}) from e
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.get("/history/{journal_header_id}")

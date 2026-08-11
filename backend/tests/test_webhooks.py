@@ -1,4 +1,3 @@
-import pytest
 
 from app.services.webhook_service import (
     BACKOFF_MAX_SECONDS,
@@ -50,7 +49,7 @@ class TestSerializePayload:
 
     def test_japanese_not_escaped(self):
         body = serialize_payload({"title": "現金売上"})
-        assert "現金売上".encode("utf-8") in body
+        assert "現金売上".encode() in body
 
 
 class TestBackoff:

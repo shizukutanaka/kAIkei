@@ -1,7 +1,5 @@
 from datetime import date
 
-import pytest
-
 from app.services.office_task import (
     DEFAULT_MONTHLY_CLOSE_TEMPLATES,
     TaskTemplate,

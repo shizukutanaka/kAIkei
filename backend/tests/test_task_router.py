@@ -1,4 +1,3 @@
-import pytest
 
 from app.services.ai.base_provider import AIProvider, InferenceRequest, InferenceResult
 from app.services.ai.task_router import TaskComplexity, TaskRouter

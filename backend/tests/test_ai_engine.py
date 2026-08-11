@@ -1,4 +1,3 @@
-import pytest
 
 from app.services.ai.base_provider import InferenceRequest
 from app.services.ai.inference_engine import AIInferenceEngine

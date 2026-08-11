@@ -34,7 +34,7 @@ async def register_endpoint(
             description=payload.description,
         )
     except webhook_service.UnsafeWebhookUrlError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     return WebhookEndpointResponse.model_validate(endpoint)
 
 

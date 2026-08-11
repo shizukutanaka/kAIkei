@@ -1,4 +1,3 @@
-import pytest
 
 from app.services.security_policy import (
     ip_allowed,

@@ -96,7 +96,7 @@ async def create_notification_endpoint(
     try:
         notif = await create_notification(db, current_user.tenant_id, payload)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     return NotificationResponse.model_validate(notif)
 
 

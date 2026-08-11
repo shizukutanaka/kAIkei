@@ -158,7 +158,6 @@ async def test_replay_rejects_already_delivered(db_session, seed_company):
 
 async def test_process_due_deliveries_scopes_to_tenant(db_session, seed_company, monkeypatch):
     """tenant_id指定時は、他テナント宛ての配信を処理しない。"""
-    from datetime import datetime, timedelta, timezone
 
     from app.models.models import Company, Tenant
 

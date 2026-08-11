@@ -1,5 +1,4 @@
-import pytest
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 
 def _calc_bonus_tax(gross: Decimal) -> Decimal:

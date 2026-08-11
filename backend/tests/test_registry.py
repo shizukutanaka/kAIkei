@@ -1,5 +1,5 @@
-from app.services.integrations.registry import get_adapter, list_supported_software
 from app.services.integrations.generic_csv_adapter import GenericCsvAdapter
+from app.services.integrations.registry import get_adapter, list_supported_software
 from app.services.integrations.yayoi_adapter import YayoiAccountingAdapter
 
 

@@ -3,8 +3,6 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
-import pytest
-
 from app.services.document_archive import (
     build_storage_key,
     compute_file_hash,

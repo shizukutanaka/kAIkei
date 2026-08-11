@@ -65,7 +65,7 @@ async def create_journal(
     try:
         ValidationEngine.validate(payload, created_by=current_user.user_id)
     except ValidationError as e:
-        raise HTTPException(status_code=400, detail={"code": e.code, "message": e.message, "field": e.field})
+        raise HTTPException(status_code=400, detail={"code": e.code, "message": e.message, "field": e.field}) from e
 
     # Use MAX instead of COUNT to avoid full table scan
     max_result = await db.execute(
@@ -201,9 +201,9 @@ async def approve_journal(
     try:
         return await JournalService.approve_journal(db, journal_header_id, current_user.user_id)
     except ValidationError as e:
-        raise HTTPException(status_code=403, detail={"code": e.code, "message": e.message})
+        raise HTTPException(status_code=403, detail={"code": e.code, "message": e.message}) from e
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.put("/{journal_header_id}/post", response_model=JournalResponse)
@@ -216,7 +216,7 @@ async def post_journal(
     try:
         return await JournalService.post_journal(db, journal_header_id)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 # ---------------------------------------------------------------------------

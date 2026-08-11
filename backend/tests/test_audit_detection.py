@@ -1,25 +1,23 @@
 from datetime import date
 from decimal import Decimal
 
-import pytest
-
 from app.services.audit_detection import (
     BENFORD_CHI2_CRITICAL,
     BENFORD_MAD_CLOSE,
     JournalSnapshot,
     benford_chi_squared,
     benford_mad,
-    mad_conformity,
-    detect_benford_deviation,
-    detect_period_end_concentration,
-    first_significant_digit,
     detect_backdated,
+    detect_benford_deviation,
     detect_duplicate,
     detect_high_amount,
+    detect_period_end_concentration,
     detect_round_amount,
     detect_sod_conflict,
     detect_weekend_entry,
+    first_significant_digit,
     highest_risk,
+    mad_conformity,
     run_rules,
 )
 

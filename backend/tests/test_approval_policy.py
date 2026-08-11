@@ -1,7 +1,5 @@
 from decimal import Decimal
 
-import pytest
-
 from app.services.approval_policy import (
     ApprovalPolicySpec,
     policy_applies,

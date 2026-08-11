@@ -1,5 +1,4 @@
 import hashlib
-import pytest
 
 from app.middleware.idempotency import IDEMPOTENCY_HEADER, IDEMPOTENCY_TTL_HOURS
 

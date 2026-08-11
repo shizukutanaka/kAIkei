@@ -34,8 +34,8 @@ def _schema():
         yield
         return
 
-    from app.core.database import Base
     import app.models.models  # noqa: F401  -- registers all tables on Base.metadata
+    from app.core.database import Base
 
     async def _init():
         engine = create_async_engine(TEST_DATABASE_URL)
