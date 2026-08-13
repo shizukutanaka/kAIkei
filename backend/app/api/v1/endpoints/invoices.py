@@ -22,6 +22,8 @@ from app.schemas.schemas import (
     InvoiceTaxComputeRequest,
     InvoiceTaxComputeResponse,
     NotificationCreate,
+    OrderFulfillmentRequest,
+    OrderFulfillmentResponse,
     QualifiedInvoiceCheckRequest,
     QualifiedInvoiceCheckResponse,
     ReceivableAgingRequest,
@@ -38,6 +40,7 @@ from app.services.invoice_number import is_valid_registration_number, normalize
 from app.services.invoice_registration import InvoiceRegistrationService
 from app.services.invoice_tax import InvoiceTaxService
 from app.services.notification_service import create_notification
+from app.services.order_fulfillment import Order, OrderFulfillmentService, Shipment
 from app.services.qualified_invoice_check import (
     QualifiedInvoiceCheckService,
     QualifiedInvoiceInput,
@@ -336,6 +339,45 @@ async def check_credit_limits(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return CreditCheckResponse.model_validate(result)
+
+
+@router.post("/order-fulfillment", response_model=OrderFulfillmentResponse)
+async def process_order_fulfillment(
+    payload: OrderFulfillmentRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
+) -> OrderFulfillmentResponse:
+    """受注と出荷実績から売上計上明細・受注残・納期遅延を導出する。"""
+    try:
+        result = OrderFulfillmentService.process(
+            as_of=payload.as_of,
+            orders=[
+                Order(
+                    order_id=item.order_id,
+                    customer_code=item.customer_code,
+                    customer_name=item.customer_name,
+                    order_date=item.order_date,
+                    delivery_date=item.delivery_date,
+                    quantity=item.quantity,
+                    unit_price=item.unit_price,
+                    tax_rate=item.tax_rate,
+                    description=item.description,
+                    credit_status=item.credit_status,
+                )
+                for item in payload.orders
+            ],
+            shipments=[
+                Shipment(
+                    shipment_id=item.shipment_id,
+                    order_id=item.order_id,
+                    shipped_date=item.shipped_date,
+                    quantity=item.quantity,
+                )
+                for item in payload.shipments
+            ],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return OrderFulfillmentResponse.model_validate(result)
 
 
 @router.post("/sales-closing", response_model=SalesClosingResponse)
