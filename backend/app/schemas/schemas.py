@@ -2626,3 +2626,83 @@ class CreditCheckResponse(BaseModel):
     manual_customer_codes: list[str]
 
     model_config = {"from_attributes": True}
+
+
+class OrderSchema(BaseModel):
+    order_id: str
+    customer_code: str
+    customer_name: str
+    order_date: date
+    delivery_date: date
+    quantity: Decimal
+    unit_price: Decimal
+    tax_rate: Decimal = Decimal("0.10")
+    description: str = ""
+    credit_status: str = "approved"
+
+
+class ShipmentSchema(BaseModel):
+    shipment_id: str
+    order_id: str
+    shipped_date: date
+    quantity: Decimal
+
+
+class OrderFulfillmentRequest(BaseModel):
+    as_of: date
+    orders: list[OrderSchema]
+    shipments: list[ShipmentSchema] = []
+
+
+class SalesEntrySchema(BaseModel):
+    line_id: str
+    order_id: str
+    customer_code: str
+    customer_name: str
+    sales_date: date
+    quantity: Decimal
+    amount: Decimal
+    tax_rate: Decimal
+    description: str
+
+    model_config = {"from_attributes": True}
+
+
+class OrderProgressSchema(BaseModel):
+    order_id: str
+    customer_code: str
+    customer_name: str
+    delivery_date: date
+    status: str
+    ordered_quantity: Decimal
+    shipped_quantity: Decimal
+    remaining_quantity: Decimal
+    order_amount: Decimal
+    recognized_amount: Decimal
+    backlog_amount: Decimal
+    last_shipped_date: date | None
+    delay_days: int
+
+    model_config = {"from_attributes": True}
+
+
+class CustomerBacklogSchema(BaseModel):
+    customer_code: str
+    customer_name: str
+    order_backlog: Decimal
+    open_order_count: int
+
+    model_config = {"from_attributes": True}
+
+
+class OrderFulfillmentResponse(BaseModel):
+    as_of: date
+    orders: list[OrderProgressSchema]
+    sales_entries: list[SalesEntrySchema]
+    backlogs: list[CustomerBacklogSchema]
+    total_recognized_amount: Decimal
+    total_backlog_amount: Decimal
+    delayed_order_ids: list[str]
+    on_hold_order_ids: list[str]
+
+    model_config = {"from_attributes": True}
