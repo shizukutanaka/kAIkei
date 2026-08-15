@@ -19,7 +19,9 @@ class TokenRefreshRequest(BaseModel):
 
 class UserCreate(BaseModel):
     email: str
-    password: str = Field(min_length=8)
+    # NIST SP 800-63B は最低64文字の受理を求める。上限はハッシュ処理のDoS防止のための
+    # 常識的な値（bcrypt_sha256自体に長さ制限は無い）。
+    password: str = Field(min_length=8, max_length=256)
     display_name: str
     tenant_code: str
 

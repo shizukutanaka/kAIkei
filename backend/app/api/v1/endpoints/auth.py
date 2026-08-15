@@ -7,7 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import CurrentUser, get_current_user
-from app.core.security import create_access_token, create_refresh_token, decode_token, hash_password, verify_password
+from app.core.security import (
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    hash_password,
+    needs_rehash,
+    verify_password,
+)
 from app.models.models import Tenant, User
 from app.schemas.schemas import TokenRefreshRequest, TokenResponse, UserCreate, UserResponse
 from app.services import mfa as mfa_service
@@ -56,6 +63,11 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> To
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="User is inactive")
+
+    # 旧スキーム($2b$素のbcrypt)のハッシュは、平文が手元にあるこの瞬間に新スキームへ
+    # 透過的に移行する。移行に失敗してもログイン自体は成功させる（可用性を優先）。
+    if needs_rehash(user.password_hash):
+        user.password_hash = hash_password(payload.password)
 
     if user.mfa_enabled and user.mfa_secret:
         if not payload.mfa_code:

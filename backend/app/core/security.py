@@ -2,19 +2,18 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.core.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
-def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+# パスワードハッシュはbcryptの72バイト制限を回避するため app.core.passwords に分離した
+# （日本語24文字で72バイトに到達するため素のbcryptでは登録・ログインが失敗する）。
+# 既存の import 経路（from app.core.security import hash_password 等）を保つため再エクスポートする。
+from app.core.passwords import (  # noqa: F401
+    hash_password,
+    needs_rehash,
+    pwd_context,
+    verify_password,
+)
 
 
 def create_access_token(subject: str, extra_claims: dict[str, Any] | None = None) -> str:
