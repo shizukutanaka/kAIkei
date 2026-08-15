@@ -7,6 +7,10 @@ pydantic==2.10.4
 pydantic-settings==2.7.0
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+# passlib 1.7.4 は bcrypt 4.1 以降と非互換（bcrypt が __about__ を廃止し、passlib の
+# バックエンド判定が 72 バイト超の検証用シークレットで ValueError になるため、
+# **短いパスワードでもハッシュ化が全て失敗する**）。互換のある系列に固定する。
+bcrypt>=4.0.1,<4.1
 python-multipart==0.0.20
 redis==5.2.1
 httpx==0.28.1
