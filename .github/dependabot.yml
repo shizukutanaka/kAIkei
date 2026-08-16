@@ -4,7 +4,8 @@ updates:
     directory: "/"
     allow:
       - dependency-type: "direct"
-    automerge:
-      - dependency-type: "direct"
+    # 注: `automerge` は Dependabot の設定スキーマに存在しないキーで、記述すると
+    # 設定バリデーションが失敗し全PRでチェックが赤くなる。自動マージはリポジトリ設定の
+    # auto-merge と GitHub Actions ワークフロー側で行う（dependabot.yml では指定しない）。
     schedule:
       interval: "weekly"

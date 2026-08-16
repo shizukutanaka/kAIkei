@@ -40,6 +40,32 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
+_DUMMY_PASSWORD = "dummy-password-for-constant-time-login"
+# ユーザー不在時の空打ち用ハッシュ。実ハッシュと同一スキーム・同一コスト(r=12)のため
+# 検証時間もほぼ同じになる。秘密情報ではない（タイミングを揃える目的のみ）。
+_DUMMY_HASH = "$bcrypt-sha256$v=2,t=2b,r=12$JfNOLv.GPx0fXJQ0MLm4Ve$0sHlnbQagqualdUkIAMXHw4/20q6OkO"
+
+
+def verify_dummy_password() -> None:
+    """ユーザーが存在しない場合でもパスワード検証と同等の計算を行う。
+
+    `if not user or not verify_password(...)` のように短絡すると、
+    **存在しないメールアドレスでは応答が即座に返る**一方、存在するメールでは
+    bcryptの計算時間（実測で約250ms）がかかる。この差は容易に観測でき、
+    攻撃者は登録済みメールアドレスを列挙できてしまう
+    （CWE-208 Observable Timing Discrepancy / OWASP Authentication Cheat Sheet は
+    認証応答を内容だけでなく**時間的にも**区別できないようにすることを求めている）。
+
+    ユーザー不在時に本関数を呼ぶことで、両者の応答時間を揃える。
+    """
+    try:
+        pwd_context.verify(_DUMMY_PASSWORD, _DUMMY_HASH)
+    except ValueError:
+        # ダミーハッシュが解釈できない場合でも、実際のハッシュ化と同等の計算を行って
+        # 時間差を残さない（認証結果には影響しない）。
+        pwd_context.hash(_DUMMY_PASSWORD)
+
+
 def needs_rehash(hashed_password: str) -> bool:
     """ハッシュが旧スキームで、再ハッシュすべきかを返す。
 
