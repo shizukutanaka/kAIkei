@@ -12,6 +12,7 @@ from app.core.passwords import (  # noqa: F401
     hash_password,
     needs_rehash,
     pwd_context,
+    verify_dummy_password,
     verify_password,
 )
 

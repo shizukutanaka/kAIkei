@@ -13,6 +13,7 @@ from app.core.security import (
     decode_token,
     hash_password,
     needs_rehash,
+    verify_dummy_password,
     verify_password,
 )
 from app.models.models import Tenant, User
@@ -59,7 +60,12 @@ class LoginRequest(BaseModel):
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
     result = await db.execute(select(User).where(User.email == payload.email, User.is_deleted == False))  # noqa: E712
     user = result.scalar_one_or_none()
-    if not user or not verify_password(payload.password, user.password_hash):
+    if not user:
+        # ユーザーが存在しなくてもパスワード検証と同等の計算を行う。短絡すると応答時間の差
+        # （実測: 存在すれば約250ms、存在しなければ即時）から登録済みメールを列挙できるため。
+        verify_dummy_password()
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="User is inactive")

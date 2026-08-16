@@ -16,7 +16,12 @@ import warnings
 import pytest
 from passlib.context import CryptContext
 
-from app.core.passwords import hash_password, needs_rehash, verify_password
+from app.core.passwords import (
+    hash_password,
+    needs_rehash,
+    verify_dummy_password,
+    verify_password,
+)
 
 # 25文字 = 75バイト（UTF-8）。bcrypt単体の上限72バイトを超える。
 LONG_JP_BASE = "パスワード安全性検証用長文パスフレーズ本日晴天なり"
@@ -90,3 +95,40 @@ class TestLegacyCompatibility:
 @pytest.mark.parametrize("password", ["", "a", "ぁ" * 100])
 def test_edge_case_inputs_roundtrip(password):
     assert verify_password(password, hash_password(password)) is True
+
+
+class TestLoginTimingOracle:
+    """ユーザー列挙を招く応答時間差を作らないこと（CWE-208）。
+
+    ログインで `if not user or not verify_password(...)` と短絡すると、存在しない
+    メールアドレスでは検証が走らず即座に401が返る。存在する場合はbcryptの計算に
+    数百ミリ秒かかるため、この差から登録済みメールを列挙できてしまう。
+    ユーザー不在時も同等の計算を行うことで応答時間を揃える。
+    """
+
+    def test_dummy_verification_costs_similar_time_to_real_verification(self):
+        import time
+
+        stored = hash_password("correct-horse-battery-staple")
+
+        def _median(fn, n=5):
+            samples = []
+            for _ in range(n):
+                start = time.perf_counter()
+                fn()
+                samples.append(time.perf_counter() - start)
+            samples.sort()
+            return samples[len(samples) // 2]
+
+        real = _median(lambda: verify_password("wrong-guess", stored))
+        dummy = _median(verify_dummy_password)
+
+        # 実測では両者とも約250ms。桁違いの差（短絡による即時応答）が無いことを確認する。
+        assert dummy > real / 4, (
+            f"ダミー検証が速すぎます (real={real*1000:.1f}ms dummy={dummy*1000:.1f}ms)。"
+            "ユーザー列挙のタイミングオラクルになります。"
+        )
+
+    def test_dummy_verification_does_not_raise(self):
+        # 認証フローの途中で例外を出さないこと（500やスタックトレース漏洩の防止）。
+        verify_dummy_password()
