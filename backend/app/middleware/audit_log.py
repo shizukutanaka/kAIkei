@@ -29,22 +29,38 @@ SENSITIVE_BODY_KEYS = {
 REDACTED_PLACEHOLDER = "***REDACTED***"
 
 
+def _redact_value(value: object) -> object:
+    """入れ子のdict/listを再帰的に辿り、機微キーの値を伏字にする。"""
+    if isinstance(value, dict):
+        return {
+            k: (REDACTED_PLACEHOLDER if k in SENSITIVE_BODY_KEYS else _redact_value(v))
+            for k, v in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact_value(item) for item in value]
+    return value
+
+
 def redact_sensitive_fields(body_text: str) -> str:
     """JSON形式のリクエストボディから既知の機微キーの値を伏字にする。
 
+    監査ログは長期保存され監査人が閲覧するため、パスワードやトークンが一度でも
+    書き込まれると影響が残る。**入れ子のオブジェクトや配列の中まで再帰的に**伏字にする
+    （トップレベルのキーだけを見ていると `{"user": {"password": ...}}` や
+    `{"items": [{"password": ...}]}` の形が素通りする。現行のスキーマはいずれも
+    機微フィールドがトップレベルにあり実害は生じていないが、エンドポイントは随時
+    追加されるため、この防御はボディの形に依存しない実装にしておく）。
+
     JSONとしてパースできない場合（フォームデータ等）は元のテキストをそのまま返す
-    （非JSONボディに機微キーが含まれる既存経路は本関数の対象外）。
+    （非JSONボディに機微キーが含まれる経路は本関数の対象外）。
     """
     try:
         data = json.loads(body_text)
     except (json.JSONDecodeError, TypeError):
         return body_text
-    if not isinstance(data, dict):
+    if not isinstance(data, dict | list):
         return body_text
-    redacted = {
-        k: (REDACTED_PLACEHOLDER if k in SENSITIVE_BODY_KEYS else v) for k, v in data.items()
-    }
-    return json.dumps(redacted, ensure_ascii=False)
+    return json.dumps(_redact_value(data), ensure_ascii=False)
 
 
 class AuditLogMiddleware(BaseHTTPMiddleware):
