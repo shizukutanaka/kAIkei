@@ -9,6 +9,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.csv_export import csv_document
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
@@ -274,16 +275,28 @@ async def export_journals_csv(
         else:
             headers_map[header.journal_header_id]["credit_lines"].append(entry)
 
-    lines = ["取引No,取引日,借方勘目,借方補助勘目,貸方勘目,貸方補助勘目,摘要,金額,税区分"]
-    for _h_id, data in headers_map.items():
-        for d in data["debit_lines"]:
-            for c in data["credit_lines"]:
-                lines.append(
-                    f"{data['number']},{data['date']},{d['account_name']},"
-                    f",{c['account_name']},,{data['summary']},{d['amount']},対象外"
-                )
-
-    return "\n".join(lines)
+    # 摘要・勘定科目名は利用者が自由入力するため、カンマ・改行・数式記号が含まれうる。
+    # f文字列連結だと列ずれ・行注入・数式インジェクションが起きるので必ずcsv_documentを通す。
+    csv_rows = [
+        [
+            data["number"],
+            data["date"],
+            d["account_name"],
+            "",
+            c["account_name"],
+            "",
+            data["summary"],
+            d["amount"],
+            "対象外",
+        ]
+        for data in headers_map.values()
+        for d in data["debit_lines"]
+        for c in data["credit_lines"]
+    ]
+    return csv_document(
+        ["取引No", "取引日", "借方勘目", "借方補助勘目", "貸方勘目", "貸方補助勘目", "摘要", "金額", "税区分"],
+        csv_rows,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -637,31 +650,34 @@ async def export_general_ledger_csv(
         db=db,
     )
 
-    lines = ["科目コード,科目名,取引日,伝票No,摘要,借方金額,貸方金額,残高"]
+    header = ["科目コード", "科目名", "取引日", "伝票No", "摘要", "借方金額", "貸方金額", "残高"]
+    # 摘要・科目名は自由入力のため、列ずれ・行注入・数式インジェクションを避けて
+    # csv_documentで組み立てる。各行はヘッダと同じ順序・個数のフィールドで表現する
+    # （従来は区切りカンマの数を数える書き方で、期首/期末残高のラベルが摘要ではなく
+    #  借方金額の列に入る列ずれが生じていた）。
+    rows: list[list[object]] = []
 
     for acct in result["accounts"]:
         running_balance = Decimal(acct["opening_balance"])
-        # Opening balance line
-        lines.append(f"{acct['account_code']},{acct['account_name']},,,,期首残高,,{running_balance}")
+        code, name = acct["account_code"], acct["account_name"]
+        rows.append([code, name, "", "", "期首残高", "", "", running_balance])
 
         for entry in acct["entries"]:
             amt = Decimal(entry["amount"])
-            if entry["debit_credit"] == "debit":
-                running_balance += amt
-                lines.append(
-                    f"{acct['account_code']},{acct['account_name']},"
-                    f"{entry['date']},{entry['journal_number']},{entry['summary']},"
-                    f"{amt},,{running_balance}"
-                )
-            else:
-                running_balance -= amt
-                lines.append(
-                    f"{acct['account_code']},{acct['account_name']},"
-                    f"{entry['date']},{entry['journal_number']},{entry['summary']},"
-                    f",,{amt},{running_balance}"
-                )
+            is_debit = entry["debit_credit"] == "debit"
+            running_balance += amt if is_debit else -amt
+            rows.append([
+                code,
+                name,
+                entry["date"],
+                entry["journal_number"],
+                entry["summary"],
+                amt if is_debit else "",
+                "" if is_debit else amt,
+                running_balance,
+            ])
 
-        lines.append(f"{acct['account_code']},{acct['account_name']},,,,期末残高,,{running_balance}")
-        lines.append("")
+        rows.append([code, name, "", "", "期末残高", "", "", running_balance])
+        rows.append([])  # 科目ごとの区切り（空行）
 
-    return "\n".join(lines)
+    return csv_document(header, rows)
