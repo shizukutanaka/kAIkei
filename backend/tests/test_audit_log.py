@@ -71,3 +71,37 @@ class TestRedactSensitiveFields:
 
     def test_empty_body(self):
         assert redact_sensitive_fields("") == ""
+
+
+class TestNestedRedaction:
+    """入れ子・配列の中まで伏字にすること。
+
+    監査ログは長期保存され監査人が閲覧するため、一度書き込まれた機微情報は影響が残る。
+    現行スキーマは機微フィールドがトップレベルにあり実害は生じていないが、
+    エンドポイントは随時追加されるため、ボディの形に依存しない実装にしておく。
+    """
+
+    def test_nested_object_is_redacted(self):
+        out = redact_sensitive_fields('{"user":{"email":"a@b.c","password":"P@ssw0rd!"}}')
+        assert "P@ssw0rd!" not in out
+        assert "***REDACTED***" in out
+        assert "a@b.c" in out  # 機微でない値は残す
+
+    def test_array_of_objects_is_redacted(self):
+        out = redact_sensitive_fields('{"users":[{"password":"P@ssw0rd!"},{"password":"x"}]}')
+        assert "P@ssw0rd!" not in out
+        assert out.count("***REDACTED***") == 2
+
+    def test_top_level_array_is_redacted(self):
+        out = redact_sensitive_fields('[{"refresh_token":"tok-value"}]')
+        assert "tok-value" not in out
+
+    def test_deeply_nested_secret_is_redacted(self):
+        out = redact_sensitive_fields('{"a":{"b":{"c":{"secret":"s3cr3t-value"}}}}')
+        assert "s3cr3t-value" not in out
+
+    def test_non_json_body_is_returned_unchanged(self):
+        assert redact_sensitive_fields("not-json-body") == "not-json-body"
+
+    def test_scalar_json_is_returned_unchanged(self):
+        assert redact_sensitive_fields('"just-a-string"') == '"just-a-string"'
