@@ -7,6 +7,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.csv_export import csv_document
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
@@ -74,7 +75,7 @@ async def get_ar_aging(
     analysis = ReceivableAgingService.analyze(as_of=reference_date, receivables=receivables)
 
     # サービスの区分キーをAPIレスポンスのキーへ対応付ける（91日以上 = 90日超）。
-    _KEY_MAP = {
+    bucket_key_map = {
         receivable_aging.BUCKET_NOT_DUE: "not_due",
         receivable_aging.BUCKET_1_30: "overdue_1_30",
         receivable_aging.BUCKET_31_60: "overdue_31_60",
@@ -83,7 +84,7 @@ async def get_ar_aging(
     }
 
     def _empty() -> dict[str, Decimal]:
-        return {k: Decimal("0") for k in _KEY_MAP.values()}
+        return {k: Decimal("0") for k in bucket_key_map.values()}
 
     def _buckets(values: dict[str, Decimal]) -> ArAgingBucketAmounts:
         return ArAgingBucketAmounts(**values)
@@ -91,7 +92,7 @@ async def get_ar_aging(
     totals = _empty()
     per_partner: dict[str, dict] = {}
     for item in analysis.items:
-        key = _KEY_MAP[item.bucket]
+        key = bucket_key_map[item.bucket]
         totals[key] += item.outstanding
         entry = per_partner.setdefault(
             item.customer_code,
@@ -667,18 +668,20 @@ async def export_trial_balance_csv(
     )
     rows = result.all()
 
-    lines = ["科目コード,科目名,区分,借方合計,貸方合計,残高"]
+    # 科目名は利用者が登録するマスタ値でカンマ等を含みうるため csv_document で組み立てる。
+    csv_rows: list[list[object]] = []
     total_debit = Decimal("0")
     total_credit = Decimal("0")
     for row in rows:
         ds = Decimal(row.debit_sum) if row.debit_sum else Decimal("0")
         cs = Decimal(row.credit_sum) if row.credit_sum else Decimal("0")
-        bal = ds - cs
         total_debit += ds
         total_credit += cs
-        lines.append(f"{row.account_code},{row.account_name},{row.account_type},{ds},{cs},{bal}")
-    lines.append(f",合計,,{total_debit},{total_credit},{total_debit - total_credit}")
-    return "\n".join(lines)
+        csv_rows.append([row.account_code, row.account_name, row.account_type, ds, cs, ds - cs])
+    csv_rows.append(["", "合計", "", total_debit, total_credit, total_debit - total_credit])
+    return csv_document(
+        ["科目コード", "科目名", "区分", "借方合計", "貸方合計", "残高"], csv_rows
+    )
 
 
 @router.get("/income-statement/export", response_class=PlainTextResponse)
@@ -691,7 +694,7 @@ async def export_income_statement_csv(
     """損益計算書をCSV形式で出力する。"""
     rows = await _get_account_balances(db, company_id, as_of, PL_ACCOUNT_TYPES)
 
-    lines = ["区分,科目コード,科目名,金額"]
+    csv_rows: list[list[object]] = []
     total_rev = Decimal("0")
     total_exp = Decimal("0")
     for row in rows:
@@ -700,15 +703,15 @@ async def export_income_statement_csv(
         if row.account_type == "revenue":
             amt = cs - ds
             total_rev += amt
-            lines.append(f"収益,{row.account_code},{row.account_name},{amt}")
+            csv_rows.append(["収益", row.account_code, row.account_name, amt])
         elif row.account_type == "expense":
             amt = ds - cs
             total_exp += amt
-            lines.append(f"費用,{row.account_code},{row.account_name},{amt}")
-    lines.append(f",,収益合計,{total_rev}")
-    lines.append(f",,費用合計,{total_exp}")
-    lines.append(f",,当期純利益,{total_rev - total_exp}")
-    return "\n".join(lines)
+            csv_rows.append(["費用", row.account_code, row.account_name, amt])
+    csv_rows.append(["", "", "収益合計", total_rev])
+    csv_rows.append(["", "", "費用合計", total_exp])
+    csv_rows.append(["", "", "当期純利益", total_rev - total_exp])
+    return csv_document(["区分", "科目コード", "科目名", "金額"], csv_rows)
 
 
 @router.get("/balance-sheet/export", response_class=PlainTextResponse)
@@ -721,7 +724,7 @@ async def export_balance_sheet_csv(
     """貸借対照表をCSV形式で出力する。"""
     rows = await _get_account_balances(db, company_id, as_of, BS_ACCOUNT_TYPES)
 
-    lines = ["区分,科目コード,科目名,金額"]
+    csv_rows: list[list[object]] = []
     total_a = Decimal("0")
     total_l = Decimal("0")
     total_e = Decimal("0")
@@ -731,20 +734,20 @@ async def export_balance_sheet_csv(
         if row.account_type == "asset":
             amt = ds - cs
             total_a += amt
-            lines.append(f"資産,{row.account_code},{row.account_name},{amt}")
+            csv_rows.append(["資産", row.account_code, row.account_name, amt])
         elif row.account_type == "liability":
             amt = cs - ds
             total_l += amt
-            lines.append(f"負債,{row.account_code},{row.account_name},{amt}")
+            csv_rows.append(["負債", row.account_code, row.account_name, amt])
         elif row.account_type == "equity":
             amt = cs - ds
             total_e += amt
-            lines.append(f"純資産,{row.account_code},{row.account_name},{amt}")
-    lines.append(f",,資産合計,{total_a}")
-    lines.append(f",,負債合計,{total_l}")
-    lines.append(f",,純資産合計,{total_e}")
-    lines.append(f",,負債純資産合計,{total_l + total_e}")
-    return "\n".join(lines)
+            csv_rows.append(["純資産", row.account_code, row.account_name, amt])
+    csv_rows.append(["", "", "資産合計", total_a])
+    csv_rows.append(["", "", "負債合計", total_l])
+    csv_rows.append(["", "", "純資産合計", total_e])
+    csv_rows.append(["", "", "負債純資産合計", total_l + total_e])
+    return csv_document(["区分", "科目コード", "科目名", "金額"], csv_rows)
 
 
 @router.get("/cash-flow/export", response_class=PlainTextResponse)
@@ -770,12 +773,13 @@ async def export_cash_flow_csv(
 
     bs_rows = await _get_account_balances(db, company_id, as_of, BS_ACCOUNT_TYPES)
 
-    lines = ["区分,項目,金額"]
+    # 項目名には科目名を埋め込むため、カンマを含むとフィールドが割れる。csv_documentで防ぐ。
+    csv_rows: list[list[object]] = []
     operating_total = net_income
     investing_total = Decimal("0")
     financing_total = Decimal("0")
 
-    lines.append(f"営業CF,当期純利益,{net_income}")
+    csv_rows.append(["営業CF", "当期純利益", net_income])
 
     for row in bs_rows:
         ds = Decimal(row.debit_sum) if row.debit_sum else Decimal("0")
@@ -785,38 +789,38 @@ async def export_cash_flow_csv(
         if row.account_type == "asset":
             if code.startswith("11"):
                 change = ds - cs
-                lines.append(f"営業CF,売上債権増減 ({row.account_name}),{-change}")
+                csv_rows.append(["営業CF", f"売上債権増減 ({row.account_name})", -change])
                 operating_total -= change
             elif code.startswith("10"):
                 pass
             elif code.startswith("17"):
                 dep = cs - ds
-                lines.append(f"営業CF,減価償却 ({row.account_name}),{dep}")
+                csv_rows.append(["営業CF", f"減価償却 ({row.account_name})", dep])
                 operating_total += dep
             elif code.startswith("1"):
                 change = ds - cs
-                lines.append(f"投資CF,固定資産等増減 ({row.account_name}),{-change}")
+                csv_rows.append(["投資CF", f"固定資産等増減 ({row.account_name})", -change])
                 investing_total -= change
         elif row.account_type == "liability":
             if code.startswith("20") or code.startswith("21"):
                 change = cs - ds
-                lines.append(f"営業CF,買掛債務等増減 ({row.account_name}),{change}")
+                csv_rows.append(["営業CF", f"買掛債務等増減 ({row.account_name})", change])
                 operating_total += change
             elif code.startswith("2"):
                 change = cs - ds
-                lines.append(f"財務CF,借入金等増減 ({row.account_name}),{change}")
+                csv_rows.append(["財務CF", f"借入金等増減 ({row.account_name})", change])
                 financing_total += change
         elif row.account_type == "equity":
             change = cs - ds
             if change != 0:
-                lines.append(f"財務CF,資本増減 ({row.account_name}),{change}")
+                csv_rows.append(["財務CF", f"資本増減 ({row.account_name})", change])
                 financing_total += change
 
-    lines.append(f",営業CF小計,{operating_total}")
-    lines.append(f",投資CF小計,{investing_total}")
-    lines.append(f",財務CF小計,{financing_total}")
-    lines.append(f",現金純増減,{operating_total + investing_total + financing_total}")
-    return "\n".join(lines)
+    csv_rows.append(["", "営業CF小計", operating_total])
+    csv_rows.append(["", "投資CF小計", investing_total])
+    csv_rows.append(["", "財務CF小計", financing_total])
+    csv_rows.append(["", "現金純増減", operating_total + investing_total + financing_total])
+    return csv_document(["区分", "項目", "金額"], csv_rows)
 
 
 # ---------------------------------------------------------------------------
