@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.csv_export import csv_line
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
@@ -516,28 +517,29 @@ async def export_invoice(
 
     inv, partner_name, partner_code = row
 
-    lines = [
-        "項目,内容",
-        f"請求書番号,{inv.invoice_number}",
-        f"請求日,{inv.invoice_date}",
-        f"支払期限,{inv.due_date}",
-        f"取引先コード,{partner_code or ''}",
-        f"取引先名,{partner_name or ''}",
-        f"ステータス,{inv.status}",
-        f"税率,{inv.tax_rate}%",
-        "",
-        "No,内容,数量,単価,金額",
+    # 取引先名・明細の内容は自由入力のため、csv_lineで列ずれと数式化を防ぐ。
+    rows: list[list[object]] = [
+        ["項目", "内容"],
+        ["請求書番号", inv.invoice_number],
+        ["請求日", inv.invoice_date],
+        ["支払期限", inv.due_date],
+        ["取引先コード", partner_code or ""],
+        ["取引先名", partner_name or ""],
+        ["ステータス", inv.status],
+        ["税率", f"{inv.tax_rate}%"],
+        [],
+        ["No", "内容", "数量", "単価", "金額"],
     ]
 
     for ln in inv.lines:
-        lines.append(f"{ln.line_number},{ln.description},{ln.quantity},{ln.unit_price},{ln.line_total}")
+        rows.append([ln.line_number, ln.description, ln.quantity, ln.unit_price, ln.line_total])
 
-    lines.append("")
-    lines.append(f"小計,{inv.subtotal}")
-    lines.append(f"消費税,{inv.tax_amount}")
-    lines.append(f"合計,{inv.total_amount}")
+    rows.append([])
+    rows.append(["小計", inv.subtotal])
+    rows.append(["消費税", inv.tax_amount])
+    rows.append(["合計", inv.total_amount])
 
-    return "\n".join(lines)
+    return "\n".join(csv_line(row) for row in rows)
 
 
 @router.get("/invoices/{invoice_id}/peppol-xml", response_class=PlainTextResponse)
