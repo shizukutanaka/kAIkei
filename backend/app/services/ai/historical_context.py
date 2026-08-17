@@ -1,11 +1,11 @@
 import logging
-from datetime import date
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.business_time import business_today
 from app.models.models import Account, JournalHeader, JournalLine, SubAccount
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ class HistoricalContextProvider:
                 elif amount_diff < amount * 0.3:
                     score += 1.0
 
-            days_ago = (date.today() - journal.transaction_date).days
+            days_ago = (business_today() - journal.transaction_date).days
             score += max(0, 5 - days_ago / 30)
 
             if score > 0:
