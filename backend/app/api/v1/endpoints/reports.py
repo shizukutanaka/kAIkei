@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
@@ -7,6 +7,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.business_time import business_naive_now
 from app.core.csv_export import csv_document
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
@@ -897,7 +898,7 @@ async def transition_period_close(
             raise HTTPException(status_code=409, detail=f"{year}年{month}月は既に締切済みです")
         record.status = "closed"
         record.closed_by = current_user.user_id
-        record.closed_at = datetime.utcnow()
+        record.closed_at = business_naive_now()
     else:  # reopen
         if record.status != "closed":
             raise HTTPException(status_code=409, detail=f"{year}年{month}月は締切済みではありません")

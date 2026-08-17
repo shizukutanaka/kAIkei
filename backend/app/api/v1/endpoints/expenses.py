@@ -1,5 +1,4 @@
 import contextlib
-from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -8,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.business_time import business_naive_now
 from app.core.csv_export import csv_line
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
@@ -201,7 +201,7 @@ async def transition_expense_report(
     rep.status = action
     if action == "approved":
         rep.approved_by = current_user.user_id
-        rep.approved_at = datetime.now()
+        rep.approved_at = business_naive_now()
     elif action == "paid":
         try:
             await generate_expense_payment_journal(

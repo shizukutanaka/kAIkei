@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.business_time import business_naive_now, business_today
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
@@ -54,7 +55,7 @@ async def clock_in(
     db: AsyncSession = Depends(get_db),
 ) -> AttendanceResponse:
     """出勤打刻。"""
-    today = date.today()
+    today = business_today()
     existing = await db.execute(
         select(AttendanceRecord).where(
             AttendanceRecord.employee_id == payload.employee_id,
@@ -64,7 +65,7 @@ async def clock_in(
     rec = existing.scalar_one_or_none()
     if rec and rec.clock_in:
         raise HTTPException(status_code=409, detail="本日はすでに出勤打刻済みです")
-    now = datetime.now()
+    now = business_naive_now()
     if rec:
         rec.clock_in = now
     else:
@@ -88,7 +89,7 @@ async def clock_out(
     db: AsyncSession = Depends(get_db),
 ) -> AttendanceResponse:
     """退勤打刻。"""
-    today = date.today()
+    today = business_today()
     result = await db.execute(
         select(AttendanceRecord).where(
             AttendanceRecord.employee_id == payload.employee_id,
@@ -100,7 +101,7 @@ async def clock_out(
         raise HTTPException(status_code=400, detail="出勤打刻がありません")
     if rec.clock_out:
         raise HTTPException(status_code=409, detail="本日はすでに退勤打刻済みです")
-    now = datetime.now()
+    now = business_naive_now()
     rec.clock_out = now
     work, overtime = _calc_work_minutes(rec.clock_in, now, rec.break_minutes)
     rec.work_minutes = work
