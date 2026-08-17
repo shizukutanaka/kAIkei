@@ -17,6 +17,26 @@ IDEMPOTENCY_HEADER = "Idempotency-Key"
 IDEMPOTENCY_TTL_HOURS = 24
 
 
+def build_scoped_key(
+    idempotency_key: str, user_id: str | None, client_host: str | None
+) -> str:
+    """冪等キーを呼び出し元ごとに分離した保存キーへ変換する。
+
+    冪等キーはクライアントが決める値で、`order-2026-0001` のように意味のある文字列が
+    使われることも多い。呼び出し元で分離せずキー文字列だけで引くと、**別テナントが
+    同じキーを使った瞬間に相手のキャッシュに当たる**:
+
+    - リクエスト本文のハッシュまで一致すれば、**他テナントのレスポンス本文がそのまま返る**
+      （情報漏洩）
+    - 一致しなければ409が返り、**相手の正当なリクエストを妨害できる**（先に同じキーを
+      登録しておくだけで成立する）
+
+    そのため利用者単位で名前空間を分ける。未認証リクエストは接続元IPで分離する。
+    """
+    scope = f"user:{user_id}" if user_id else f"anon:{client_host or 'unknown'}"
+    return f"{scope}|{idempotency_key}"
+
+
 class IdempotencyMiddleware(BaseHTTPMiddleware):
     """冪等性保証ミドルウェア。
 
@@ -35,6 +55,13 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         idempotency_key = request.headers.get(IDEMPOTENCY_HEADER)
         if not idempotency_key:
             return await call_next(request)
+
+        # キャッシュは呼び出し元ごとに分離する（他テナントのレスポンスを引かないため）。
+        idempotency_key = build_scoped_key(
+            idempotency_key,
+            self._current_user_id(request),
+            request.client.host if request.client else None,
+        )
 
         body_bytes = await request.body()
 
@@ -85,6 +112,28 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             )
 
         return response
+
+    @staticmethod
+    def _current_user_id(request: Request) -> str | None:
+        """Authorizationヘッダのアクセストークンから利用者IDを取り出す。
+
+        ミドルウェアは認証依存関係より前に走るため、ここではトークンを自前で読む。
+        検証に失敗した場合はNoneを返し、未認証として（接続元IPで）分離する。
+        認可判定はこの値では行わない（分離の名前空間としてのみ使う）。
+        """
+        authorization = request.headers.get("authorization") or ""
+        if not authorization.startswith("Bearer "):
+            return None
+        try:
+            from app.core.security import decode_token
+
+            payload = decode_token(authorization.removeprefix("Bearer "))
+        except Exception:  # noqa: BLE001 - トークン不正時は未認証として扱えば十分
+            return None
+        if not payload or payload.get("type") != "access":
+            return None
+        subject = payload.get("sub")
+        return str(subject) if subject else None
 
     async def _get_cached_response(self, key: str, request_hash: str) -> dict | None:
         try:
