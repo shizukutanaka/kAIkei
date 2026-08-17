@@ -63,7 +63,8 @@ export default function PaymentsPage() {
   });
 
   const load = useCallback(async () => {
-    if (!companyId) return;
+    // 権限が無い場合は表示も抑止しているため、確実に403になるリクエストを送らない。
+    if (!companyId || !canRead) return;
     setLoading(true);
     setError("");
     try {
@@ -76,7 +77,7 @@ export default function PaymentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [companyId, statusFilter]);
+  }, [companyId, statusFilter, canRead]);
 
   useEffect(() => {
     load();
