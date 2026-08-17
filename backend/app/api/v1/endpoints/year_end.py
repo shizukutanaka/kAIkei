@@ -7,6 +7,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.csv_export import csv_line
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
@@ -304,29 +305,30 @@ async def export_year_end_slip(
     rec, emp_name, emp_code, dept = row
     adjustment_sign = "還付" if rec.adjustment_amount >= 0 else "追加徴収"
 
-    lines = [
-        "項目,内容",
-        f"従業員コード,{emp_code}",
-        f"従業員名,{emp_name}",
-        f"部署,{dept or ''}",
-        f"対象年度,{rec.adjustment_year}年",
-        "",
-        "年間収入,金額",
-        f"年間給与,{rec.annual_salary}",
-        f"年間賞与,{rec.annual_bonus}",
-        f"課税対象額,{rec.total_gross}",
-        "",
-        "税額,金額",
-        f"源泉徴収額合計,{rec.withholding_tax_total}",
-        f"推定年税額,{rec.estimated_annual_tax}",
-        f"社会保険料合計,{rec.social_insurance_total}",
-        "",
-        "扶養控除,内容",
-        f"扶養親族数,{rec.dependents}人",
-        f"扶養控除額,{rec.dependent_deduction}",
-        "",
-        f"調整額,{rec.adjustment_amount}({adjustment_sign})",
-        f"ステータス,{rec.status}",
+    # 氏名・部署は自由入力のため、カンマ・改行・数式記号を含みうる。csv_lineで無害化する。
+    rows: list[list[object]] = [
+        ["項目", "内容"],
+        ["従業員コード", emp_code],
+        ["従業員名", emp_name],
+        ["部署", dept or ""],
+        ["対象年度", f"{rec.adjustment_year}年"],
+        [],
+        ["年間収入", "金額"],
+        ["年間給与", rec.annual_salary],
+        ["年間賞与", rec.annual_bonus],
+        ["課税対象額", rec.total_gross],
+        [],
+        ["税額", "金額"],
+        ["源泉徴収額合計", rec.withholding_tax_total],
+        ["推定年税額", rec.estimated_annual_tax],
+        ["社会保険料合計", rec.social_insurance_total],
+        [],
+        ["扶養控除", "内容"],
+        ["扶養親族数", f"{rec.dependents}人"],
+        ["扶養控除額", rec.dependent_deduction],
+        [],
+        ["調整額", f"{rec.adjustment_amount}({adjustment_sign})"],
+        ["ステータス", rec.status],
     ]
 
-    return "\n".join(lines)
+    return "\n".join(csv_line(row) for row in rows)

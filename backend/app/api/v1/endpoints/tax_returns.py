@@ -6,6 +6,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy import delete, extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.csv_export import csv_line
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
@@ -230,28 +231,29 @@ async def export_tax_return(
 
     filing_label = "一般課税" if tr.filing_type == "general" else "簡易課税"
 
-    lines = [
-        "項目,金額",
-        f"申告年度,{tr.tax_year}",
-        f"申告区分,{filing_label}",
-        f"ステータス,{tr.status}",
-        "",
-        "【売上】",
-        f"課税売上,{tr.taxable_sales}",
-        f"非課税売上,{tr.non_taxable_sales}",
-        f"輸出等免税売上,{tr.export_taxable_sales}",
-        f"売上合計,{tr.total_sales}",
-        "",
-        "【仕入】",
-        f"課税仕入,{tr.purchases_subject_to_tax}",
-        f"不課税仕入,{tr.purchases_not_subject_to_tax}",
-        f"仕入合計,{tr.total_purchases}",
-        "",
-        "【消費税】",
-        f"売上税額,{tr.output_tax}",
-        f"仕入税額,{tr.input_tax}",
-        f"調整額,{tr.tax_adjustment}",
-        f"納付税額,{tr.tax_payable}",
+    # 金額は負数になりうる（調整額等）。csv_lineは数値を数式扱いしないため値を壊さない。
+    rows: list[list[object]] = [
+        ["項目", "金額"],
+        ["申告年度", tr.tax_year],
+        ["申告区分", filing_label],
+        ["ステータス", tr.status],
+        [],
+        ["【売上】"],
+        ["課税売上", tr.taxable_sales],
+        ["非課税売上", tr.non_taxable_sales],
+        ["輸出等免税売上", tr.export_taxable_sales],
+        ["売上合計", tr.total_sales],
+        [],
+        ["【仕入】"],
+        ["課税仕入", tr.purchases_subject_to_tax],
+        ["不課税仕入", tr.purchases_not_subject_to_tax],
+        ["仕入合計", tr.total_purchases],
+        [],
+        ["【消費税】"],
+        ["売上税額", tr.output_tax],
+        ["仕入税額", tr.input_tax],
+        ["調整額", tr.tax_adjustment],
+        ["納付税額", tr.tax_payable],
     ]
 
-    return "\n".join(lines)
+    return "\n".join(csv_line(row) for row in rows)

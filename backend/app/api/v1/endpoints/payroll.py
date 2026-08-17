@@ -8,6 +8,7 @@ from fastapi.responses import PlainTextResponse, Response
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.csv_export import csv_line
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
@@ -1149,29 +1150,30 @@ async def export_payslip(
 
     rec, emp_name, emp_code, dept = row
 
-    lines = [
-        "項目,内容",
-        f"従業員コード,{emp_code}",
-        f"従業員名,{emp_name}",
-        f"部署,{dept or ''}",
-        f"対象年月,{rec.payroll_year}年{rec.payroll_month}月",
-        "",
-        "支給項目,金額",
-        f"基本給,{rec.base_salary}",
-        f"残業時間,{rec.overtime_hours}h",
-        f"残業代,{rec.overtime_pay}",
-        f"総支給額,{rec.total_gross}",
-        "",
-        "控除項目,金額",
-        f"源泉所得税,{rec.income_tax}",
-        f"社会保険料,{rec.social_insurance}",
-        f"控除合計,{rec.total_deductions}",
-        "",
-        f"差引支給額,{rec.net_pay}",
-        f"ステータス,{rec.status}",
+    # 氏名・部署は自由入力のため、カンマ・改行・数式記号を含みうる。csv_lineで無害化する。
+    rows: list[list[object]] = [
+        ["項目", "内容"],
+        ["従業員コード", emp_code],
+        ["従業員名", emp_name],
+        ["部署", dept or ""],
+        ["対象年月", f"{rec.payroll_year}年{rec.payroll_month}月"],
+        [],
+        ["支給項目", "金額"],
+        ["基本給", rec.base_salary],
+        ["残業時間", f"{rec.overtime_hours}h"],
+        ["残業代", rec.overtime_pay],
+        ["総支給額", rec.total_gross],
+        [],
+        ["控除項目", "金額"],
+        ["源泉所得税", rec.income_tax],
+        ["社会保険料", rec.social_insurance],
+        ["控除合計", rec.total_deductions],
+        [],
+        ["差引支給額", rec.net_pay],
+        ["ステータス", rec.status],
     ]
 
-    return "\n".join(lines)
+    return "\n".join(csv_line(row) for row in rows)
 
 
 # --- Payroll approval workflow ---

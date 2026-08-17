@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.csv_export import csv_line
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
@@ -259,24 +260,25 @@ async def export_expense_report(
         "other": "その他",
     }
 
-    lines = [
-        "項目,内容",
-        f"従業員コード,{emp_code}",
-        f"従業員名,{emp_name}",
-        f"部署,{dept or ''}",
-        f"精算日,{rep.report_date}",
-        f"タイトル,{rep.title}",
-        f"ステータス,{rep.status}",
-        f"合計金額,{rep.total_amount}",
-        "",
-        "日付,カテゴリ,摘要,金額",
+    # 氏名・部署・タイトル・摘要は自由入力のため、csv_lineで列ずれと数式化を防ぐ。
+    rows: list[list[object]] = [
+        ["項目", "内容"],
+        ["従業員コード", emp_code],
+        ["従業員名", emp_name],
+        ["部署", dept or ""],
+        ["精算日", rep.report_date],
+        ["タイトル", rep.title],
+        ["ステータス", rep.status],
+        ["合計金額", rep.total_amount],
+        [],
+        ["日付", "カテゴリ", "摘要", "金額"],
     ]
 
     for item in rep.items:
         cat_label = category_labels.get(item.category, item.category)
-        lines.append(f"{item.expense_date},{cat_label},{item.description},{item.amount}")
+        rows.append([item.expense_date, cat_label, item.description, item.amount])
 
-    lines.append("")
-    lines.append(f"合計,{rep.total_amount}")
+    rows.append([])
+    rows.append(["合計", rep.total_amount])
 
-    return "\n".join(lines)
+    return "\n".join(csv_line(row) for row in rows)

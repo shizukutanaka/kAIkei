@@ -7,6 +7,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.csv_export import csv_line
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
@@ -274,26 +275,27 @@ async def export_bonus_slip(
     rec, emp_name, emp_code, dept = row
     term_label = BONUS_TERM_LABELS.get(rec.bonus_term, rec.bonus_term)
 
-    lines = [
-        "項目,内容",
-        f"従業員コード,{emp_code}",
-        f"従業員名,{emp_name}",
-        f"部署,{dept or ''}",
-        f"対象年度,{rec.bonus_year}年",
-        f"賞与区分,{term_label}",
-        "",
-        "支給項目,金額",
-        f"基準月数,{rec.bonus_base_months}ヶ月",
-        f"業績係数,{rec.performance_factor}",
-        f"賞与額,{rec.bonus_amount}",
-        "",
-        "控除項目,金額",
-        f"源泉所得税,{rec.income_tax}",
-        f"社会保険料,{rec.social_insurance}",
-        f"控除合計,{rec.total_deductions}",
-        "",
-        f"差引支給額,{rec.net_pay}",
-        f"ステータス,{rec.status}",
+    # 氏名・部署は自由入力のため、カンマ・改行・数式記号を含みうる。csv_lineで無害化する。
+    rows: list[list[object]] = [
+        ["項目", "内容"],
+        ["従業員コード", emp_code],
+        ["従業員名", emp_name],
+        ["部署", dept or ""],
+        ["対象年度", f"{rec.bonus_year}年"],
+        ["賞与区分", term_label],
+        [],
+        ["支給項目", "金額"],
+        ["基準月数", f"{rec.bonus_base_months}ヶ月"],
+        ["業績係数", rec.performance_factor],
+        ["賞与額", rec.bonus_amount],
+        [],
+        ["控除項目", "金額"],
+        ["源泉所得税", rec.income_tax],
+        ["社会保険料", rec.social_insurance],
+        ["控除合計", rec.total_deductions],
+        [],
+        ["差引支給額", rec.net_pay],
+        ["ステータス", rec.status],
     ]
 
-    return "\n".join(lines)
+    return "\n".join(csv_line(row) for row in rows)
