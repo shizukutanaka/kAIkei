@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.endpoints.reports import PL_ACCOUNT_TYPES, _get_account_balances
+from app.core.business_time import business_today
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
@@ -51,7 +52,7 @@ async def get_tax_forecast(
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> TaxForecastResponse:
-    as_of_date = as_of or date.today()
+    as_of_date = as_of or business_today()
     rows = await _get_account_balances(db, company_id, as_of_date, PL_ACCOUNT_TYPES)
 
     total_revenue = Decimal("0")

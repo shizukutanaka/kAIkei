@@ -7,7 +7,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.business_time import business_naive_now
+from app.core.business_time import business_naive_now, business_today
 from app.core.csv_export import csv_document
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
@@ -41,7 +41,7 @@ async def get_ar_aging(
     未回収（発行済み）の請求書を支払期日からの経過日数で区分し、取引先別に集計する。
     滞留債権の回収管理や貸倒引当金の見積り基礎資料として利用する。
     """
-    reference_date = as_of or date.today()
+    reference_date = as_of or business_today()
 
     invoices = (
         await db.execute(

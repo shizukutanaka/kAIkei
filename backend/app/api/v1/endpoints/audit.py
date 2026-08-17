@@ -1,13 +1,13 @@
 import csv
 import io
 import zipfile
-from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.business_time import business_now
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
@@ -301,7 +301,7 @@ async def export_audit_package(
         manifest = f"""監査データエクスポート
 会社名: {company_name}
 会社ID: {company_id}
-エクスポート日時: {datetime.now().isoformat()}
+エクスポート日時: {business_now().isoformat()}
 内容:
   - general_ledger.csv: 総勘定元帳
   - audit_logs.csv: 操作証跡ログ（最大10000件）
@@ -309,7 +309,7 @@ async def export_audit_package(
         zf.writestr("MANIFEST.txt", manifest)
 
     buf.seek(0)
-    filename = f"audit_export_{company_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+    filename = f"audit_export_{company_id}_{business_now().strftime('%Y%m%d_%H%M%S')}.zip"
     return Response(
         content=buf.getvalue(),
         media_type="application/zip",
