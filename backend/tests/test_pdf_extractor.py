@@ -19,7 +19,6 @@ class TestPdfTextExtractor:
         assert result == ""
 
     def test_extract_structured_amounts(self):
-        text = "請求書\n金額: ¥10,000\n消費税: ¥1,000\n合計: ¥11,000"
 
         entities = PdfTextExtractor.extract_structured(b"dummy")
         # Without a real PDF, raw_text will be empty but structure is valid

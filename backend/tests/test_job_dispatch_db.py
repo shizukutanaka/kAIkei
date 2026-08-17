@@ -72,7 +72,6 @@ async def test_dispatch_skips_when_execution_already_running(db_session, seed_co
 
 async def test_dispatch_all_companies_when_company_id_none(db_session, seed_company):
     cid = seed_company["company_id"]
-    tid = seed_company["tenant_id"]
     await _make_due_job(db_session, cid)
 
     # 別テナント・別会社の due ジョブ

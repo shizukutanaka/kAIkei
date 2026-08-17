@@ -5,7 +5,7 @@
 出勤打刻が前日の勤務日として記録されていた）。
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.core.business_time import (
     BUSINESS_TZ,
@@ -14,8 +14,6 @@ from app.core.business_time import (
     business_now,
     business_today,
 )
-
-UTC = timezone.utc
 
 
 class TestBusinessTimezone:

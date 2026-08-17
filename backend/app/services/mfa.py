@@ -166,7 +166,7 @@ async def setup_mfa(
     user = await _get_user(db, user_id)
     if user is None:
         return None
-    if user.mfa_enabled:
+    if user.mfa_enabled:  # noqa: SIM102 - 再認証条件は入れ子のまま維持し可読性を優先する
         if timestamp is None or not current_code or not await verify_and_consume_totp(
             db, user, current_code, timestamp
         ):

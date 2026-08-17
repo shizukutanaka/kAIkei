@@ -4,7 +4,21 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
-ignore = ["E501"]
+ignore = [
+    "E501",
+    # UP042: `(str, Enum)` を `StrEnum` にすると **挙動が変わる**。
+    # `(str, Enum)` の str() は "Role.ADMIN"、StrEnum の str() は "admin" を返すため、
+    # ログ出力・シリアライズ・比較の結果が変化する。Role/Permission は認可判定に
+    # 使われるため、様式上の理由で置き換えない。
+    "UP042",
+    # N818: MfaReauthRequired は制御フロー用の公開例外で、認証コードから送出・捕捉される。
+    # 末尾を Error に改名しても得るものが無く、変更範囲だけが広がるため維持する。
+    "N818",
+    # SIM102/SIM105: 既存コードの様式上の指摘。条件の入れ子は可読性のため、
+    # try/except/pass は例外を握り潰す意図を明示するため現状を維持する。
+    "SIM102",
+    "SIM105",
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]

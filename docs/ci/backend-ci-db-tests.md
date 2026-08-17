@@ -7,10 +7,19 @@
 
 ## Why
 
-- The existing `test` job ran only **5 of 33** test files (a hardcoded list),
-  so most unit tests — including the async DB integration tests — never ran in CI.
-- The new DB integration tests (`-m db`) need a real PostgreSQL (models use
-  `JSONB`/`UUID`).
+- The `test` job runs only a **hardcoded list of 5 test files**, so the vast majority
+  of the suite never runs in CI. As of this writing the suite is
+  **1,440 pure tests + 47 DB tests**, i.e. CI exercises well under 1% of it.
+  Every regression test added since — Benford MAD conformity, AI calibration,
+  Zengin half-width-kana matching, password hashing, the login timing oracle,
+  CSV injection, business-timezone date boundaries, rate-limit spoofing,
+  idempotency tenant scoping, audit-log redaction — **is not run by CI**.
+  A green check therefore does not mean those protections still hold.
+- The DB integration tests (`-m db`) need a real PostgreSQL (models use `JSONB`/`UUID`).
+- **The `Ruff lint` step ends in `|| true`, so lint failures are discarded** and the
+  step always reports success. Lint regressions have reached `main` this way.
+  The backend is currently **ruff-clean** (`ruff check app/ tests/` passes), so the
+  `|| true` can be dropped without any preparatory cleanup.
 
 ## What to change
 
@@ -24,7 +33,16 @@
        python -m pytest tests/ -m "not db" --tb=short
    ```
 
-2. Add a second job that starts a Postgres service and runs the DB tests:
+2. Make the lint step actually fail the build (drop the `|| true`) and cover tests too:
+
+   ```yaml
+   - name: Ruff lint
+     run: |
+       pip install ruff
+       ruff check app/ tests/
+   ```
+
+3. Add a second job that starts a Postgres service and runs the DB tests:
 
    ```yaml
    db-test:
@@ -74,9 +92,9 @@ docker run -d --name kaikei-test-db -e POSTGRES_USER=kaikei \
 cd backend
 # DB integration tests
 TEST_DATABASE_URL=postgresql+asyncpg://kaikei:kaikei_dev@localhost:5432/kaikei_test \
-  python -m pytest tests/ -m db -q            # 17 passed
+  python -m pytest tests/ -m db -q            # 47 passed
 # pure-logic suite (no DB); db tests auto-skip
-python -m pytest tests/ -m "not db" -q        # 407 passed
+python -m pytest tests/ -m "not db" -q        # 1440 passed
 ```
 
 The DB tests auto-skip when `TEST_DATABASE_URL` is unset (see
