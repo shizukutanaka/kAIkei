@@ -130,7 +130,7 @@ async def mfa_status(
 
 @router.post("/mfa/setup", response_model=MfaSetupResponse)
 async def mfa_setup(
-    payload: MfaSetupRequest = MfaSetupRequest(),
+    payload: MfaSetupRequest = MfaSetupRequest(),  # noqa: B008
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MfaSetupResponse:
