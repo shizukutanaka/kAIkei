@@ -153,6 +153,186 @@ async def list_journals(
     return JournalListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
+@router.get("/general-ledger")
+async def get_general_ledger(
+    company_id: Annotated[UUID, Depends(verified_company_id)],
+    start_date: date = Query(..., description="開始日"),
+    end_date: date = Query(..., description="終了日"),
+    account_code: str | None = Query(None, description="科目コード（指定時は該当科目のみ）"),
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_READ)),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """総勘定元帳を取得する。
+
+    指定期間の取引を科目ごとに集計し、期首残高・借方発生・貸方発生・期末残高を返す。
+    """
+    # Build query
+    query = (
+        select(
+            Account.account_id,
+            Account.account_code,
+            Account.account_name,
+            Account.account_type,
+            Account.debit_credit,
+            JournalHeader.transaction_date,
+            JournalHeader.journal_number,
+            JournalHeader.summary,
+            JournalLine.debit_credit,
+            JournalLine.amount,
+            JournalLine.description,
+        )
+        .join(JournalLine, Account.account_id == JournalLine.account_id)
+        .join(JournalHeader, JournalLine.journal_header_id == JournalHeader.journal_header_id)
+        .where(
+            Account.company_id == company_id,
+            Account.is_deleted == False,  # noqa: E712
+            JournalHeader.is_deleted == False,  # noqa: E712
+            JournalHeader.is_voided == False,  # noqa: E712
+            JournalLine.is_deleted == False,  # noqa: E712
+            JournalHeader.transaction_date >= start_date,
+            JournalHeader.transaction_date <= end_date,
+        )
+        .order_by(Account.account_code, JournalHeader.transaction_date, JournalHeader.journal_number)
+    )
+
+    if account_code:
+        query = query.where(Account.account_code == account_code)
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    # Get opening balances (transactions before start_date)
+    opening_query = (
+        select(
+            Account.account_id,
+            Account.account_code,
+            Account.account_name,
+            Account.account_type,
+            Account.debit_credit,
+            func.coalesce(
+                func.sum(
+                    case(
+                        (JournalLine.debit_credit == "debit", JournalLine.amount),
+                        else_=Decimal("0"),
+                    )
+                ), 0
+            ).label("opening_debit"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (JournalLine.debit_credit == "credit", JournalLine.amount),
+                        else_=Decimal("0"),
+                    )
+                ), 0
+            ).label("opening_credit"),
+        )
+        .outerjoin(
+            JournalLine,
+            (JournalLine.account_id == Account.account_id) & (JournalLine.is_deleted == False),  # noqa: E712
+        )
+        .outerjoin(
+            JournalHeader,
+            (JournalHeader.journal_header_id == JournalLine.journal_header_id)
+            & (JournalHeader.company_id == company_id)
+            & (JournalHeader.transaction_date < start_date)
+            & (JournalHeader.is_deleted == False)  # noqa: E712
+            & (JournalHeader.is_voided == False),  # noqa: E712
+        )
+        .where(
+            Account.company_id == company_id,
+            Account.is_deleted == False,  # noqa: E712
+            Account.is_active == True,  # noqa: E712
+        )
+        .group_by(
+            Account.account_id,
+            Account.account_code,
+            Account.account_name,
+            Account.account_type,
+            Account.debit_credit,
+        )
+        .order_by(Account.account_code)
+    )
+
+    if account_code:
+        opening_query = opening_query.where(Account.account_code == account_code)
+
+    opening_result = await db.execute(opening_query)
+    opening_rows = opening_result.all()
+
+    # Build opening balance map
+    opening_map: dict[UUID, dict] = {}
+    for row in opening_rows:
+        op_debit = Decimal(row.opening_debit) if row.opening_debit else Decimal("0")
+        op_credit = Decimal(row.opening_credit) if row.opening_credit else Decimal("0")
+        balance = op_debit - op_credit
+        if row.debit_credit == "credit":
+            balance = -balance
+        opening_map[row.account_id] = {
+            "account_code": row.account_code,
+            "account_name": row.account_name,
+            "account_type": row.account_type,
+            "opening_balance": balance,
+            "entries": [],
+            "total_debit": Decimal("0"),
+            "total_credit": Decimal("0"),
+        }
+
+    # Add current period entries
+    for row in rows:
+        if row.account_id not in opening_map:
+            opening_map[row.account_id] = {
+                "account_code": row.account_code,
+                "account_name": row.account_name,
+                "account_type": row.account_type,
+                "opening_balance": Decimal("0"),
+                "entries": [],
+                "total_debit": Decimal("0"),
+                "total_credit": Decimal("0"),
+            }
+        entry = {
+            "date": row.transaction_date.isoformat(),
+            "journal_number": row.journal_number,
+            "summary": row.summary or "",
+            "debit_credit": row.debit_credit,
+            "amount": str(row.amount),
+            "description": row.description or "",
+        }
+        opening_map[row.account_id]["entries"].append(entry)
+        if row.debit_credit == "debit":
+            opening_map[row.account_id]["total_debit"] += Decimal(row.amount)
+        else:
+            opening_map[row.account_id]["total_credit"] += Decimal(row.amount)
+
+    # Build response
+    accounts_list = []
+    for _acct_id, data in opening_map.items():
+        opening = data["opening_balance"]
+        total_debit = data["total_debit"]
+        total_credit = data["total_credit"]
+        # Calculate closing balance
+        if data["account_type"] in ("asset", "expense"):
+            closing = opening + total_debit - total_credit
+        else:
+            closing = opening - total_debit + total_credit
+
+        accounts_list.append({
+            "account_code": data["account_code"],
+            "account_name": data["account_name"],
+            "account_type": data["account_type"],
+            "opening_balance": str(opening),
+            "total_debit": str(total_debit),
+            "total_credit": str(total_credit),
+            "closing_balance": str(closing),
+            "entries": data["entries"],
+        })
+
+    return {
+        "start_date": str(start_date),
+        "end_date": str(end_date),
+        "accounts": accounts_list,
+    }
+
+
 @router.get("/{journal_header_id}", response_model=JournalResponse)
 async def get_journal(
     journal_header_id: UUID,
@@ -460,186 +640,6 @@ async def import_journals_csv(
 # ---------------------------------------------------------------------------
 # General Ledger (総勘定元帳)
 # ---------------------------------------------------------------------------
-
-@router.get("/general-ledger")
-async def get_general_ledger(
-    company_id: Annotated[UUID, Depends(verified_company_id)],
-    start_date: date = Query(..., description="開始日"),
-    end_date: date = Query(..., description="終了日"),
-    account_code: str | None = Query(None, description="科目コード（指定時は該当科目のみ）"),
-    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_READ)),
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    """総勘定元帳を取得する。
-
-    指定期間の取引を科目ごとに集計し、期首残高・借方発生・貸方発生・期末残高を返す。
-    """
-    # Build query
-    query = (
-        select(
-            Account.account_id,
-            Account.account_code,
-            Account.account_name,
-            Account.account_type,
-            Account.debit_credit,
-            JournalHeader.transaction_date,
-            JournalHeader.journal_number,
-            JournalHeader.summary,
-            JournalLine.debit_credit,
-            JournalLine.amount,
-            JournalLine.description,
-        )
-        .join(JournalLine, Account.account_id == JournalLine.account_id)
-        .join(JournalHeader, JournalLine.journal_header_id == JournalHeader.journal_header_id)
-        .where(
-            Account.company_id == company_id,
-            Account.is_deleted == False,  # noqa: E712
-            JournalHeader.is_deleted == False,  # noqa: E712
-            JournalHeader.is_voided == False,  # noqa: E712
-            JournalLine.is_deleted == False,  # noqa: E712
-            JournalHeader.transaction_date >= start_date,
-            JournalHeader.transaction_date <= end_date,
-        )
-        .order_by(Account.account_code, JournalHeader.transaction_date, JournalHeader.journal_number)
-    )
-
-    if account_code:
-        query = query.where(Account.account_code == account_code)
-
-    result = await db.execute(query)
-    rows = result.all()
-
-    # Get opening balances (transactions before start_date)
-    opening_query = (
-        select(
-            Account.account_id,
-            Account.account_code,
-            Account.account_name,
-            Account.account_type,
-            Account.debit_credit,
-            func.coalesce(
-                func.sum(
-                    case(
-                        (JournalLine.debit_credit == "debit", JournalLine.amount),
-                        else_=Decimal("0"),
-                    )
-                ), 0
-            ).label("opening_debit"),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (JournalLine.debit_credit == "credit", JournalLine.amount),
-                        else_=Decimal("0"),
-                    )
-                ), 0
-            ).label("opening_credit"),
-        )
-        .outerjoin(
-            JournalLine,
-            (JournalLine.account_id == Account.account_id) & (JournalLine.is_deleted == False),  # noqa: E712
-        )
-        .outerjoin(
-            JournalHeader,
-            (JournalHeader.journal_header_id == JournalLine.journal_header_id)
-            & (JournalHeader.company_id == company_id)
-            & (JournalHeader.transaction_date < start_date)
-            & (JournalHeader.is_deleted == False)  # noqa: E712
-            & (JournalHeader.is_voided == False),  # noqa: E712
-        )
-        .where(
-            Account.company_id == company_id,
-            Account.is_deleted == False,  # noqa: E712
-            Account.is_active == True,  # noqa: E712
-        )
-        .group_by(
-            Account.account_id,
-            Account.account_code,
-            Account.account_name,
-            Account.account_type,
-            Account.debit_credit,
-        )
-        .order_by(Account.account_code)
-    )
-
-    if account_code:
-        opening_query = opening_query.where(Account.account_code == account_code)
-
-    opening_result = await db.execute(opening_query)
-    opening_rows = opening_result.all()
-
-    # Build opening balance map
-    opening_map: dict[UUID, dict] = {}
-    for row in opening_rows:
-        op_debit = Decimal(row.opening_debit) if row.opening_debit else Decimal("0")
-        op_credit = Decimal(row.opening_credit) if row.opening_credit else Decimal("0")
-        balance = op_debit - op_credit
-        if row.debit_credit == "credit":
-            balance = -balance
-        opening_map[row.account_id] = {
-            "account_code": row.account_code,
-            "account_name": row.account_name,
-            "account_type": row.account_type,
-            "opening_balance": balance,
-            "entries": [],
-            "total_debit": Decimal("0"),
-            "total_credit": Decimal("0"),
-        }
-
-    # Add current period entries
-    for row in rows:
-        if row.account_id not in opening_map:
-            opening_map[row.account_id] = {
-                "account_code": row.account_code,
-                "account_name": row.account_name,
-                "account_type": row.account_type,
-                "opening_balance": Decimal("0"),
-                "entries": [],
-                "total_debit": Decimal("0"),
-                "total_credit": Decimal("0"),
-            }
-        entry = {
-            "date": row.transaction_date.isoformat(),
-            "journal_number": row.journal_number,
-            "summary": row.summary or "",
-            "debit_credit": row.debit_credit,
-            "amount": str(row.amount),
-            "description": row.description or "",
-        }
-        opening_map[row.account_id]["entries"].append(entry)
-        if row.debit_credit == "debit":
-            opening_map[row.account_id]["total_debit"] += Decimal(row.amount)
-        else:
-            opening_map[row.account_id]["total_credit"] += Decimal(row.amount)
-
-    # Build response
-    accounts_list = []
-    for _acct_id, data in opening_map.items():
-        opening = data["opening_balance"]
-        total_debit = data["total_debit"]
-        total_credit = data["total_credit"]
-        # Calculate closing balance
-        if data["account_type"] in ("asset", "expense"):
-            closing = opening + total_debit - total_credit
-        else:
-            closing = opening - total_debit + total_credit
-
-        accounts_list.append({
-            "account_code": data["account_code"],
-            "account_name": data["account_name"],
-            "account_type": data["account_type"],
-            "opening_balance": str(opening),
-            "total_debit": str(total_debit),
-            "total_credit": str(total_credit),
-            "closing_balance": str(closing),
-            "entries": data["entries"],
-        })
-
-    return {
-        "start_date": str(start_date),
-        "end_date": str(end_date),
-        "accounts": accounts_list,
-    }
-
 
 @router.get("/general-ledger/export", response_class=PlainTextResponse)
 async def export_general_ledger_csv(

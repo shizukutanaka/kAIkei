@@ -41,7 +41,7 @@ async def get_operations_health(
     webhook_summary = OperationsMonitorService.classify_statuses(list(webhook_rows.scalars().all()))
 
     overdue_rows = await db.execute(
-        select(OfficeTask.task_id).where(
+        select(OfficeTask.office_task_id).where(
             OfficeTask.company_id == company_id,
             OfficeTask.status.notin_(["completed", "cancelled"]),
             OfficeTask.due_date < datetime.now(UTC).date(),

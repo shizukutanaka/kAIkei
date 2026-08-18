@@ -255,12 +255,12 @@ async def export_audit_package(
             .join(JournalLine, JournalHeader.journal_header_id == JournalLine.journal_header_id)
             .outerjoin(Account, JournalLine.account_id == Account.account_id)
             .where(JournalHeader.company_id == company_id)
-            .order_by(JournalHeader.journal_date, JournalHeader.journal_number)
+            .order_by(JournalHeader.transaction_date, JournalHeader.journal_number)
         )
         for header, line, account in journal_result.all():
             gl_writer.writerow([
                 header.journal_number,
-                header.journal_date.isoformat() if header.journal_date else "",
+                header.transaction_date.isoformat() if header.transaction_date else "",
                 account.account_code if account else "",
                 account.account_name if account else "",
                 str(line.debit_amount) if line.debit_amount else "0",

@@ -220,6 +220,21 @@ async def list_accounts(
     return list(result.scalars().all())
 
 
+@router.get("/tax-rules", response_model=list[TaxRuleResponse])
+async def list_tax_rules(
+    company_id: Annotated[UUID, Depends(verified_company_id)],
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
+    db: AsyncSession = Depends(get_db),
+) -> list[TaxRule]:
+    result = await db.execute(
+        select(TaxRule).where(
+            TaxRule.company_id == company_id,
+            TaxRule.is_deleted == False,  # noqa: E712
+        ).order_by(TaxRule.tax_code)
+    )
+    return list(result.scalars().all())
+
+
 @router.get("/{account_id}", response_model=AccountResponse)
 async def get_account(
     account_id: UUID,
@@ -394,17 +409,3 @@ async def create_tax_rule(
     await db.refresh(rule)
     return rule
 
-
-@router.get("/tax-rules", response_model=list[TaxRuleResponse])
-async def list_tax_rules(
-    company_id: Annotated[UUID, Depends(verified_company_id)],
-    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
-    db: AsyncSession = Depends(get_db),
-) -> list[TaxRule]:
-    result = await db.execute(
-        select(TaxRule).where(
-            TaxRule.company_id == company_id,
-            TaxRule.is_deleted == False,  # noqa: E712
-        ).order_by(TaxRule.tax_code)
-    )
-    return list(result.scalars().all())
