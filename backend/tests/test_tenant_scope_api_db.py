@@ -32,21 +32,11 @@ async def api(db_session, monkeypatch):
         # セッションの close はここでは呼ばない（テスト側が管理しているため）。
         yield db_session
 
-    @contextlib.asynccontextmanager
-    async def _unavailable():
-        raise RuntimeError("audit log disabled in this test")
-        yield  # pragma: no cover
-
     # いずれもモジュール読み込み時のグローバルなエンジンを掴んでおり、
     # テストのイベントループとは別のループに紐づくため、そのままでは
     # 「別ループのFuture」エラーで本来の応答が握り潰される。
-    for module in (idempotency, ip_restriction):
+    for module in (audit_log, idempotency, ip_restriction):
         monkeypatch.setattr(module, "async_session_factory", _test_session)
-
-    # 監査ログだけは書き込み自体を止める。tenant_id に固定のゼロUUIDを入れる
-    # 実装のためFK違反になり、テスト用セッションを共有すると
-    # そのトランザクションごと巻き添えで壊れる（本体は例外を握り潰す作り）。
-    monkeypatch.setattr(audit_log, "async_session_factory", _unavailable)
 
     app.dependency_overrides[get_db] = lambda: db_session
     transport = ASGITransport(app=app)
@@ -198,3 +188,43 @@ async def test_unauthenticated_request_is_rejected(api, tenants):
     res = await api.get("/api/v1/budgets", params={"company_id": str(a["company_id"])})
 
     assert res.status_code == 401
+
+
+async def test_request_is_recorded_in_the_audit_log(api, tenants, db_session):
+    """実リクエストが監査ログに残ること（テナント・会社つきで）。
+
+    旧実装は tenant_id に固定のゼロUUIDを入れており、外部キー違反で1件も
+    残っていなかった。例外は握り潰されるため、行数で確認する。
+    """
+    from sqlalchemy import func, select
+
+    from app.models.models import AuditLog
+
+    a = tenants["a"]
+    before = (await db_session.execute(select(func.count()).select_from(AuditLog))).scalar_one()
+
+    res = await api.post(
+        "/api/v1/budgets",
+        json={
+            "company_id": str(a["company_id"]),
+            "fiscal_year": 2028,
+            "name": "証跡確認用",
+            "lines": [],
+        },
+        headers=_auth(a),
+    )
+    assert res.status_code == 201, res.text
+
+    rows = (
+        await db_session.execute(
+            select(AuditLog).where(AuditLog.path == "/api/v1/budgets").order_by(AuditLog.created_at.desc())
+        )
+    ).scalars().all()
+    after = (await db_session.execute(select(func.count()).select_from(AuditLog))).scalar_one()
+
+    assert after == before + 1, "監査ログが書き込まれていない"
+    log = rows[0]
+    assert log.tenant_id is not None, "tenant_id が解決されていない"
+    assert log.company_id == a["company_id"], "company_id が記録されていない（会社別の証跡一覧が空になる）"
+    assert log.method == "POST"
+    assert log.status_code == 201

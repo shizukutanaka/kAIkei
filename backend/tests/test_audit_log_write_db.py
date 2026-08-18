@@ -13,10 +13,12 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import func, select
 
-from app.middleware.audit_log import _tenant_of
+from app.middleware.audit_log import _company_in_tenant, _requested_company_id, _tenant_of
 from app.models.models import AuditLog, Company, Tenant, User
 
-pytestmark = [pytest.mark.db, pytest.mark.asyncio]
+# asyncio は auto モードなので、非同期テストには自動で適用される。
+# 同期テストも混在するため、ここで asyncio マークは付けない。
+pytestmark = pytest.mark.db
 
 
 @pytest_asyncio.fixture
@@ -42,7 +44,11 @@ async def seeded(db_session):
     )
     db_session.add(user)
     await db_session.flush()
-    return {"tenant_id": tenant.tenant_id, "user_id": user.user_id}
+    return {
+        "tenant_id": tenant.tenant_id,
+        "company_id": company.company_id,
+        "user_id": user.user_id,
+    }
 
 
 async def _count(db_session) -> int:
@@ -121,3 +127,62 @@ async def test_zero_uuid_tenant_is_rejected(db_session):
     with pytest.raises(IntegrityError):
         await db_session.flush()
     await db_session.rollback()
+
+
+class _FakeRequest:
+    """query_params だけを持つ最小のリクエスト代用。"""
+
+    def __init__(self, params: dict[str, str]):
+        self.query_params = params
+
+
+def test_company_id_is_read_from_the_query_string():
+    cid = uuid.uuid4()
+    assert _requested_company_id(_FakeRequest({"company_id": str(cid)}), b"") == cid
+
+
+def test_company_id_is_read_from_the_json_body():
+    cid = uuid.uuid4()
+    body = f'{{"company_id": "{cid}", "name": "x"}}'.encode()
+    assert _requested_company_id(_FakeRequest({}), body) == cid
+
+
+def test_malformed_company_id_is_ignored():
+    """壊れた値でログ書き込み自体を巻き添えにしない。"""
+    assert _requested_company_id(_FakeRequest({"company_id": "not-a-uuid"}), b"") is None
+    assert _requested_company_id(_FakeRequest({}), b"not json") is None
+    assert _requested_company_id(_FakeRequest({}), b"") is None
+
+
+async def test_own_company_is_recorded(db_session, seeded):
+    assert (
+        await _company_in_tenant(db_session, seeded["company_id"], seeded["tenant_id"])
+        == seeded["company_id"]
+    )
+
+
+async def test_other_tenants_company_is_not_recorded(db_session, seeded):
+    """他テナントの会社IDは記録しない。
+
+    そのまま入れると companies への外部キー違反にはならないが、他テナントの
+    証跡一覧に自分の操作が混ざることになる。
+    """
+    other = Tenant(tenant_name="別テナント", tenant_code=f"OT-{uuid.uuid4().hex[:6]}")
+    db_session.add(other)
+    await db_session.flush()
+    other_company = Company(
+        tenant_id=other.tenant_id,
+        company_name="別会社",
+        company_code=f"OC-{uuid.uuid4().hex[:6]}",
+    )
+    db_session.add(other_company)
+    await db_session.flush()
+
+    assert (
+        await _company_in_tenant(db_session, other_company.company_id, seeded["tenant_id"]) is None
+    )
+
+
+async def test_unknown_company_is_not_recorded(db_session, seeded):
+    """存在しない会社IDを入れると外部キー違反でログごと失われるため、落とす。"""
+    assert await _company_in_tenant(db_session, uuid.uuid4(), seeded["tenant_id"]) is None

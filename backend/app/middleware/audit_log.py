@@ -83,6 +83,47 @@ async def _tenant_of(session, user_id: uuid.UUID | None) -> uuid.UUID | None:
     return result.scalar_one_or_none()
 
 
+def _requested_company_id(request: Request, body_bytes: bytes) -> uuid.UUID | None:
+    """リクエストが対象としている会社IDを取り出す。
+
+    クエリ・ボディのどちらで渡されるかはエンドポイントによって異なるので両方見る。
+    ここで拾えないと `audit_logs.company_id` が常に NULL になり、会社単位で
+    証跡を引く一覧APIが常に空になる。
+    """
+    raw = request.query_params.get("company_id")
+    if raw is None and body_bytes:
+        with contextlib.suppress(Exception):
+            data = json.loads(body_bytes)
+            if isinstance(data, dict):
+                raw = data.get("company_id")
+    if not isinstance(raw, str):
+        return None
+    with contextlib.suppress(ValueError, TypeError):
+        return uuid.UUID(raw)
+    return None
+
+
+async def _company_in_tenant(session, company_id: uuid.UUID | None, tenant_id: uuid.UUID | None):
+    """会社IDが当該テナントのものであれば返す。そうでなければ None。
+
+    他テナントのIDや存在しないIDをそのまま入れると、companies への外部キー違反で
+    ログの書き込みごと失敗する（＝証跡が残らない）。
+    """
+    if company_id is None or tenant_id is None:
+        return None
+    from sqlalchemy import select
+
+    from app.models.models import Company
+
+    result = await session.execute(
+        select(Company.company_id).where(
+            Company.company_id == company_id,
+            Company.tenant_id == tenant_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 class AuditLogMiddleware(BaseHTTPMiddleware):
     """操作証跡ログミドルウェア。
 
@@ -146,8 +187,12 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
             # tenant_id は利用者から引く。ここに固定値を入れると tenants への
             # 外部キー制約に必ず違反し、監査ログが1件も残らない。
             tenant_id = await _tenant_of(session, user_id)
+            company_id = await _company_in_tenant(
+                session, _requested_company_id(request, body_bytes), tenant_id
+            )
             log = AuditLog(
                 tenant_id=tenant_id,
+                company_id=company_id,
                 user_id=user_id if tenant_id is not None else None,
                 action=action,
                 resource_type=resource_type,
