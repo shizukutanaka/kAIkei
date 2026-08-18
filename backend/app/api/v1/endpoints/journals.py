@@ -2,6 +2,7 @@ import csv
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from io import StringIO
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
@@ -11,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.csv_export import csv_document
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.core.tenant_scope import scope_to_tenant
 from app.models.models import Account, JournalHeader, JournalLine
@@ -119,7 +120,7 @@ async def create_journal(
 
 @router.get("", response_model=JournalListResponse)
 async def list_journals(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     approval_status: str | None = Query(None, description="Filter by approval status"),
@@ -235,7 +236,7 @@ async def post_journal(
 
 @router.get("/export/csv", response_class=PlainTextResponse)
 async def export_journals_csv(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     start_date: date = Query(..., description="開始日"),
     end_date: date = Query(..., description="終了日"),
     current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_READ)),
@@ -314,7 +315,7 @@ async def export_journals_csv(
 
 @router.post("/import/csv")
 async def import_journals_csv(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     file: UploadFile = File(...),
     current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_CREATE)),
     db: AsyncSession = Depends(get_db),
@@ -461,7 +462,7 @@ async def import_journals_csv(
 
 @router.get("/general-ledger")
 async def get_general_ledger(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     start_date: date = Query(..., description="開始日"),
     end_date: date = Query(..., description="終了日"),
     account_code: str | None = Query(None, description="科目コード（指定時は該当科目のみ）"),
@@ -641,7 +642,7 @@ async def get_general_ledger(
 
 @router.get("/general-ledger/export", response_class=PlainTextResponse)
 async def export_general_ledger_csv(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     start_date: date = Query(..., description="開始日"),
     end_date: date = Query(..., description="終了日"),
     account_code: str | None = Query(None, description="科目コード"),

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.schemas.schemas import (
     AuditDetectionResponse,
@@ -18,7 +18,7 @@ router = APIRouter()
 
 @router.post("/scan", response_model=AuditScanResponse)
 async def scan(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.AUDIT_REVIEW)),
     db: AsyncSession = Depends(get_db),
 ) -> AuditScanResponse:
@@ -31,7 +31,7 @@ async def scan(
 
 @router.get("/detections", response_model=list[AuditDetectionResponse])
 async def list_detections(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     detection_status: str | None = Query(None, alias="status"),
     risk_level: str | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
@@ -49,7 +49,7 @@ async def list_detections(
 async def update_detection_status(
     detection_id: UUID,
     payload: AuditDetectionStatusUpdate,
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.AUDIT_REVIEW)),
     db: AsyncSession = Depends(get_db),
 ) -> AuditDetectionResponse:

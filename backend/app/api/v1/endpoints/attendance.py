@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.business_time import business_naive_now, business_today
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.core.tenant_scope import scope_to_tenant
 from app.models.models import AttendanceRecord, Employee
@@ -167,7 +167,7 @@ async def create_manual_attendance(
 
 @router.get("/records", response_model=AttendanceListResponse)
 async def list_attendance(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     start_date: date = Query(...),
     end_date: date = Query(...),
     employee_id: UUID | None = Query(None),
@@ -203,7 +203,7 @@ async def list_attendance(
 
 @router.get("/summary", response_model=list[dict])
 async def attendance_summary(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     year: int = Query(...),
     month: int = Query(...),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),

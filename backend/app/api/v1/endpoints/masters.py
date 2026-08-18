@@ -1,3 +1,4 @@
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -5,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.core.tenant_scope import scope_to_tenant
 from app.models.models import Account, SubAccount, TaxRule
@@ -128,7 +129,7 @@ STANDARD_CHART_OF_ACCOUNTS = [
 
 @router.post("/initialize-standard-accounts", response_model=list[AccountResponse])
 async def initialize_standard_accounts(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),
     db: AsyncSession = Depends(get_db),
 ) -> list[Account]:
@@ -204,7 +205,7 @@ async def create_account(
 
 @router.get("", response_model=list[AccountResponse])
 async def list_accounts(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> list[Account]:
@@ -394,7 +395,7 @@ async def create_tax_rule(
 
 @router.get("/tax-rules", response_model=list[TaxRuleResponse])
 async def list_tax_rules(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> list[TaxRule]:

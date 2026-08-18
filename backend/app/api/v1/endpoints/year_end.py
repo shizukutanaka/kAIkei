@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.csv_export import csv_line
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.models.models import BonusRecord, Employee, PayrollRecord, YearEndAdjustment
 from app.schemas.schemas import (
@@ -176,7 +176,7 @@ async def calculate_year_end_adjustment(
 
 @router.get("/records", response_model=YearEndListResponse)
 async def list_year_end_adjustments(
-    company_id: UUID = Query(...),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     adjustment_year: int = Query(...),  # noqa: B008
     page: int = Query(1, ge=1),  # noqa: B008
     page_size: int = Query(50, ge=1, le=200),  # noqa: B008
@@ -232,7 +232,7 @@ VALID_YE_TRANSITIONS: dict[str, set[str]] = {
 
 @router.post("/records/batch-transition", response_model=list[YearEndAdjustmentResponse])
 async def batch_transition_year_end(
-    company_id: UUID = Query(...),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     adjustment_year: int = Query(...),  # noqa: B008
     action: str = Query(..., description="approved"),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.PAYROLL_APPROVE)),  # noqa: B008

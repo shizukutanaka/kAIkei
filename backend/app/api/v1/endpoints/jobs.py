@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.core.tenant_scope import scope_to_tenant
 from app.models.models import JobExecution, ScheduledJob
@@ -57,7 +57,7 @@ async def create_scheduled_job(
 
 @router.get("", response_model=list[ScheduledJobResponse])
 async def list_scheduled_jobs(
-    company_id: UUID = Query(...),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     is_active: bool | None = Query(None),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
@@ -115,7 +115,7 @@ async def run_scheduled_job(
 
 @router.post("/dispatch", response_model=list[JobExecutionResponse], status_code=status.HTTP_201_CREATED)
 async def dispatch_due_jobs(
-    company_id: UUID = Query(...),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> list[JobExecutionResponse]:
@@ -182,7 +182,7 @@ async def complete_job_execution(
 
 @router.get("/executions", response_model=list[JobExecutionResponse])
 async def list_job_executions(
-    company_id: UUID = Query(...),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     status_filter: str | None = Query(None, alias="status"),  # noqa: B008
     scheduled_job_id: UUID | None = Query(None),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),  # noqa: B008

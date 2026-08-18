@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.schemas.schemas import (
     AiCalibrationResponse,
@@ -41,7 +41,7 @@ async def create_log(
 
 @router.get("", response_model=list[AiInferenceLogResponse])
 async def list_logs(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     source_type: str | None = Query(None),
     applied: bool | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
@@ -57,7 +57,7 @@ async def list_logs(
 
 @router.get("/stats", response_model=AiInferenceStatsResponse)
 async def stats(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.AI_REVIEW)),
     db: AsyncSession = Depends(get_db),
 ) -> AiInferenceStatsResponse:
@@ -68,7 +68,7 @@ async def stats(
 
 @router.get("/calibration", response_model=AiCalibrationResponse)
 async def calibration(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.AI_REVIEW)),
     db: AsyncSession = Depends(get_db),
 ) -> AiCalibrationResponse:
@@ -81,7 +81,7 @@ async def calibration(
 async def apply(
     log_id: UUID,
     payload: AiInferenceApplyRequest,
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.AI_INFER)),
     db: AsyncSession = Depends(get_db),
 ) -> AiInferenceLogResponse:

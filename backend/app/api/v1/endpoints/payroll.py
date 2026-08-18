@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.csv_export import csv_line
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.core.tenant_scope import scope_to_tenant
 from app.models.models import Employee, PayrollRecord
@@ -593,7 +593,7 @@ def _gross_for_labor_insurance(emp: Employee, payroll_record: PayrollRecord | No
 
 @router.get("/employees", response_model=EmployeeListResponse)
 async def list_employees(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
@@ -1024,7 +1024,7 @@ async def calculate_labor_insurance_from_payroll_data(
 
 @router.get("/labor-insurance", response_model=LaborInsuranceSummaryResponse)
 async def calculate_labor_insurance(
-    company_id: UUID = Query(...),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     target_year: int = Query(...),  # noqa: B008
     target_month: int = Query(...),  # noqa: B008
     business_type: str = Query(...),  # noqa: B008
@@ -1096,7 +1096,7 @@ async def calculate_labor_insurance(
 
 @router.get("/records", response_model=PayrollListResponse)
 async def list_payroll_records(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     payroll_year: int = Query(...),
     payroll_month: int = Query(...),
     page: int = Query(1, ge=1),
@@ -1355,7 +1355,7 @@ async def export_santei(
 async def transition_payroll_status(
     payroll_id: UUID,
     action: str = Query(..., description="approved, rejected, or paid"),
-    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.PAYROLL_APPROVE)),
     db: AsyncSession = Depends(get_db),
 ) -> PayrollRecordResponse:
@@ -1396,7 +1396,7 @@ async def transition_payroll_status(
 
 @router.post("/records/batch-transition", response_model=list[PayrollRecordResponse])
 async def batch_transition_payroll(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     payroll_year: int = Query(...),
     payroll_month: int = Query(...),
     action: str = Query(..., description="approved, rejected, or paid"),

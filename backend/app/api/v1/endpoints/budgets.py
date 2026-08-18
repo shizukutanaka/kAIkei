@@ -1,12 +1,14 @@
 from decimal import Decimal
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.core.tenant_scope import scope_to_tenant
 from app.models.models import Account, Budget, BudgetLine, MonthlyBalance
@@ -53,20 +55,24 @@ async def create_budget(
         )
     db.add(budget)
     await db.flush()
-    await db.refresh(budget)
+    await db.refresh(budget, attribute_names=["lines"])
     return BudgetResponse.model_validate(budget)
 
 
 @router.get("", response_model=list[BudgetResponse])
 async def list_budgets(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     fiscal_year: int | None = None,
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> list[BudgetResponse]:
-    stmt = select(Budget).where(
-        Budget.company_id == company_id,
-        Budget.is_deleted == False,  # noqa: E712
+    stmt = (
+        select(Budget)
+        .options(selectinload(Budget.lines))
+        .where(
+            Budget.company_id == company_id,
+            Budget.is_deleted == False,  # noqa: E712
+        )
     )
     if fiscal_year is not None:
         stmt = stmt.where(Budget.fiscal_year == fiscal_year)
@@ -78,7 +84,9 @@ async def list_budgets(
 async def _get_budget_or_404(budget_id: UUID, db: AsyncSession, tenant_id: UUID) -> Budget:
     result = await db.execute(
         scope_to_tenant(
-            select(Budget).where(Budget.budget_id == budget_id, Budget.is_deleted == False),  # noqa: E712
+            select(Budget)
+            .options(selectinload(Budget.lines))
+            .where(Budget.budget_id == budget_id, Budget.is_deleted == False),  # noqa: E712
             Budget,
             tenant_id,
         )

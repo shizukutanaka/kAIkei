@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.csv_export import csv_line
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.models.models import BonusRecord, Employee
 from app.schemas.schemas import BonusCalculateRequest, BonusListResponse, BonusRecordResponse, NotificationCreate
@@ -137,7 +137,7 @@ async def calculate_bonus(
 
 @router.get("/records", response_model=BonusListResponse)
 async def list_bonus_records(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     bonus_year: int = Query(...),
     bonus_term: str = Query(...),
     page: int = Query(1, ge=1),
@@ -180,7 +180,7 @@ VALID_BONUS_TRANSITIONS: dict[str, set[str]] = {
 
 @router.post("/records/batch-transition", response_model=list[BonusRecordResponse])
 async def batch_transition_bonus(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     bonus_year: int = Query(...),
     bonus_term: str = Query(...),
     action: str = Query(..., description="approved, rejected, or paid"),

@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.core.business_time import business_naive_now
 from app.core.csv_export import csv_line
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.models.models import Employee, ExpenseItem, ExpenseReport
 from app.schemas.schemas import (
@@ -108,7 +108,7 @@ async def create_expense_report(
 
 @router.get("/reports", response_model=ExpenseListResponse)
 async def list_expense_reports(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     employee_id: UUID | None = Query(None),
     status: str | None = Query(None),
     page: int = Query(1, ge=1),
@@ -153,7 +153,7 @@ async def list_expense_reports(
 @router.get("/reports/{report_id}", response_model=ExpenseReportResponse)
 async def get_expense_report(
     report_id: UUID,
-    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> ExpenseReportResponse:
@@ -175,7 +175,7 @@ async def get_expense_report(
 async def transition_expense_report(
     report_id: UUID,
     action: str = Query(..., description="approved, rejected, paid"),
-    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.PAYROLL_APPROVE)),
     db: AsyncSession = Depends(get_db),
 ) -> ExpenseReportResponse:

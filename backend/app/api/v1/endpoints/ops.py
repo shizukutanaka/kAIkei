@@ -1,12 +1,12 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.models.models import JobExecution, OfficeTask, WebhookDelivery, WebhookEndpoint
 from app.schemas.schemas import (
@@ -20,7 +20,7 @@ router = APIRouter()
 
 @router.get("/health", response_model=OperationsHealthResponse)
 async def get_operations_health(
-    company_id: UUID = Query(...),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> OperationsHealthResponse:

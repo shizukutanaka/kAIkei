@@ -1,6 +1,7 @@
 from contextlib import suppress
 from datetime import date
 from decimal import Decimal
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -8,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.core.tenant_scope import scope_to_tenant
 from app.models.models import DepreciationRecord, FixedAsset
@@ -74,7 +75,7 @@ async def create_fixed_asset(
 
 @router.get("", response_model=list[FixedAssetResponse])
 async def list_fixed_assets(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     category: str | None = Query(None, description="資産カテゴリで絞り込み"),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.schemas.schemas import (
     AutoReconcileRequest,
@@ -20,7 +20,7 @@ router = APIRouter()
 
 @router.post("/import-statement", response_model=BankImportResponse, status_code=status.HTTP_201_CREATED)
 async def import_statement(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     file: UploadFile = File(...),
     current_user: CurrentUser = Depends(require_permission(Permission.INTEGRATION_IMPORT)),
     db: AsyncSession = Depends(get_db),
@@ -39,7 +39,7 @@ async def import_statement(
 
 @router.get("/statement-lines", response_model=list[BankStatementLineResponse])
 async def list_statement_lines(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     reconciled: bool | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
     current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_READ)),
@@ -55,7 +55,7 @@ async def list_statement_lines(
 @router.post("/auto-reconcile", response_model=AutoReconcileResponse)
 async def auto_reconcile(
     payload: AutoReconcileRequest,
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_UPDATE)),
     db: AsyncSession = Depends(get_db),
 ) -> AutoReconcileResponse:
@@ -75,7 +75,7 @@ async def auto_reconcile(
 async def match_line(
     line_id: UUID,
     payload: ManualMatchRequest,
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_UPDATE)),
     db: AsyncSession = Depends(get_db),
 ) -> BankStatementLineResponse:
@@ -91,7 +91,7 @@ async def match_line(
 @router.post("/statement-lines/{line_id}/unmatch", response_model=BankStatementLineResponse)
 async def unmatch_line(
     line_id: UUID,
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_UPDATE)),
     db: AsyncSession = Depends(get_db),
 ) -> BankStatementLineResponse:

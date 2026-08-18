@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import TypeVar
 from uuid import UUID
 
+from fastapi import HTTPException
 from sqlalchemy import Select, select
 
 from app.models.models import Company
@@ -58,3 +59,17 @@ def is_company_in_tenant(company_id: UUID, tenant_id: UUID) -> Select:
         Company.tenant_id == tenant_id,
         Company.is_deleted == False,  # noqa: E712
     )
+
+
+async def assert_company_access(db, current_user, company_id: UUID) -> None:
+    """`company_id` が呼び出し元テナントのものでなければ 404 を送出する。
+
+    リクエストボディで company_id を受け取るエンドポイント用。
+    クエリパラメータで受け取る場合は依存関係 `verified_company_id` を使う。
+
+    403 ではなく 404 にするのは、他テナントの company_id を総当たりして
+    実在を確かめられないようにするため。
+    """
+    found = await db.execute(is_company_in_tenant(company_id, current_user.tenant_id))
+    if found.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Company not found")

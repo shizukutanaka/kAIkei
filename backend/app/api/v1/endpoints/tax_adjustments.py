@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.schemas.schemas import (
     TaxAdjustmentComputeRequest,
@@ -20,7 +20,7 @@ router = APIRouter()
 @router.post("/rules", response_model=TaxAdjustmentRuleResponse, status_code=status.HTTP_201_CREATED)
 async def create_rule(
     payload: TaxAdjustmentRuleCreate,
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),
     db: AsyncSession = Depends(get_db),
 ) -> TaxAdjustmentRuleResponse:
@@ -42,7 +42,7 @@ async def create_rule(
 
 @router.get("/rules", response_model=list[TaxAdjustmentRuleResponse])
 async def list_rules(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     active_only: bool = Query(False),
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
     db: AsyncSession = Depends(get_db),
@@ -55,7 +55,7 @@ async def list_rules(
 @router.delete("/rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_rule(
     rule_id: UUID,
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_DELETE)),
     db: AsyncSession = Depends(get_db),
 ) -> None:
@@ -68,7 +68,7 @@ async def delete_rule(
 @router.post("/compute", response_model=TaxAdjustmentComputeResponse)
 async def compute(
     payload: TaxAdjustmentComputeRequest,
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> TaxAdjustmentComputeResponse:

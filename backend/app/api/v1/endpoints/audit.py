@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.business_time import business_now
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.core.tenant_scope import scope_to_tenant
 from app.models.models import (
@@ -36,7 +36,7 @@ router = APIRouter(tags=["audit"])
 
 @router.get("/logs", response_model=AuditLogListResponse)
 async def list_audit_logs(
-    company_id: UUID = Query(..., description="会社ID"),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     page: int = Query(1, ge=1),  # noqa: B008
     page_size: int = Query(50, ge=1, le=200),  # noqa: B008
     action: str | None = Query(None, description="アクションでフィルタ"),  # noqa: B008
@@ -237,7 +237,7 @@ async def inspect_audit(
 
 @router.get("/export")
 async def export_audit_package(
-    company_id: UUID = Query(..., description="会社ID"),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> Response:

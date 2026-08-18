@@ -1,4 +1,5 @@
 import contextlib
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -6,7 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, get_current_user, require_permission
+from app.core.deps import CurrentUser, get_current_user, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.schemas.schemas import NotificationCreate
 from app.services.approval_service import ApprovalWorkflowService
@@ -242,7 +243,7 @@ async def create_workflow(
 
 @router.get("/workflows")
 async def list_workflows(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[WorkflowResponse]:
