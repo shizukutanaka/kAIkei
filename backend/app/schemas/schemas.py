@@ -503,6 +503,9 @@ class TaxReturnResponse(BaseModel):
     tax_payable: Decimal
     status: str
     note: str | None = None
+    # 仕訳の税区分を使わず売上・仕入を一律按分している間は概算であることを示す。
+    estimated_fields: list[str] = Field(default_factory=list)
+    estimate_notice: str | None = None
 
     model_config = {"from_attributes": True}
 

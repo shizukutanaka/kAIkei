@@ -28,6 +28,25 @@ def _round(v: Decimal) -> Decimal:
     return v.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
 
 
+# 消費税申告の課税売上・課税仕入は、本来は仕訳明細の税区分（tax_rule_id）から
+# 集計する必要がある。現状は売上・費用を一律 80%/20% で按分し、簡易課税の
+# みなし仕入率も事業区分によらず90%を使っているため、申告書の数値は概算。
+#
+# 申告書はそのまま提出されうるので、概算であることを応答に明示する。
+ESTIMATED_TAX_RETURN_FIELDS = (
+    "taxable_sales",
+    "non_taxable_sales",
+    "purchases_subject_to_tax",
+    "purchases_not_subject_to_tax",
+)
+
+TAX_RETURN_ESTIMATE_NOTICE = (
+    "課税売上・課税仕入は仕訳の税区分ではなく一律按分（80%/20%）で算出した概算です。"
+    "簡易課税のみなし仕入率も事業区分によらず90%を使用しています。"
+    "申告にはそのまま使用しないでください。"
+)
+
+
 def _to_response(tr: TaxReturn) -> TaxReturnResponse:
     return TaxReturnResponse(
         return_id=tr.return_id,
@@ -47,6 +66,8 @@ def _to_response(tr: TaxReturn) -> TaxReturnResponse:
         tax_payable=tr.tax_payable,
         status=tr.status,
         note=tr.note,
+        estimated_fields=list(ESTIMATED_TAX_RETURN_FIELDS),
+        estimate_notice=TAX_RETURN_ESTIMATE_NOTICE,
     )
 
 

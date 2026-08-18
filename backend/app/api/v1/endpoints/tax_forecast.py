@@ -21,6 +21,7 @@ from app.schemas.schemas import (
     TaxForecastResponse,
 )
 from app.services.bad_debt_assessment import BadDebtAssessmentService, DebtorReceivable
+from app.services.bad_debt_consumption_tax import STANDARD_RATE as BAD_DEBT_STANDARD_RATE
 from app.services.bad_debt_consumption_tax import BadDebtConsumptionTaxService
 from app.services.bad_debt_journal_draft import BadDebtJournalDraftService
 from app.services.bad_debt_reserve import BadDebtReserveService
@@ -314,7 +315,7 @@ async def get_corporate_tax(
 @router.get("/bad-debt-consumption-tax")
 async def get_bad_debt_consumption_tax(
     bad_debt_amount: Decimal = Query(..., description="貸倒れとなった税込金額"),  # noqa: B008
-    tax_rate: Decimal = Query(Decimal("0.10"), description="適用税率(0.10 標準 / 0.08 軽減)"),  # noqa: B008
+    tax_rate: Decimal = Query(BAD_DEBT_STANDARD_RATE, description="適用税率(0.10 標準 / 0.08 軽減)"),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
 ) -> dict[str, Decimal]:
     try:

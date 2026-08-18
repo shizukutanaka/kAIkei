@@ -797,8 +797,8 @@ async def calculate_payroll(
 @router.get("/social-insurance-premium")
 async def calculate_social_insurance_premium(
     standard_monthly_remuneration: Decimal = Query(..., description="標準報酬月額"),  # noqa: B008
-    health_rate: Decimal = Query(Decimal("0.0998"), description="健康保険料率"),  # noqa: B008
-    care_rate: Decimal = Query(Decimal("0.016"), description="介護保険料率"),  # noqa: B008
+    health_rate: Decimal = Query(DEFAULT_HEALTH_INSURANCE_RATE, description="健康保険料率"),  # noqa: B008
+    care_rate: Decimal = Query(DEFAULT_CARE_INSURANCE_RATE, description="介護保険料率"),  # noqa: B008
     care_applicable: bool = Query(False, description="40〜64歳の介護保険適用有無"),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
 ) -> SocialInsurancePremiumResponse:
@@ -880,8 +880,8 @@ async def calculate_bonus_withholding_tax(
 async def calculate_bonus_social_insurance_premium(
     health_standard_bonus: Decimal = Query(..., description="健康保険用標準賞与額"),  # noqa: B008
     pension_standard_bonus: Decimal = Query(..., description="厚生年金保険用標準賞与額"),  # noqa: B008
-    health_rate: Decimal = Query(Decimal("0.0998"), description="健康保険料率"),  # noqa: B008
-    care_rate: Decimal = Query(Decimal("0.016"), description="介護保険料率"),  # noqa: B008
+    health_rate: Decimal = Query(DEFAULT_HEALTH_INSURANCE_RATE, description="健康保険料率"),  # noqa: B008
+    care_rate: Decimal = Query(DEFAULT_CARE_INSURANCE_RATE, description="介護保険料率"),  # noqa: B008
     care_applicable: bool = Query(False, description="40〜64歳の介護保険適用有無"),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
 ) -> SocialInsurancePremiumResponse:
