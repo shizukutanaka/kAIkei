@@ -16,12 +16,19 @@ import httpx
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport
+from sqlalchemy import select
 
 from app.api.v1.endpoints.payroll import ESTIMATED_PAYROLL_FIELDS
 from app.core.database import get_db
 from app.main import app
 from app.models.models import Company, Employee, Tenant, User
 from app.services.overtime_pay import OVERTIME_MONTHLY_THRESHOLD_HOURS
+from app.services.social_insurance import (
+    DEFAULT_CARE_INSURANCE_RATE,
+    DEFAULT_HEALTH_INSURANCE_RATE,
+    SocialInsurancePremiumService,
+)
+from app.services.standard_remuneration import StandardRemunerationService
 
 pytestmark = [pytest.mark.db, pytest.mark.asyncio]
 
@@ -77,7 +84,7 @@ async def company(db_session):
     }
 
 
-async def _add_employee(db_session, company_id) -> Employee:
+async def _add_employee(db_session, company_id, birth_date: date | None = None) -> Employee:
     emp = Employee(
         company_id=company_id,
         employee_code=f"E-{uuid.uuid4().hex[:6]}",
@@ -85,6 +92,7 @@ async def _add_employee(db_session, company_id) -> Employee:
         base_salary=Decimal("300000"),
         hourly_rate=HOURLY,
         hire_date=date(2024, 4, 1),
+        birth_date=birth_date,
         is_active=True,
     )
     db_session.add(emp)
@@ -170,3 +178,75 @@ async def test_zero_overtime_is_handled(api, company, db_session):
 
     assert res.status_code == 200
     assert Decimal(res.json()[0]["overtime_pay"]) == 0
+
+
+def _expected_social_insurance(gross: Decimal, *, care: bool) -> Decimal:
+    """検証済みサービスから期待値を組み立てる（実装の写経にしない）。"""
+    grade = StandardRemunerationService.lookup_health_grade(gross)
+    return SocialInsurancePremiumService.compute(
+        standard_monthly_remuneration=grade.standard_monthly_remuneration,
+        health_rate=DEFAULT_HEALTH_INSURANCE_RATE,
+        care_rate=DEFAULT_CARE_INSURANCE_RATE,
+        care_applicable=care,
+    ).total_employee
+
+
+async def test_social_insurance_uses_the_standard_remuneration_grade(api, company, db_session):
+    """社会保険料が総額×率ではなく、標準報酬月額の等級で決まること。
+
+    等級は幅を持つため、総支給が変わっても同じ等級なら保険料は変わらない。
+    総額に率を掛ける実装だと、ここで金額が動いてしまう。
+    """
+    emp = await _add_employee(db_session, company["company_id"])
+
+    res = await _calculate(api, company, emp, "10")
+    record = res.json()[0]
+
+    gross = Decimal(record["total_gross"])
+    assert Decimal(record["social_insurance"]) == _expected_social_insurance(gross, care=False)
+
+    # 総額の15%（旧実装）とは一致しないこと。
+    assert Decimal(record["social_insurance"]) != (gross * Decimal("0.15")).quantize(Decimal("1"))
+
+
+async def test_care_insurance_is_collected_from_age_40(api, company, db_session):
+    """40歳以上65歳未満は介護保険料を上乗せすること。"""
+    young = await _add_employee(db_session, company["company_id"], birth_date=date(2000, 1, 1))
+    res = await _calculate(api, company, young, "10")
+    without_care = Decimal(res.json()[0]["social_insurance"])
+
+    middle = await _add_employee(db_session, company["company_id"], birth_date=date(1980, 1, 1))
+    res = await _calculate(api, company, middle, "10")
+    records = {r["employee_id"]: r for r in res.json()}
+    with_care = Decimal(records[str(middle.employee_id)]["social_insurance"])
+
+    assert with_care > without_care, "介護保険料が上乗せされていない"
+    gross = Decimal(records[str(middle.employee_id)]["total_gross"])
+    assert with_care == _expected_social_insurance(gross, care=True)
+
+
+async def test_company_rate_overrides_the_default(api, company, db_session):
+    """健康保険料率は都道府県・年度で変わるため、会社の設定が効くこと。"""
+    from app.models.models import Company
+
+    emp = await _add_employee(db_session, company["company_id"])
+    before = Decimal((await _calculate(api, company, emp, "0")).json()[0]["social_insurance"])
+
+    co = (
+        await db_session.execute(select(Company).where(Company.company_id == company["company_id"]))
+    ).scalar_one()
+    co.health_insurance_rate = DEFAULT_HEALTH_INSURANCE_RATE * 2
+    await db_session.flush()
+
+    after = Decimal((await _calculate(api, company, emp, "0")).json()[0]["social_insurance"])
+    assert after > before, "会社ごとの料率設定が反映されていない"
+
+
+async def test_only_income_tax_remains_an_estimate(api, company, db_session):
+    """社会保険料は概算の一覧から外れ、源泉所得税だけが残ること。"""
+    emp = await _add_employee(db_session, company["company_id"])
+
+    record = (await _calculate(api, company, emp, "10")).json()[0]
+
+    assert record["estimated_fields"] == ["income_tax"]
+    assert "社会保険料" not in (record["estimate_notice"] or "")

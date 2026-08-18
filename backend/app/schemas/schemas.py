@@ -199,6 +199,8 @@ class EmployeeCreate(BaseModel):
     base_salary: Decimal = Field(default=Decimal("0"), ge=0)
     hourly_rate: Decimal = Field(default=Decimal("0"), ge=0)
     hire_date: date
+    # 介護保険（40歳以上65歳未満）の判定に使う。未設定なら徴収しない。
+    birth_date: date | None = None
 
 
 class EmployeeResponse(BaseModel):
@@ -212,6 +214,7 @@ class EmployeeResponse(BaseModel):
     base_salary: Decimal
     hourly_rate: Decimal
     hire_date: date
+    birth_date: date | None = None
     termination_date: date | None
     is_active: bool
 

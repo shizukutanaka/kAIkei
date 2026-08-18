@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date, timedelta
 from decimal import ROUND_HALF_DOWN, Decimal
 
 # 厚生年金保険料率 18.3%（全国一律・固定、厚生年金保険法）
@@ -120,3 +121,35 @@ class SocialInsurancePremiumService:
             total_employer=total_employer,
             total_premium=total_premium,
         )
+
+
+# 介護保険の第2号被保険者は「40歳以上65歳未満」。年齢に達する日は誕生日の前日
+# （年齢計算ニ関スル法律・民法143条）なので、1日生まれの人は前月から対象になる。
+CARE_INSURANCE_START_AGE = 40
+CARE_INSURANCE_END_AGE = 65
+
+
+def _age_attained_on(birth_date: date, as_of: date) -> int:
+    """`as_of` 時点の満年齢。
+
+    満年齢に達するのは誕生日の前日なので、その分を前倒しして数える
+    （例: 4月1日生まれは3月31日に加齢する）。
+    """
+    attained = as_of + timedelta(days=1)
+    years = attained.year - birth_date.year
+    if (attained.month, attained.day) < (birth_date.month, birth_date.day):
+        years -= 1
+    return years
+
+
+def care_insurance_applicable(birth_date: date | None, as_of: date) -> bool:
+    """その月に介護保険料（第2号被保険者）を徴収するか。
+
+    資格取得はその月から、喪失（65歳）はその月から対象外になるため、
+    月末時点の満年齢で判定する。生年月日が不明なら徴収しない
+    （誤って徴収するより、徴収漏れとして是正できる方を選ぶ）。
+    """
+    if birth_date is None:
+        return False
+    age = _age_attained_on(birth_date, as_of)
+    return CARE_INSURANCE_START_AGE <= age < CARE_INSURANCE_END_AGE

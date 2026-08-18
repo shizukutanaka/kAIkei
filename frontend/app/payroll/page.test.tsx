@@ -51,8 +51,9 @@ const employee = {
 };
 
 // バックエンドが返す文言（app/api/v1/endpoints/payroll.py の PAYROLL_ESTIMATE_NOTICE）。
+// 社会保険料は等級ベースで正しく計算されるようになったため、概算は源泉所得税のみ。
 const NOTICE =
-  "源泉所得税と社会保険料は概算です（税額表・標準報酬月額の等級・都道府県別料率が未対応）。" +
+  "源泉所得税は概算です（給与所得の源泉徴収税額表・扶養親族等の数が未対応）。" +
   "給与明細の確定や納付額の算出にはそのまま使用しないでください。";
 
 function record(overrides: Record<string, unknown> = {}) {
@@ -72,7 +73,7 @@ function record(overrides: Record<string, unknown> = {}) {
     net_pay: "408000",
     status: "calculated",
     employee_name: "残業 太郎",
-    estimated_fields: ["income_tax", "social_insurance"],
+    estimated_fields: ["income_tax"],
     estimate_notice: NOTICE,
     ...overrides,
   };
@@ -117,6 +118,8 @@ describe("PayrollPage 概算の明示", () => {
     await waitFor(() => expect(screen.getByRole("note")).toBeInTheDocument());
     expect(screen.getByRole("note")).toHaveTextContent(/概算/);
     expect(screen.getByRole("note")).toHaveTextContent(/納付額/);
+    // 社会保険料は等級ベースで計算されるようになったので、警告に含めない。
+    expect(screen.getByRole("note")).not.toHaveTextContent(/社会保険料/);
   });
 
   it("概算の通知が無ければ警告を出さない（法定計算に対応したとき）", async () => {

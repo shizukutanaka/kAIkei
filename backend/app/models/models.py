@@ -76,6 +76,11 @@ class Company(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
+    # 健康保険・介護保険の料率は都道府県と年度で変わる（協会けんぽ）。
+    # 未設定なら全国的な代表値（social_insurance.py の既定）を使う。
+    health_insurance_rate: Mapped[Decimal | None] = mapped_column(Numeric(6, 5))
+    care_insurance_rate: Mapped[Decimal | None] = mapped_column(Numeric(6, 5))
+
     tenant = relationship("Tenant", back_populates="companies")
     accounts = relationship("Account", back_populates="company")
     journal_headers = relationship("JournalHeader", back_populates="company")
@@ -291,6 +296,9 @@ class Employee(Base):
     department: Mapped[str | None] = mapped_column(String(100))
     position: Mapped[str | None] = mapped_column(String(100))
     employment_type: Mapped[str] = mapped_column(String(20), default="full_time", nullable=False)
+    # 介護保険（第2号被保険者・40歳以上65歳未満）の判定に必要。
+    # 未設定なら介護保険料を徴収しない（誤徴収より徴収漏れを選ぶ）。
+    birth_date: Mapped[date | None] = mapped_column(Date)
     base_salary: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
     hourly_rate: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
     hire_date: Mapped[date] = mapped_column(Date, nullable=False)

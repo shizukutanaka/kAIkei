@@ -1,5 +1,7 @@
 # ruff: noqa: B008, I001
+from calendar import monthrange
 from contextlib import suppress
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
@@ -13,7 +15,7 @@ from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.core.tenant_scope import assert_company_access, scope_to_tenant
-from app.models.models import Employee, PayrollRecord
+from app.models.models import Company, Employee, PayrollRecord
 from app.schemas.schemas import (
     EmployeeCreate,
     EmployeeListResponse,
@@ -102,7 +104,7 @@ from app.services.labor_insurance_installment import LaborInsuranceInstallmentSe
 from app.services.overtime_pay import OVERTIME_MONTHLY_THRESHOLD_HOURS, OvertimePayService
 from app.services.santei_export import SanteiEmployee, SanteiKisoService, SanteiMonth
 from app.services.notification_service import create_notification
-from app.services.standard_remuneration import RemunerationMonth
+from app.services.standard_remuneration import RemunerationMonth, StandardRemunerationService
 from app.services.standard_bonus import BonusEmployee, StandardBonusService
 from app.services.qualification_acquisition import AcquisitionEmployee, QualificationAcquisitionService
 from app.services.qualification_loss import LossEmployee, QualificationLossService
@@ -113,6 +115,7 @@ from app.services.social_insurance import (
     DEFAULT_CARE_INSURANCE_RATE,
     DEFAULT_HEALTH_INSURANCE_RATE,
     SocialInsurancePremiumService,
+    care_insurance_applicable,
 )
 from app.services.monthly_revision import MonthlyRevisionService, RevisionEmployee
 from app.services.residence_tax import ResidenceTaxSpecialCollectionService
@@ -569,23 +572,24 @@ def _to_payroll_response(rec: PayrollRecord, emp_name: str | None = None) -> Pay
 
 # 月次給与計算のうち、法定の算出方法をまだ実装できていない項目。
 #
-# 源泉所得税は本来「給与所得の源泉徴収税額表」を扶養親族等の数と甲欄/乙欄で
-# 引く必要があるが、Employee に扶養親族等の数を保持しておらず、税額表も
-# 未実装のため概算のままになっている。社会保険料も本来は標準報酬月額の等級と
-# 都道府県別の保険料率で決まるが、いずれも未保持。
+# 社会保険料は標準報酬月額の等級・折半端数・介護保険の要否まで実装済みなので、
+# ここには含めない（料率は会社ごとに設定でき、未設定なら代表値を使う）。
 #
-# これらは「概算である」ことが利用者に見えていないと、そのまま給与明細や
-# 納付額として使われてしまう。応答に明示して、UI で警告を出せるようにする。
-ESTIMATED_PAYROLL_FIELDS = ("income_tax", "social_insurance")
+# 源泉所得税は「給与所得の源泉徴収税額表」を扶養親族等の数と甲欄/乙欄で引く
+# 必要があるが、Employee がそれらを保持しておらず税額表も未実装のため、
+# 概算（総支給の5%）のままになっている。
+#
+# 「概算である」ことが利用者に見えていないと、そのまま給与明細や納付額として
+# 使われてしまう。応答に明示して、UI で警告を出せるようにする。
+ESTIMATED_PAYROLL_FIELDS = ("income_tax",)
 
 PAYROLL_ESTIMATE_NOTICE = (
-    "源泉所得税と社会保険料は概算です（税額表・標準報酬月額の等級・都道府県別料率が未対応）。"
+    "源泉所得税は概算です（給与所得の源泉徴収税額表・扶養親族等の数が未対応）。"
     "給与明細の確定や納付額の算出にはそのまま使用しないでください。"
 )
 
 # 概算に用いる率。法定の算出方法ではないため、名前で概算だと分かるようにする。
 _ESTIMATED_INCOME_TAX_RATE = Decimal("0.05")
-_ESTIMATED_SOCIAL_INSURANCE_RATE = Decimal("0.15")
 
 
 def _estimate_income_tax(gross: Decimal) -> Decimal:
@@ -593,13 +597,6 @@ def _estimate_income_tax(gross: Decimal) -> Decimal:
     if gross <= 0:
         return Decimal("0")
     return (gross * _ESTIMATED_INCOME_TAX_RATE).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
-
-
-def _estimate_social_insurance(gross: Decimal) -> Decimal:
-    """社会保険料の概算。標準報酬月額の等級によらない（ESTIMATED_PAYROLL_FIELDS 参照）。"""
-    if gross <= 0:
-        return Decimal("0")
-    return (gross * _ESTIMATED_SOCIAL_INSURANCE_RATE).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
 
 
 
@@ -667,6 +664,7 @@ async def create_employee(
         base_salary=payload.base_salary,
         hourly_rate=payload.hourly_rate,
         hire_date=payload.hire_date,
+        birth_date=payload.birth_date,
     )
     db.add(emp)
     await db.commit()
@@ -730,6 +728,16 @@ async def calculate_payroll(
     if not employees:
         raise HTTPException(status_code=404, detail="アクティブな従業員がいません")
 
+    company = (
+        await db.execute(select(Company).where(Company.company_id == payload.company_id))
+    ).scalar_one()
+    # 介護保険の要否は月末時点の満年齢で判定する。
+    period_end = date(
+        payload.payroll_year,
+        payload.payroll_month,
+        monthrange(payload.payroll_year, payload.payroll_month)[1],
+    )
+
     records: list[PayrollRecord] = []
     for emp in employees:
         ot_hours = payload.overtime_hours.get(emp.employee_id, Decimal("0"))
@@ -742,8 +750,20 @@ async def calculate_payroll(
             overtime_over_60_hours=max(ot_hours - OVERTIME_MONTHLY_THRESHOLD_HOURS, Decimal("0")),
         ).total_premium
         total_gross = emp.base_salary + ot_pay
+        # 社会保険料は標準報酬月額の等級で決まる（総額に率を掛けるのではない）。
+        # 料率は都道府県・年度で変わるため会社の設定を優先し、未設定なら代表値を使う。
+        grade = StandardRemunerationService.lookup_health_grade(total_gross)
+        social_ins = SocialInsurancePremiumService.compute(
+            standard_monthly_remuneration=grade.standard_monthly_remuneration,
+            health_rate=company.health_insurance_rate
+            if company.health_insurance_rate is not None
+            else DEFAULT_HEALTH_INSURANCE_RATE,
+            care_rate=company.care_insurance_rate
+            if company.care_insurance_rate is not None
+            else DEFAULT_CARE_INSURANCE_RATE,
+            care_applicable=care_insurance_applicable(emp.birth_date, period_end),
+        ).total_employee
         income_tax = _estimate_income_tax(total_gross)
-        social_ins = _estimate_social_insurance(total_gross)
         total_deductions = income_tax + social_ins
         net_pay = total_gross - total_deductions
 
