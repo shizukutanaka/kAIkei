@@ -1,5 +1,8 @@
 [tool.ruff]
-target-version = "py312"
+# CI と開発コンテナは 3.11、本番イメージは 3.12。ruff を 3.12 に向けると
+# PEP 695 の型引数構文（3.12以降）を推奨してしまい、3.11 のCIで SyntaxError
+# になる。サポート下限に合わせる。
+target-version = "py311"
 line-length = 120
 
 [tool.ruff.lint]

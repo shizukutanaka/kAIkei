@@ -68,7 +68,7 @@ export default function OpsPage() {
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    if (!companyId) return;
+    if (!companyId || !canRead) return;
     setLoading(true);
     setError("");
     try {
@@ -80,7 +80,7 @@ export default function OpsPage() {
     } finally {
       setLoading(false);
     }
-  }, [companyId]);
+  }, [companyId, canRead]);
 
   useEffect(() => {
     load();

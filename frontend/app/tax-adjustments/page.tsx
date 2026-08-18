@@ -69,7 +69,7 @@ export default function TaxAdjustmentsPage() {
   const [computing, setComputing] = useState(false);
 
   const fetchRules = async () => {
-    if (!companyId) return;
+    if (!companyId || !canRead) return;
     setLoading(true);
     setError("");
     try {
@@ -85,7 +85,7 @@ export default function TaxAdjustmentsPage() {
   useEffect(() => {
     if (companyId && canRead) fetchRules();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [companyId]);
+  }, [companyId, canRead]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();

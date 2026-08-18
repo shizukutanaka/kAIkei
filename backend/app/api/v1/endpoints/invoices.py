@@ -10,8 +10,9 @@ from sqlalchemy.orm import selectinload
 
 from app.core.csv_export import csv_line
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
+from app.core.tenant_scope import assert_company_access
 from app.models.models import Invoice, InvoiceLine, Partner
 from app.schemas.schemas import (
     CreditCheckRequest,
@@ -112,6 +113,7 @@ async def create_invoice(
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> InvoiceResponse:
     """請求書を作成する。"""
+    await assert_company_access(db, current_user, payload.company_id)
     if not payload.lines:
         raise HTTPException(status_code=422, detail="明細が空です")
 
@@ -175,7 +177,7 @@ async def create_invoice(
 
 @router.get("/invoices", response_model=InvoiceListResponse)
 async def list_invoices(
-    company_id: UUID = Query(...),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     status: str | None = Query(None),  # noqa: B008
     partner_id: UUID | None = Query(None),  # noqa: B008
     page: int = Query(1, ge=1),  # noqa: B008
@@ -406,7 +408,7 @@ async def close_sales_into_invoices(
 @router.get("/invoices/{invoice_id}", response_model=InvoiceResponse)
 async def get_invoice(
     invoice_id: UUID,
-    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> InvoiceResponse:
@@ -428,7 +430,7 @@ async def get_invoice(
 async def transition_invoice(
     invoice_id: UUID,
     action: str = Query(..., description="issued, paid, cancelled"),  # noqa: B008
-    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_POST)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> InvoiceResponse:
@@ -587,7 +589,7 @@ async def export_invoice_peppol(
 
 @router.get("/stats", response_model=dict)
 async def invoice_stats(
-    company_id: UUID = Query(...),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     year: int = Query(...),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008

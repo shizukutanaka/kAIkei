@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Respon
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.schemas.schemas import (
     ArchivedDocumentResponse,
@@ -45,7 +45,7 @@ async def extract_fields(
 
 @router.post("", response_model=ArchivedDocumentResponse, status_code=status.HTTP_201_CREATED)
 async def archive(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     document_type: str = Form(...),
     transaction_date: date = Form(...),
     amount: Decimal | None = Form(None),
@@ -83,7 +83,7 @@ async def archive(
 
 @router.get("/search", response_model=list[ArchivedDocumentResponse])
 async def search(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     date_from: date | None = Query(None),
     date_to: date | None = Query(None),
     amount_min: Decimal | None = Query(None),
@@ -113,7 +113,7 @@ async def search(
 @router.post("/{document_id}/supersede", response_model=ArchivedDocumentResponse, status_code=status.HTTP_201_CREATED)
 async def supersede(
     document_id: UUID,
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     document_type: str = Form(...),
     transaction_date: date = Form(...),
     amount: Decimal | None = Form(None),
@@ -156,7 +156,7 @@ async def supersede(
 @router.get("/{document_id}/download")
 async def download(
     document_id: UUID,
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.DOCUMENT_MANAGE)),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
@@ -175,7 +175,7 @@ async def download(
 @router.post("/{document_id}/verify", response_model=DocumentVerifyResponse)
 async def verify(
     document_id: UUID,
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     file: UploadFile | None = File(None),
     current_user: CurrentUser = Depends(require_permission(Permission.DOCUMENT_MANAGE)),
     db: AsyncSession = Depends(get_db),

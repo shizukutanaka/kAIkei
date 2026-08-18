@@ -1,13 +1,16 @@
 from decimal import Decimal
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
+from app.core.tenant_scope import assert_company_access, scope_to_tenant
 from app.models.models import Account, Budget, BudgetLine, MonthlyBalance
 from app.schemas.schemas import (
     BudgetCreate,
@@ -26,6 +29,7 @@ async def create_budget(
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),
     db: AsyncSession = Depends(get_db),
 ) -> BudgetResponse:
+    await assert_company_access(db, current_user, payload.company_id)
     existing = await db.execute(
         select(Budget).where(
             Budget.company_id == payload.company_id,
@@ -52,20 +56,24 @@ async def create_budget(
         )
     db.add(budget)
     await db.flush()
-    await db.refresh(budget)
+    await db.refresh(budget, attribute_names=["lines"])
     return BudgetResponse.model_validate(budget)
 
 
 @router.get("", response_model=list[BudgetResponse])
 async def list_budgets(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     fiscal_year: int | None = None,
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> list[BudgetResponse]:
-    stmt = select(Budget).where(
-        Budget.company_id == company_id,
-        Budget.is_deleted == False,  # noqa: E712
+    stmt = (
+        select(Budget)
+        .options(selectinload(Budget.lines))
+        .where(
+            Budget.company_id == company_id,
+            Budget.is_deleted == False,  # noqa: E712
+        )
     )
     if fiscal_year is not None:
         stmt = stmt.where(Budget.fiscal_year == fiscal_year)
@@ -74,9 +82,15 @@ async def list_budgets(
     return [BudgetResponse.model_validate(b) for b in result.scalars().unique().all()]
 
 
-async def _get_budget_or_404(budget_id: UUID, db: AsyncSession) -> Budget:
+async def _get_budget_or_404(budget_id: UUID, db: AsyncSession, tenant_id: UUID) -> Budget:
     result = await db.execute(
-        select(Budget).where(Budget.budget_id == budget_id, Budget.is_deleted == False)  # noqa: E712
+        scope_to_tenant(
+            select(Budget)
+            .options(selectinload(Budget.lines))
+            .where(Budget.budget_id == budget_id, Budget.is_deleted == False),  # noqa: E712
+            Budget,
+            tenant_id,
+        )
     )
     budget = result.scalar_one_or_none()
     if not budget:
@@ -90,7 +104,7 @@ async def get_budget(
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> BudgetResponse:
-    budget = await _get_budget_or_404(budget_id, db)
+    budget = await _get_budget_or_404(budget_id, db, current_user.tenant_id)
     return BudgetResponse.model_validate(budget)
 
 
@@ -100,7 +114,7 @@ async def delete_budget(
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_DELETE)),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    budget = await _get_budget_or_404(budget_id, db)
+    budget = await _get_budget_or_404(budget_id, db, current_user.tenant_id)
     budget.is_deleted = True
     await db.flush()
 
@@ -111,7 +125,7 @@ async def get_budget_variance(
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> BudgetVarianceResponse:
-    budget = await _get_budget_or_404(budget_id, db)
+    budget = await _get_budget_or_404(budget_id, db, current_user.tenant_id)
 
     budgeted_by_account: dict[UUID, Decimal] = {}
     for line in budget.lines:

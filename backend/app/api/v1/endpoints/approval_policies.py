@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.schemas.schemas import (
     ApprovalPolicyCreate,
@@ -20,7 +20,7 @@ router = APIRouter()
 @router.post("", response_model=ApprovalPolicyResponse, status_code=status.HTTP_201_CREATED)
 async def create_policy(
     payload: ApprovalPolicyCreate,
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),
     db: AsyncSession = Depends(get_db),
 ) -> ApprovalPolicyResponse:
@@ -40,7 +40,7 @@ async def create_policy(
 
 @router.get("", response_model=list[ApprovalPolicyResponse])
 async def list_policies(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     document_type: str | None = Query(None),
     active_only: bool = Query(False),
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
@@ -56,7 +56,7 @@ async def list_policies(
 @router.delete("/{policy_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_policy(
     policy_id: UUID,
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_DELETE)),
     db: AsyncSession = Depends(get_db),
 ) -> None:
@@ -68,7 +68,7 @@ async def delete_policy(
 
 @router.get("/resolve", response_model=ApprovalStepsResponse)
 async def resolve_steps(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     document_type: str = Query(...),
     amount: Decimal = Query(...),
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),

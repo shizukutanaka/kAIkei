@@ -71,7 +71,7 @@ export default function AuditDetectionPage() {
   useEffect(() => {
     if (companyId && canReview) fetchDetections();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [companyId, statusFilter, riskFilter]);
+  }, [companyId, statusFilter, riskFilter, canReview]);
 
   const handleScan = async () => {
     if (!companyId) return;

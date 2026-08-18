@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.endpoints.reports import PL_ACCOUNT_TYPES, _get_account_balances
 from app.core.business_time import business_today
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.schemas.schemas import (
     BadDebtAssessmentRequest,
@@ -46,7 +46,7 @@ router = APIRouter()
 
 @router.get("/forecast", response_model=TaxForecastResponse)
 async def get_tax_forecast(
-    company_id: UUID = Query(..., description="会社ID"),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     forecast_factor: Decimal = Query(DEFAULT_FORECAST_FACTOR, description="年換算係数"),  # noqa: B008
     as_of: date | None = Query(None, description="基準日"),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008

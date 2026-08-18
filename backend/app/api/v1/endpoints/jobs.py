@@ -6,8 +6,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
+from app.core.tenant_scope import assert_company_access, scope_to_tenant
 from app.models.models import JobExecution, ScheduledJob
 from app.schemas.schemas import (
     JobExecutionComplete,
@@ -27,6 +28,7 @@ async def create_scheduled_job(
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> ScheduledJobResponse:
+    await assert_company_access(db, current_user, payload.company_id)
     now = datetime.now(UTC)
     try:
         next_run_at = JobSchedulerService.compute_next_run(
@@ -56,7 +58,7 @@ async def create_scheduled_job(
 
 @router.get("", response_model=list[ScheduledJobResponse])
 async def list_scheduled_jobs(
-    company_id: UUID = Query(...),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     is_active: bool | None = Query(None),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
@@ -76,7 +78,13 @@ async def run_scheduled_job(
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> JobExecutionResponse:
     job_result = await db.execute(
-        select(ScheduledJob).where(ScheduledJob.scheduled_job_id == scheduled_job_id)
+        scope_to_tenant(
+            select(ScheduledJob).where(
+                ScheduledJob.scheduled_job_id == scheduled_job_id,
+            ),
+            ScheduledJob,
+            current_user.tenant_id,
+        )
     )
     job = job_result.scalar_one_or_none()
     if job is None:
@@ -108,7 +116,7 @@ async def run_scheduled_job(
 
 @router.post("/dispatch", response_model=list[JobExecutionResponse], status_code=status.HTTP_201_CREATED)
 async def dispatch_due_jobs(
-    company_id: UUID = Query(...),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> list[JobExecutionResponse]:
@@ -116,9 +124,13 @@ async def dispatch_due_jobs(
     return [JobExecutionResponse.model_validate(execution) for execution in created]
 
 
-async def _get_execution(db: AsyncSession, job_execution_id: UUID) -> JobExecution:
+async def _get_execution(db: AsyncSession, job_execution_id: UUID, tenant_id: UUID) -> JobExecution:
     result = await db.execute(
-        select(JobExecution).where(JobExecution.job_execution_id == job_execution_id)
+        scope_to_tenant(
+            select(JobExecution).where(JobExecution.job_execution_id == job_execution_id),
+            JobExecution,
+            tenant_id,
+        )
     )
     execution = result.scalar_one_or_none()
     if execution is None:
@@ -132,7 +144,7 @@ async def start_job_execution(
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> JobExecutionResponse:
-    execution = await _get_execution(db, job_execution_id)
+    execution = await _get_execution(db, job_execution_id, current_user.tenant_id)
     if execution.status not in {"pending", "failed_retry"}:
         raise HTTPException(status_code=409, detail=f"Cannot start execution in status {execution.status}")
     execution.status = "running"
@@ -150,7 +162,7 @@ async def complete_job_execution(
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> JobExecutionResponse:
-    execution = await _get_execution(db, job_execution_id)
+    execution = await _get_execution(db, job_execution_id, current_user.tenant_id)
     try:
         new_status = JobSchedulerService.next_status(
             execution.status,
@@ -171,7 +183,7 @@ async def complete_job_execution(
 
 @router.get("/executions", response_model=list[JobExecutionResponse])
 async def list_job_executions(
-    company_id: UUID = Query(...),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     status_filter: str | None = Query(None, alias="status"),  # noqa: B008
     scheduled_job_id: UUID | None = Query(None),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),  # noqa: B008

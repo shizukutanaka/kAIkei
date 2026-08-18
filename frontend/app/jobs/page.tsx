@@ -76,7 +76,7 @@ export default function JobsPage() {
   const [priority, setPriority] = useState("100");
 
   const load = useCallback(async () => {
-    if (!companyId) return;
+    if (!companyId || !canRead) return;
     setLoading(true);
     setError("");
     try {
@@ -91,7 +91,7 @@ export default function JobsPage() {
     } finally {
       setLoading(false);
     }
-  }, [companyId]);
+  }, [companyId, canRead]);
 
   useEffect(() => {
     load();

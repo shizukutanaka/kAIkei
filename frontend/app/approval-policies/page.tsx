@@ -60,7 +60,7 @@ export default function ApprovalPoliciesPage() {
   const [resolvedSteps, setResolvedSteps] = useState<string[] | null>(null);
 
   const fetchPolicies = async () => {
-    if (!companyId) return;
+    if (!companyId || !canRead) return;
     setLoading(true);
     setError("");
     try {
@@ -76,7 +76,7 @@ export default function ApprovalPoliciesPage() {
   useEffect(() => {
     if (companyId && canRead) fetchPolicies();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [companyId]);
+  }, [companyId, canRead]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -10,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.business_time import business_naive_now, business_today
 from app.core.csv_export import csv_document
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.models.models import (
     Account,
@@ -31,7 +32,7 @@ router = APIRouter()
 
 @router.get("/ar-aging", response_model=ArAgingResponse)
 async def get_ar_aging(
-    company_id: UUID = Query(...),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     as_of: date | None = Query(None, description="基準日（未指定なら本日）"),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
@@ -138,7 +139,7 @@ async def get_ar_aging(
 
 @router.get("/trial-balance")
 async def get_trial_balance(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     as_of: date = Query(..., description="基準日"),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
@@ -241,7 +242,7 @@ async def get_trial_balance(
 
 @router.get("/monthly-balances")
 async def get_monthly_balances(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     year: int = Query(...),
     month: int = Query(..., ge=1, le=12),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
@@ -290,7 +291,7 @@ BS_ACCOUNT_TYPES = {"asset", "liability", "equity"}
 
 async def _get_account_balances(
     db: AsyncSession,
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     as_of: date,
     account_types: set[str],
 ) -> list[tuple]:
@@ -350,7 +351,7 @@ async def _get_account_balances(
 
 @router.get("/income-statement")
 async def get_income_statement(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     as_of: date = Query(..., description="期末日"),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
@@ -403,7 +404,7 @@ async def get_income_statement(
 
 @router.get("/balance-sheet")
 async def get_balance_sheet(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     as_of: date = Query(..., description="基準日"),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
@@ -480,7 +481,7 @@ def _kpi_str(value: Decimal | None) -> str | None:
 
 @router.get("/kpi")
 async def get_financial_kpi(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     as_of: date = Query(..., description="基準日"),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
@@ -517,7 +518,7 @@ async def get_financial_kpi(
 
 @router.get("/cash-flow")
 async def get_cash_flow_statement(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     as_of: date = Query(..., description="期末日"),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
@@ -618,7 +619,7 @@ async def get_cash_flow_statement(
 
 @router.get("/trial-balance/export", response_class=PlainTextResponse)
 async def export_trial_balance_csv(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     as_of: date = Query(..., description="基準日"),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
@@ -687,7 +688,7 @@ async def export_trial_balance_csv(
 
 @router.get("/income-statement/export", response_class=PlainTextResponse)
 async def export_income_statement_csv(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     as_of: date = Query(..., description="期末日"),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
@@ -717,7 +718,7 @@ async def export_income_statement_csv(
 
 @router.get("/balance-sheet/export", response_class=PlainTextResponse)
 async def export_balance_sheet_csv(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     as_of: date = Query(..., description="基準日"),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
@@ -753,7 +754,7 @@ async def export_balance_sheet_csv(
 
 @router.get("/cash-flow/export", response_class=PlainTextResponse)
 async def export_cash_flow_csv(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     as_of: date = Query(..., description="期末日"),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
@@ -833,7 +834,7 @@ VALID_CLOSE_ACTIONS = {"close", "reopen"}
 
 @router.get("/period-closes")
 async def list_period_closes(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     year: int = Query(...),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
@@ -863,7 +864,7 @@ async def list_period_closes(
 
 @router.post("/period-closes")
 async def transition_period_close(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     year: int = Query(...),
     month: int = Query(..., ge=1, le=12),
     action: str = Query(..., description="close or reopen"),

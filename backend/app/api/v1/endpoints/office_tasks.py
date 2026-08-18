@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, get_current_user, require_permission
+from app.core.deps import CurrentUser, get_current_user, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.schemas.schemas import (
     OfficeTaskCreate,
@@ -21,7 +21,7 @@ router = APIRouter()
 @router.post("/generate", response_model=list[OfficeTaskResponse], status_code=status.HTTP_201_CREATED)
 async def generate(
     payload: OfficeTaskGenerateRequest,
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),
     db: AsyncSession = Depends(get_db),
 ) -> list[OfficeTaskResponse]:
@@ -39,7 +39,7 @@ async def generate(
 @router.post("", response_model=OfficeTaskResponse, status_code=status.HTTP_201_CREATED)
 async def create(
     payload: OfficeTaskCreate,
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),
     db: AsyncSession = Depends(get_db),
 ) -> OfficeTaskResponse:
@@ -59,7 +59,7 @@ async def create(
 
 @router.get("", response_model=list[OfficeTaskResponse])
 async def list_tasks(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     period: str | None = Query(None),
     task_status: str | None = Query(None, alias="status"),
     limit: int = Query(200, ge=1, le=1000),
@@ -75,7 +75,7 @@ async def list_tasks(
 
 @router.get("/progress", response_model=OfficeTaskProgressResponse)
 async def progress(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     period: str = Query(...),
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -89,7 +89,7 @@ async def progress(
 async def update_status(
     task_id: UUID,
     payload: OfficeTaskStatusUpdate,
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> OfficeTaskResponse:

@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.models.models import Invoice, PaymentRequest
 from app.schemas.schemas import CashflowForecastBucket, CashflowForecastResponse
@@ -17,7 +17,7 @@ router = APIRouter()
 
 @router.get("/cashflow-forecast", response_model=CashflowForecastResponse)
 async def cashflow_forecast(
-    company_id: UUID = Query(...),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     as_of: date = Query(...),  # noqa: B008
     horizon_days: list[int] = Query(default=[7, 30, 90, 365]),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008

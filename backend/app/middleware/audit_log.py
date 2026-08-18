@@ -63,6 +63,67 @@ def redact_sensitive_fields(body_text: str) -> str:
     return json.dumps(_redact_value(data), ensure_ascii=False)
 
 
+async def _tenant_of(session, user_id: uuid.UUID | None) -> uuid.UUID | None:
+    """利用者の所属テナントを引く。特定できなければ None。
+
+    認証前のイベント（ログイン失敗等）は user_id が無いか、あっても実在しない。
+    そうした記録こそ監査上の価値が高いので、テナント不明でも捨てずに残せるよう
+    `audit_logs.tenant_id` は NULL を許容している。
+
+    user_id が実在しない場合に user_id ごと落とすのは、users への外部キー違反で
+    書き込み自体が失敗するのを避けるため。
+    """
+    if user_id is None:
+        return None
+    from sqlalchemy import select
+
+    from app.models.models import User
+
+    result = await session.execute(select(User.tenant_id).where(User.user_id == user_id))
+    return result.scalar_one_or_none()
+
+
+def _requested_company_id(request: Request, body_bytes: bytes) -> uuid.UUID | None:
+    """リクエストが対象としている会社IDを取り出す。
+
+    クエリ・ボディのどちらで渡されるかはエンドポイントによって異なるので両方見る。
+    ここで拾えないと `audit_logs.company_id` が常に NULL になり、会社単位で
+    証跡を引く一覧APIが常に空になる。
+    """
+    raw = request.query_params.get("company_id")
+    if raw is None and body_bytes:
+        with contextlib.suppress(Exception):
+            data = json.loads(body_bytes)
+            if isinstance(data, dict):
+                raw = data.get("company_id")
+    if not isinstance(raw, str):
+        return None
+    with contextlib.suppress(ValueError, TypeError):
+        return uuid.UUID(raw)
+    return None
+
+
+async def _company_in_tenant(session, company_id: uuid.UUID | None, tenant_id: uuid.UUID | None):
+    """会社IDが当該テナントのものであれば返す。そうでなければ None。
+
+    他テナントのIDや存在しないIDをそのまま入れると、companies への外部キー違反で
+    ログの書き込みごと失敗する（＝証跡が残らない）。
+    """
+    if company_id is None or tenant_id is None:
+        return None
+    from sqlalchemy import select
+
+    from app.models.models import Company
+
+    result = await session.execute(
+        select(Company.company_id).where(
+            Company.company_id == company_id,
+            Company.tenant_id == tenant_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 class AuditLogMiddleware(BaseHTTPMiddleware):
     """操作証跡ログミドルウェア。
 
@@ -123,9 +184,16 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
                 body_text = redact_sensitive_fields(body_bytes.decode("utf-8", errors="replace"))[:2000]
 
         async with async_session_factory() as session:
+            # tenant_id は利用者から引く。ここに固定値を入れると tenants への
+            # 外部キー制約に必ず違反し、監査ログが1件も残らない。
+            tenant_id = await _tenant_of(session, user_id)
+            company_id = await _company_in_tenant(
+                session, _requested_company_id(request, body_bytes), tenant_id
+            )
             log = AuditLog(
-                tenant_id=uuid.UUID(int=0),
-                user_id=user_id,
+                tenant_id=tenant_id,
+                company_id=company_id,
+                user_id=user_id if tenant_id is not None else None,
                 action=action,
                 resource_type=resource_type,
                 resource_id=resource_id,

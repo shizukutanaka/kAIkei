@@ -5,8 +5,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
+from app.core.tenant_scope import assert_company_access
 from app.models.models import Partner
 from app.schemas.schemas import PartnerCreate, PartnerListResponse, PartnerResponse, PartnerUpdate
 
@@ -32,7 +33,7 @@ def _to_response(p: Partner) -> PartnerResponse:
 
 @router.get("", response_model=PartnerListResponse)
 async def list_partners(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     partner_type: str | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
@@ -72,6 +73,7 @@ async def create_partner(
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),
     db: AsyncSession = Depends(get_db),
 ) -> PartnerResponse:
+    await assert_company_access(db, current_user, payload.company_id)
     existing = await db.execute(
         select(Partner).where(
             Partner.company_id == payload.company_id,
@@ -104,7 +106,7 @@ async def create_partner(
 async def update_partner(
     partner_id: UUID,
     payload: PartnerUpdate,
-    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_UPDATE)),
     db: AsyncSession = Depends(get_db),
 ) -> PartnerResponse:
@@ -130,7 +132,7 @@ async def update_partner(
 @router.delete("/{partner_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_partner(
     partner_id: UUID,
-    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_DELETE)),
     db: AsyncSession = Depends(get_db),
 ) -> None:

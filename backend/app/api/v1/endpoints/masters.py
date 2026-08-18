@@ -1,3 +1,4 @@
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -5,8 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
+from app.core.tenant_scope import assert_company_access, scope_to_tenant
 from app.models.models import Account, SubAccount, TaxRule
 from app.schemas.schemas import (
     AccountCreate,
@@ -127,7 +129,7 @@ STANDARD_CHART_OF_ACCOUNTS = [
 
 @router.post("/initialize-standard-accounts", response_model=list[AccountResponse])
 async def initialize_standard_accounts(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),
     db: AsyncSession = Depends(get_db),
 ) -> list[Account]:
@@ -177,6 +179,7 @@ async def create_account(
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),
     db: AsyncSession = Depends(get_db),
 ) -> Account:
+    await assert_company_access(db, current_user, payload.company_id)
     existing = await db.execute(
         select(Account).where(
             Account.company_id == payload.company_id,
@@ -203,7 +206,7 @@ async def create_account(
 
 @router.get("", response_model=list[AccountResponse])
 async def list_accounts(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> list[Account]:
@@ -217,6 +220,21 @@ async def list_accounts(
     return list(result.scalars().all())
 
 
+@router.get("/tax-rules", response_model=list[TaxRuleResponse])
+async def list_tax_rules(
+    company_id: Annotated[UUID, Depends(verified_company_id)],
+    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
+    db: AsyncSession = Depends(get_db),
+) -> list[TaxRule]:
+    result = await db.execute(
+        select(TaxRule).where(
+            TaxRule.company_id == company_id,
+            TaxRule.is_deleted == False,  # noqa: E712
+        ).order_by(TaxRule.tax_code)
+    )
+    return list(result.scalars().all())
+
+
 @router.get("/{account_id}", response_model=AccountResponse)
 async def get_account(
     account_id: UUID,
@@ -224,7 +242,14 @@ async def get_account(
     db: AsyncSession = Depends(get_db),
 ) -> Account:
     result = await db.execute(
-        select(Account).where(Account.account_id == account_id, Account.is_deleted == False)  # noqa: E712
+        scope_to_tenant(
+            select(Account).where(
+                Account.account_id == account_id,
+                Account.is_deleted == False,  # noqa: E712
+            ),
+            Account,
+            current_user.tenant_id,
+        )
     )
     account = result.scalar_one_or_none()
     if not account:
@@ -240,7 +265,14 @@ async def update_account(
     db: AsyncSession = Depends(get_db),
 ) -> Account:
     result = await db.execute(
-        select(Account).where(Account.account_id == account_id, Account.is_deleted == False)  # noqa: E712
+        scope_to_tenant(
+            select(Account).where(
+                Account.account_id == account_id,
+                Account.is_deleted == False,  # noqa: E712
+            ),
+            Account,
+            current_user.tenant_id,
+        )
     )
     account = result.scalar_one_or_none()
     if not account:
@@ -265,7 +297,14 @@ async def delete_account(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     result = await db.execute(
-        select(Account).where(Account.account_id == account_id, Account.is_deleted == False)  # noqa: E712
+        scope_to_tenant(
+            select(Account).where(
+                Account.account_id == account_id,
+                Account.is_deleted == False,  # noqa: E712
+            ),
+            Account,
+            current_user.tenant_id,
+        )
     )
     account = result.scalar_one_or_none()
     if not account:
@@ -287,7 +326,14 @@ async def create_sub_account(
     db: AsyncSession = Depends(get_db),
 ) -> SubAccount:
     account_result = await db.execute(
-        select(Account).where(Account.account_id == payload.account_id, Account.is_deleted == False)  # noqa: E712
+        scope_to_tenant(
+            select(Account).where(
+                Account.account_id == payload.account_id,
+                Account.is_deleted == False,  # noqa: E712
+            ),
+            Account,
+            current_user.tenant_id,
+        )
     )
     if not account_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Parent account not found")
@@ -339,6 +385,7 @@ async def create_tax_rule(
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),
     db: AsyncSession = Depends(get_db),
 ) -> TaxRule:
+    await assert_company_access(db, current_user, payload.company_id)
     existing = await db.execute(
         select(TaxRule).where(
             TaxRule.company_id == payload.company_id,
@@ -362,17 +409,3 @@ async def create_tax_rule(
     await db.refresh(rule)
     return rule
 
-
-@router.get("/tax-rules", response_model=list[TaxRuleResponse])
-async def list_tax_rules(
-    company_id: UUID,
-    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
-    db: AsyncSession = Depends(get_db),
-) -> list[TaxRule]:
-    result = await db.execute(
-        select(TaxRule).where(
-            TaxRule.company_id == company_id,
-            TaxRule.is_deleted == False,  # noqa: E712
-        ).order_by(TaxRule.tax_code)
-    )
-    return list(result.scalars().all())

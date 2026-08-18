@@ -7,8 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.business_time import business_naive_now, business_today
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
+from app.core.tenant_scope import assert_company_access, scope_to_tenant
 from app.models.models import AttendanceRecord, Employee
 from app.schemas.schemas import (
     AttendanceClockInRequest,
@@ -55,11 +56,16 @@ async def clock_in(
     db: AsyncSession = Depends(get_db),
 ) -> AttendanceResponse:
     """出勤打刻。"""
+    await assert_company_access(db, current_user, payload.company_id)
     today = business_today()
     existing = await db.execute(
-        select(AttendanceRecord).where(
-            AttendanceRecord.employee_id == payload.employee_id,
-            AttendanceRecord.work_date == today,
+        scope_to_tenant(
+            select(AttendanceRecord).where(
+                AttendanceRecord.employee_id == payload.employee_id,
+                AttendanceRecord.work_date == today,
+            ),
+            AttendanceRecord,
+            current_user.tenant_id,
         )
     )
     rec = existing.scalar_one_or_none()
@@ -91,9 +97,13 @@ async def clock_out(
     """退勤打刻。"""
     today = business_today()
     result = await db.execute(
-        select(AttendanceRecord).where(
-            AttendanceRecord.employee_id == payload.employee_id,
-            AttendanceRecord.work_date == today,
+        scope_to_tenant(
+            select(AttendanceRecord).where(
+                AttendanceRecord.employee_id == payload.employee_id,
+                AttendanceRecord.work_date == today,
+            ),
+            AttendanceRecord,
+            current_user.tenant_id,
         )
     )
     rec = result.scalar_one_or_none()
@@ -118,10 +128,15 @@ async def create_manual_attendance(
     db: AsyncSession = Depends(get_db),
 ) -> AttendanceResponse:
     """手動で勤怠記録を作成する。"""
+    await assert_company_access(db, current_user, payload.company_id)
     existing = await db.execute(
-        select(AttendanceRecord).where(
-            AttendanceRecord.employee_id == payload.employee_id,
-            AttendanceRecord.work_date == payload.work_date,
+        scope_to_tenant(
+            select(AttendanceRecord).where(
+                AttendanceRecord.employee_id == payload.employee_id,
+                AttendanceRecord.work_date == payload.work_date,
+            ),
+            AttendanceRecord,
+            current_user.tenant_id,
         )
     )
     if existing.scalar_one_or_none():
@@ -154,7 +169,7 @@ async def create_manual_attendance(
 
 @router.get("/records", response_model=AttendanceListResponse)
 async def list_attendance(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     start_date: date = Query(...),
     end_date: date = Query(...),
     employee_id: UUID | None = Query(None),
@@ -190,7 +205,7 @@ async def list_attendance(
 
 @router.get("/summary", response_model=list[dict])
 async def attendance_summary(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     year: int = Query(...),
     month: int = Query(...),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),

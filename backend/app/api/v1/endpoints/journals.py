@@ -2,6 +2,7 @@ import csv
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from io import StringIO
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
@@ -11,8 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.csv_export import csv_document
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
+from app.core.tenant_scope import assert_company_access, scope_to_tenant
 from app.models.models import Account, JournalHeader, JournalLine
 from app.schemas.schemas import (
     EventJournalDraftRequest,
@@ -63,6 +65,7 @@ async def create_journal(
     db: AsyncSession = Depends(get_db),
 ) -> JournalHeader:
     """Create a new journal entry after validation."""
+    await assert_company_access(db, current_user, payload.company_id)
     try:
         ValidationEngine.validate(payload, created_by=current_user.user_id)
     except ValidationError as e:
@@ -118,7 +121,7 @@ async def create_journal(
 
 @router.get("", response_model=JournalListResponse)
 async def list_journals(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     approval_status: str | None = Query(None, description="Filter by approval status"),
@@ -150,309 +153,9 @@ async def list_journals(
     return JournalListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
-@router.get("/{journal_header_id}", response_model=JournalResponse)
-async def get_journal(
-    journal_header_id: UUID,
-    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_READ)),
-    db: AsyncSession = Depends(get_db),
-) -> JournalHeader:
-    result = await db.execute(
-        select(JournalHeader).where(
-            JournalHeader.journal_header_id == journal_header_id,
-            JournalHeader.is_deleted == False,  # noqa: E712
-        )
-    )
-    journal = result.scalar_one_or_none()
-    if not journal:
-        raise HTTPException(status_code=404, detail="Journal not found")
-    return journal
-
-
-@router.put("/{journal_header_id}/void", response_model=JournalResponse)
-async def void_journal(
-    journal_header_id: UUID,
-    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_VOID)),
-    db: AsyncSession = Depends(get_db),
-) -> JournalHeader:
-    result = await db.execute(
-        select(JournalHeader).where(
-            JournalHeader.journal_header_id == journal_header_id,
-            JournalHeader.is_deleted == False,  # noqa: E712
-        )
-    )
-    journal = result.scalar_one_or_none()
-    if not journal:
-        raise HTTPException(status_code=404, detail="Journal not found")
-    if journal.is_voided:
-        raise HTTPException(status_code=409, detail="Journal is already voided")
-
-    journal.is_voided = True
-    await db.flush()
-    await db.refresh(journal)
-    return journal
-
-
-@router.put("/{journal_header_id}/approve", response_model=JournalResponse)
-async def approve_journal(
-    journal_header_id: UUID,
-    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_APPROVE)),
-    db: AsyncSession = Depends(get_db),
-) -> JournalHeader:
-    """Approve a journal entry (SoD check enforced)."""
-    try:
-        return await JournalService.approve_journal(db, journal_header_id, current_user.user_id)
-    except ValidationError as e:
-        raise HTTPException(status_code=403, detail={"code": e.code, "message": e.message}) from e
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-
-@router.put("/{journal_header_id}/post", response_model=JournalResponse)
-async def post_journal(
-    journal_header_id: UUID,
-    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_POST)),
-    db: AsyncSession = Depends(get_db),
-) -> JournalHeader:
-    """Post an approved journal entry and update monthly balances."""
-    try:
-        return await JournalService.post_journal(db, journal_header_id)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-
-# ---------------------------------------------------------------------------
-# Journal CSV Export (標準フォーマット: Freee/MoneyForward互換)
-# ---------------------------------------------------------------------------
-
-@router.get("/export/csv", response_class=PlainTextResponse)
-async def export_journals_csv(
-    company_id: UUID,
-    start_date: date = Query(..., description="開始日"),
-    end_date: date = Query(..., description="終了日"),
-    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_READ)),
-    db: AsyncSession = Depends(get_db),
-) -> str:
-    """仕訳CSVを標準フォーマット（Freee/MoneyForward互換）で出力する。
-
-    ヘッダー: 取引No,取引日,借方勘目,借方補助勘目,貸方勘目,貸方補助勘目,摘要,金額,税区分
-    複式仕訳を1行1取引に展開（借方・貸方のペアを1行に出力）。
-    """
-    result = await db.execute(
-        select(JournalHeader, Account, JournalLine)
-        .join(JournalLine, JournalHeader.journal_header_id == JournalLine.journal_header_id)
-        .join(Account, JournalLine.account_id == Account.account_id)
-        .where(
-            JournalHeader.company_id == company_id,
-            JournalHeader.is_deleted == False,  # noqa: E712
-            JournalHeader.is_voided == False,  # noqa: E712
-            JournalLine.is_deleted == False,  # noqa: E712
-            JournalHeader.transaction_date >= start_date,
-            JournalHeader.transaction_date <= end_date,
-        )
-        .order_by(JournalHeader.transaction_date, JournalHeader.journal_number, JournalLine.line_number)
-    )
-    rows = result.all()
-
-    # Group lines by journal header
-    headers_map: dict[UUID, dict] = {}
-    for header, account, line in rows:
-        if header.journal_header_id not in headers_map:
-            headers_map[header.journal_header_id] = {
-                "number": header.journal_number,
-                "date": header.transaction_date.isoformat(),
-                "summary": header.summary or "",
-                "debit_lines": [],
-                "credit_lines": [],
-            }
-        entry = {
-            "account_code": account.account_code,
-            "account_name": account.account_name,
-            "amount": str(line.amount),
-            "description": line.description or "",
-        }
-        if line.debit_credit == "debit":
-            headers_map[header.journal_header_id]["debit_lines"].append(entry)
-        else:
-            headers_map[header.journal_header_id]["credit_lines"].append(entry)
-
-    # 摘要・勘定科目名は利用者が自由入力するため、カンマ・改行・数式記号が含まれうる。
-    # f文字列連結だと列ずれ・行注入・数式インジェクションが起きるので必ずcsv_documentを通す。
-    csv_rows = [
-        [
-            data["number"],
-            data["date"],
-            d["account_name"],
-            "",
-            c["account_name"],
-            "",
-            data["summary"],
-            d["amount"],
-            "対象外",
-        ]
-        for data in headers_map.values()
-        for d in data["debit_lines"]
-        for c in data["credit_lines"]
-    ]
-    return csv_document(
-        ["取引No", "取引日", "借方勘目", "借方補助勘目", "貸方勘目", "貸方補助勘目", "摘要", "金額", "税区分"],
-        csv_rows,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Journal CSV Import (Freee/MoneyForward互換フォーマット)
-# ---------------------------------------------------------------------------
-
-@router.post("/import/csv")
-async def import_journals_csv(
-    company_id: UUID,
-    file: UploadFile = File(...),
-    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_CREATE)),
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Freee/MoneyForward互換のCSVファイルから仕訳を一括インポートする。
-
-    期待するCSVヘッダー: 取引日,借方勘目,貸方勘目,摘要,金額
-    （借方補助勘目,貸方補助勘目,税区分は任意）
-    """
-    content = await file.read()
-    text = content.decode("utf-8-sig")  # BOM対応
-
-    reader = csv.DictReader(StringIO(text))
-    # Normalize header names (strip whitespace, handle variations)
-    fieldnames = [f.strip() for f in reader.fieldnames or []]
-
-    # Map common header variations
-    header_map = {}
-    for fn in fieldnames:
-        fn_lower = fn.lower().replace(" ", "")
-        if fn_lower in ("取引日", "日付", "date", "取引no"):
-            if fn_lower != "取引no":
-                header_map["date"] = fn
-        elif fn_lower in ("借方勘目", "借方科目", "debitaccount"):
-            header_map["debit_account"] = fn
-        elif fn_lower in ("借方補助勘目", "借方補助科目", "debitsub"):
-            header_map["debit_sub"] = fn
-        elif fn_lower in ("貸方勘目", "貸方科目", "creditaccount"):
-            header_map["credit_account"] = fn
-        elif fn_lower in ("貸方補助勘目", "貸方補助科目", "creditsub"):
-            header_map["credit_sub"] = fn
-        elif fn_lower in ("摘要", "備考", "summary", "description"):
-            header_map["summary"] = fn
-        elif fn_lower in ("金額", "amount"):
-            header_map["amount"] = fn
-
-    required = ["date", "debit_account", "credit_account", "amount"]
-    missing = [r for r in required if r not in header_map]
-    if missing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"CSVヘッダーに必須項目が不足しています: {', '.join(missing)}"
-        )
-
-    # Load all accounts for this company (by name and code)
-    acct_result = await db.execute(
-        select(Account).where(
-            Account.company_id == company_id,
-            Account.is_deleted == False,  # noqa: E712
-            Account.is_active == True,  # noqa: E712
-        )
-    )
-    accounts = acct_result.scalars().all()
-    acct_by_name = {a.account_name: a for a in accounts}
-    acct_by_code = {a.account_code: a for a in accounts}
-
-    # Get next journal number
-    max_result = await db.execute(
-        select(func.max(JournalHeader.journal_number))
-        .where(JournalHeader.company_id == company_id)
-    )
-    max_num = max_result.scalar()
-    seq = int(max_num.split("-")[1]) + 1 if max_num else 1
-
-    imported = 0
-    errors: list[str] = []
-
-    for i, row in enumerate(reader, start=2):  # row 1 is header
-        try:
-            raw_date = row[header_map["date"]].strip()
-            debit_name = row[header_map["debit_account"]].strip()
-            credit_name = row[header_map["credit_account"]].strip()
-            summary = row.get(header_map.get("summary", ""), "").strip() if header_map.get("summary") else ""
-            amount_str = row[header_map["amount"]].strip().replace(",", "").replace("¥", "")
-
-            if not raw_date or not debit_name or not credit_name or not amount_str:
-                errors.append(f"行{i}: 必須項目が空です")
-                continue
-
-            amount = Decimal(amount_str)
-            txn_date = date.fromisoformat(raw_date)
-
-            # Find accounts by name or code
-            debit_acct = acct_by_name.get(debit_name) or acct_by_code.get(debit_name)
-            credit_acct = acct_by_name.get(credit_name) or acct_by_code.get(credit_name)
-
-            if not debit_acct:
-                errors.append(f"行{i}: 借方勘定科目「{debit_name}」が見つかりません")
-                continue
-            if not credit_acct:
-                errors.append(f"行{i}: 貸方勘定科目「{credit_name}」が見つかりません")
-                continue
-
-            journal_number = f"JRN-{seq:08d}"
-            seq += 1
-
-            header = JournalHeader(
-                company_id=company_id,
-                journal_number=journal_number,
-                transaction_date=txn_date,
-                voucher_type="import",
-                summary=summary,
-                approval_status="draft",
-                source_type="csv_import",
-                created_by=current_user.user_id,
-            )
-            db.add(header)
-            await db.flush()
-
-            db.add(JournalLine(
-                journal_header_id=header.journal_header_id,
-                line_number=1,
-                debit_credit="debit",
-                account_id=debit_acct.account_id,
-                amount=amount,
-                description=summary,
-            ))
-            db.add(JournalLine(
-                journal_header_id=header.journal_header_id,
-                line_number=2,
-                debit_credit="credit",
-                account_id=credit_acct.account_id,
-                amount=amount,
-                description=summary,
-            ))
-
-            imported += 1
-        except (InvalidOperation, ValueError) as e:
-            errors.append(f"行{i}: {str(e)}")
-            continue
-
-    await db.flush()
-
-    return {
-        "imported": imported,
-        "errors": errors,
-        "total_rows": i,
-    }
-
-
-# ---------------------------------------------------------------------------
-# General Ledger (総勘定元帳)
-# ---------------------------------------------------------------------------
-
 @router.get("/general-ledger")
 async def get_general_ledger(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     start_date: date = Query(..., description="開始日"),
     end_date: date = Query(..., description="終了日"),
     account_code: str | None = Query(None, description="科目コード（指定時は該当科目のみ）"),
@@ -630,9 +333,317 @@ async def get_general_ledger(
     }
 
 
+@router.get("/{journal_header_id}", response_model=JournalResponse)
+async def get_journal(
+    journal_header_id: UUID,
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_READ)),
+    db: AsyncSession = Depends(get_db),
+) -> JournalHeader:
+    result = await db.execute(
+        scope_to_tenant(
+            select(JournalHeader).where(
+                JournalHeader.journal_header_id == journal_header_id,
+                JournalHeader.is_deleted == False,  # noqa: E712
+            ),
+            JournalHeader,
+            current_user.tenant_id,
+        )
+    )
+    journal = result.scalar_one_or_none()
+    if not journal:
+        raise HTTPException(status_code=404, detail="Journal not found")
+    return journal
+
+
+@router.put("/{journal_header_id}/void", response_model=JournalResponse)
+async def void_journal(
+    journal_header_id: UUID,
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_VOID)),
+    db: AsyncSession = Depends(get_db),
+) -> JournalHeader:
+    result = await db.execute(
+        scope_to_tenant(
+            select(JournalHeader).where(
+                JournalHeader.journal_header_id == journal_header_id,
+                JournalHeader.is_deleted == False,  # noqa: E712
+            ),
+            JournalHeader,
+            current_user.tenant_id,
+        )
+    )
+    journal = result.scalar_one_or_none()
+    if not journal:
+        raise HTTPException(status_code=404, detail="Journal not found")
+    if journal.is_voided:
+        raise HTTPException(status_code=409, detail="Journal is already voided")
+
+    journal.is_voided = True
+    await db.flush()
+    await db.refresh(journal)
+    return journal
+
+
+@router.put("/{journal_header_id}/approve", response_model=JournalResponse)
+async def approve_journal(
+    journal_header_id: UUID,
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_APPROVE)),
+    db: AsyncSession = Depends(get_db),
+) -> JournalHeader:
+    """Approve a journal entry (SoD check enforced)."""
+    try:
+        return await JournalService.approve_journal(db, journal_header_id, current_user.user_id)
+    except ValidationError as e:
+        raise HTTPException(status_code=403, detail={"code": e.code, "message": e.message}) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.put("/{journal_header_id}/post", response_model=JournalResponse)
+async def post_journal(
+    journal_header_id: UUID,
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_POST)),
+    db: AsyncSession = Depends(get_db),
+) -> JournalHeader:
+    """Post an approved journal entry and update monthly balances."""
+    try:
+        return await JournalService.post_journal(db, journal_header_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+# ---------------------------------------------------------------------------
+# Journal CSV Export (標準フォーマット: Freee/MoneyForward互換)
+# ---------------------------------------------------------------------------
+
+@router.get("/export/csv", response_class=PlainTextResponse)
+async def export_journals_csv(
+    company_id: Annotated[UUID, Depends(verified_company_id)],
+    start_date: date = Query(..., description="開始日"),
+    end_date: date = Query(..., description="終了日"),
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_READ)),
+    db: AsyncSession = Depends(get_db),
+) -> str:
+    """仕訳CSVを標準フォーマット（Freee/MoneyForward互換）で出力する。
+
+    ヘッダー: 取引No,取引日,借方勘目,借方補助勘目,貸方勘目,貸方補助勘目,摘要,金額,税区分
+    複式仕訳を1行1取引に展開（借方・貸方のペアを1行に出力）。
+    """
+    result = await db.execute(
+        select(JournalHeader, Account, JournalLine)
+        .join(JournalLine, JournalHeader.journal_header_id == JournalLine.journal_header_id)
+        .join(Account, JournalLine.account_id == Account.account_id)
+        .where(
+            JournalHeader.company_id == company_id,
+            JournalHeader.is_deleted == False,  # noqa: E712
+            JournalHeader.is_voided == False,  # noqa: E712
+            JournalLine.is_deleted == False,  # noqa: E712
+            JournalHeader.transaction_date >= start_date,
+            JournalHeader.transaction_date <= end_date,
+        )
+        .order_by(JournalHeader.transaction_date, JournalHeader.journal_number, JournalLine.line_number)
+    )
+    rows = result.all()
+
+    # Group lines by journal header
+    headers_map: dict[UUID, dict] = {}
+    for header, account, line in rows:
+        if header.journal_header_id not in headers_map:
+            headers_map[header.journal_header_id] = {
+                "number": header.journal_number,
+                "date": header.transaction_date.isoformat(),
+                "summary": header.summary or "",
+                "debit_lines": [],
+                "credit_lines": [],
+            }
+        entry = {
+            "account_code": account.account_code,
+            "account_name": account.account_name,
+            "amount": str(line.amount),
+            "description": line.description or "",
+        }
+        if line.debit_credit == "debit":
+            headers_map[header.journal_header_id]["debit_lines"].append(entry)
+        else:
+            headers_map[header.journal_header_id]["credit_lines"].append(entry)
+
+    # 摘要・勘定科目名は利用者が自由入力するため、カンマ・改行・数式記号が含まれうる。
+    # f文字列連結だと列ずれ・行注入・数式インジェクションが起きるので必ずcsv_documentを通す。
+    csv_rows = [
+        [
+            data["number"],
+            data["date"],
+            d["account_name"],
+            "",
+            c["account_name"],
+            "",
+            data["summary"],
+            d["amount"],
+            "対象外",
+        ]
+        for data in headers_map.values()
+        for d in data["debit_lines"]
+        for c in data["credit_lines"]
+    ]
+    return csv_document(
+        ["取引No", "取引日", "借方勘目", "借方補助勘目", "貸方勘目", "貸方補助勘目", "摘要", "金額", "税区分"],
+        csv_rows,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Journal CSV Import (Freee/MoneyForward互換フォーマット)
+# ---------------------------------------------------------------------------
+
+@router.post("/import/csv")
+async def import_journals_csv(
+    company_id: Annotated[UUID, Depends(verified_company_id)],
+    file: UploadFile = File(...),
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_CREATE)),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Freee/MoneyForward互換のCSVファイルから仕訳を一括インポートする。
+
+    期待するCSVヘッダー: 取引日,借方勘目,貸方勘目,摘要,金額
+    （借方補助勘目,貸方補助勘目,税区分は任意）
+    """
+    content = await file.read()
+    text = content.decode("utf-8-sig")  # BOM対応
+
+    reader = csv.DictReader(StringIO(text))
+    # Normalize header names (strip whitespace, handle variations)
+    fieldnames = [f.strip() for f in reader.fieldnames or []]
+
+    # Map common header variations
+    header_map = {}
+    for fn in fieldnames:
+        fn_lower = fn.lower().replace(" ", "")
+        if fn_lower in ("取引日", "日付", "date", "取引no"):
+            if fn_lower != "取引no":
+                header_map["date"] = fn
+        elif fn_lower in ("借方勘目", "借方科目", "debitaccount"):
+            header_map["debit_account"] = fn
+        elif fn_lower in ("借方補助勘目", "借方補助科目", "debitsub"):
+            header_map["debit_sub"] = fn
+        elif fn_lower in ("貸方勘目", "貸方科目", "creditaccount"):
+            header_map["credit_account"] = fn
+        elif fn_lower in ("貸方補助勘目", "貸方補助科目", "creditsub"):
+            header_map["credit_sub"] = fn
+        elif fn_lower in ("摘要", "備考", "summary", "description"):
+            header_map["summary"] = fn
+        elif fn_lower in ("金額", "amount"):
+            header_map["amount"] = fn
+
+    required = ["date", "debit_account", "credit_account", "amount"]
+    missing = [r for r in required if r not in header_map]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"CSVヘッダーに必須項目が不足しています: {', '.join(missing)}"
+        )
+
+    # Load all accounts for this company (by name and code)
+    acct_result = await db.execute(
+        select(Account).where(
+            Account.company_id == company_id,
+            Account.is_deleted == False,  # noqa: E712
+            Account.is_active == True,  # noqa: E712
+        )
+    )
+    accounts = acct_result.scalars().all()
+    acct_by_name = {a.account_name: a for a in accounts}
+    acct_by_code = {a.account_code: a for a in accounts}
+
+    # Get next journal number
+    max_result = await db.execute(
+        select(func.max(JournalHeader.journal_number))
+        .where(JournalHeader.company_id == company_id)
+    )
+    max_num = max_result.scalar()
+    seq = int(max_num.split("-")[1]) + 1 if max_num else 1
+
+    imported = 0
+    errors: list[str] = []
+
+    for i, row in enumerate(reader, start=2):  # row 1 is header
+        try:
+            raw_date = row[header_map["date"]].strip()
+            debit_name = row[header_map["debit_account"]].strip()
+            credit_name = row[header_map["credit_account"]].strip()
+            summary = row.get(header_map.get("summary", ""), "").strip() if header_map.get("summary") else ""
+            amount_str = row[header_map["amount"]].strip().replace(",", "").replace("¥", "")
+
+            if not raw_date or not debit_name or not credit_name or not amount_str:
+                errors.append(f"行{i}: 必須項目が空です")
+                continue
+
+            amount = Decimal(amount_str)
+            txn_date = date.fromisoformat(raw_date)
+
+            # Find accounts by name or code
+            debit_acct = acct_by_name.get(debit_name) or acct_by_code.get(debit_name)
+            credit_acct = acct_by_name.get(credit_name) or acct_by_code.get(credit_name)
+
+            if not debit_acct:
+                errors.append(f"行{i}: 借方勘定科目「{debit_name}」が見つかりません")
+                continue
+            if not credit_acct:
+                errors.append(f"行{i}: 貸方勘定科目「{credit_name}」が見つかりません")
+                continue
+
+            journal_number = f"JRN-{seq:08d}"
+            seq += 1
+
+            header = JournalHeader(
+                company_id=company_id,
+                journal_number=journal_number,
+                transaction_date=txn_date,
+                voucher_type="import",
+                summary=summary,
+                approval_status="draft",
+                source_type="csv_import",
+                created_by=current_user.user_id,
+            )
+            db.add(header)
+            await db.flush()
+
+            db.add(JournalLine(
+                journal_header_id=header.journal_header_id,
+                line_number=1,
+                debit_credit="debit",
+                account_id=debit_acct.account_id,
+                amount=amount,
+                description=summary,
+            ))
+            db.add(JournalLine(
+                journal_header_id=header.journal_header_id,
+                line_number=2,
+                debit_credit="credit",
+                account_id=credit_acct.account_id,
+                amount=amount,
+                description=summary,
+            ))
+
+            imported += 1
+        except (InvalidOperation, ValueError) as e:
+            errors.append(f"行{i}: {str(e)}")
+            continue
+
+    await db.flush()
+
+    return {
+        "imported": imported,
+        "errors": errors,
+        "total_rows": i,
+    }
+
+
+# ---------------------------------------------------------------------------
+# General Ledger (総勘定元帳)
+# ---------------------------------------------------------------------------
+
 @router.get("/general-ledger/export", response_class=PlainTextResponse)
 async def export_general_ledger_csv(
-    company_id: UUID,
+    company_id: Annotated[UUID, Depends(verified_company_id)],
     start_date: date = Query(..., description="開始日"),
     end_date: date = Query(..., description="終了日"),
     account_code: str | None = Query(None, description="科目コード"),

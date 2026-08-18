@@ -8,8 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.csv_export import csv_line
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
+from app.core.tenant_scope import assert_company_access, scope_to_tenant
 from app.models.models import Account, JournalHeader, JournalLine, TaxReturn
 from app.schemas.schemas import TaxReturnCalculateRequest, TaxReturnListResponse, TaxReturnResponse
 
@@ -56,6 +57,7 @@ async def calculate_tax_return(
     db: AsyncSession = Depends(get_db),
 ) -> TaxReturnResponse:
     """消費税申告を計算する（仕訳データから集計）。"""
+    await assert_company_access(db, current_user, payload.company_id)
     if payload.filing_type not in VALID_FILING_TYPES:
         raise HTTPException(
             status_code=422,
@@ -153,7 +155,7 @@ async def calculate_tax_return(
 
 @router.get("/records", response_model=TaxReturnListResponse)
 async def list_tax_returns(
-    company_id: UUID = Query(...),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
@@ -178,7 +180,7 @@ async def list_tax_returns(
 @router.get("/records/{return_id}", response_model=TaxReturnResponse)
 async def get_tax_return(
     return_id: UUID,
-    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> TaxReturnResponse:
@@ -194,7 +196,7 @@ async def get_tax_return(
 async def transition_tax_return(
     return_id: UUID,
     action: str = Query(..., description="filed"),
-    company_id: UUID = Query(..., description="会社ID（テナント検証用）"),
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_POST)),
     db: AsyncSession = Depends(get_db),
 ) -> TaxReturnResponse:
@@ -224,7 +226,13 @@ async def export_tax_return(
     db: AsyncSession = Depends(get_db),
 ) -> str:
     """消費税申告をCSV形式で出力する。"""
-    result = await db.execute(select(TaxReturn).where(TaxReturn.return_id == return_id))
+    result = await db.execute(scope_to_tenant(
+        select(TaxReturn).where(
+            TaxReturn.return_id == return_id,
+        ),
+        TaxReturn,
+        current_user.tenant_id,
+    ))
     tr = result.scalar_one_or_none()
     if not tr:
         raise HTTPException(status_code=404, detail="消費税申告が見つかりません")

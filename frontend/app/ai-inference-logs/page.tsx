@@ -76,7 +76,7 @@ export default function AiInferenceLogsPage() {
   useEffect(() => {
     if (companyId && canReview) fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [companyId, sourceFilter, appliedFilter]);
+  }, [companyId, sourceFilter, appliedFilter, canReview]);
 
   if (!canReview) {
     return (

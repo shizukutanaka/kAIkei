@@ -9,8 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.business_time import business_now
 from app.core.database import get_db
-from app.core.deps import CurrentUser, require_permission
+from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
+from app.core.tenant_scope import assert_company_access, scope_to_tenant
 from app.models.models import (
     Account,
     AuditLog,
@@ -35,7 +36,7 @@ router = APIRouter(tags=["audit"])
 
 @router.get("/logs", response_model=AuditLogListResponse)
 async def list_audit_logs(
-    company_id: UUID = Query(..., description="会社ID"),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     page: int = Query(1, ge=1),  # noqa: B008
     page_size: int = Query(50, ge=1, le=200),  # noqa: B008
     action: str | None = Query(None, description="アクションでフィルタ"),  # noqa: B008
@@ -91,6 +92,7 @@ async def ledger_check(
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> LedgerCheckResponse:
+    await assert_company_access(db, current_user, payload.company_id)
     header_result = await db.execute(
         select(JournalHeader).where(
             JournalHeader.company_id == payload.company_id,
@@ -171,10 +173,14 @@ async def inspect_audit(
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> list[AuditDetectionResponse]:
     target_result = await db.execute(
-        select(JournalHeader).where(
-            JournalHeader.journal_header_id == payload.journal_header_id,
-            JournalHeader.is_deleted == False,  # noqa: E712
-            JournalHeader.is_voided == False,  # noqa: E712
+        scope_to_tenant(
+            select(JournalHeader).where(
+                JournalHeader.journal_header_id == payload.journal_header_id,
+                JournalHeader.is_deleted == False,  # noqa: E712
+                JournalHeader.is_voided == False,  # noqa: E712
+            ),
+            JournalHeader,
+            current_user.tenant_id,
         )
     )
     target_header = target_result.scalar_one_or_none()
@@ -232,7 +238,7 @@ async def inspect_audit(
 
 @router.get("/export")
 async def export_audit_package(
-    company_id: UUID = Query(..., description="会社ID"),  # noqa: B008
+    company_id: UUID = Depends(verified_company_id),  # noqa: B008
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> Response:
@@ -249,12 +255,12 @@ async def export_audit_package(
             .join(JournalLine, JournalHeader.journal_header_id == JournalLine.journal_header_id)
             .outerjoin(Account, JournalLine.account_id == Account.account_id)
             .where(JournalHeader.company_id == company_id)
-            .order_by(JournalHeader.journal_date, JournalHeader.journal_number)
+            .order_by(JournalHeader.transaction_date, JournalHeader.journal_number)
         )
         for header, line, account in journal_result.all():
             gl_writer.writerow([
                 header.journal_number,
-                header.journal_date.isoformat() if header.journal_date else "",
+                header.transaction_date.isoformat() if header.transaction_date else "",
                 account.account_code if account else "",
                 account.account_name if account else "",
                 str(line.debit_amount) if line.debit_amount else "0",

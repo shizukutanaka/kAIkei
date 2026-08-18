@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -102,3 +102,24 @@ async def get_current_user_optional(
         return await get_current_user(authorization=authorization, db=db)
     except HTTPException:
         return None
+
+
+async def verified_company_id(
+    company_id: UUID = Query(...),  # noqa: B008
+    current_user: CurrentUser = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> UUID:
+    """クエリパラメータの company_id を、呼び出し元テナントのものか検証して返す。
+
+    業務データは company_id しか持たないため、クライアントが渡した company_id を
+    そのまま信用すると、他テナントの company_id を渡すだけで他社のデータを
+    読み書きできてしまう。
+
+    エンドポイント側は `company_id: UUID = Query(...)` を
+    `company_id: UUID = Depends(verified_company_id)` に置き換えるだけでよく、
+    OpenAPI 上のクエリパラメータとしての見え方は変わらない。
+    """
+    from app.core.tenant_scope import assert_company_access
+
+    await assert_company_access(db, current_user, company_id)
+    return company_id

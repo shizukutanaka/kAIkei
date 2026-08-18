@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
+from app.core.tenant_scope import assert_company_access
 from app.schemas.schemas import (
     WebhookDeliveryResponse,
     WebhookEndpointCreate,
@@ -23,6 +24,7 @@ async def register_endpoint(
     db: AsyncSession = Depends(get_db),
 ) -> WebhookEndpointResponse:
     """Webhook登録先を作成する。"""
+    await assert_company_access(db, current_user, payload.company_id)
     try:
         endpoint = await webhook_service.create_endpoint(
             db,

@@ -66,7 +66,7 @@ export default function BankReconciliationPage() {
   const [reconciling, setReconciling] = useState(false);
 
   const fetchLines = async () => {
-    if (!companyId) return;
+    if (!companyId || !canView) return;
     setLoading(true);
     setError("");
     try {
@@ -85,7 +85,7 @@ export default function BankReconciliationPage() {
   useEffect(() => {
     if (companyId && canView) fetchLines();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [companyId, filter]);
+  }, [companyId, filter, canView]);
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
