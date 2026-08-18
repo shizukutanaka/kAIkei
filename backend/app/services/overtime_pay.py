@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from decimal import ROUND_DOWN, Decimal
 
 # 労働基準法37条 / 割増賃金の法定倍率
+# 月60時間を境に割増率が上がる（この時間数までが1.25倍、超過分は1.5倍）。
+OVERTIME_MONTHLY_THRESHOLD_HOURS = Decimal("60")
 OVERTIME_RATE_WITHIN_60_HOURS = Decimal("1.25")
 OVERTIME_RATE_OVER_60_HOURS = Decimal("1.50")
 LATE_NIGHT_RATE_ADDON = Decimal("0.25")

@@ -8,22 +8,29 @@
 ## 0. 実行者への共通ルール（必読）
 
 - **全テストをゲートにする**。変更後に必ず:
-  - `cd backend && python -m pytest -m "not db" -q -o addopts="" -p no:cacheprovider`
-  - ローカルPostgresを起動し `TEST_DATABASE_URL=postgresql+asyncpg://kaikei:kaikei_dev@127.0.0.1:5432/kaikei_test python -m pytest -m db -q -o addopts="" -p no:cacheprovider`
+  - `cd backend && python -m pytest -m "not db" -q`
+    （カバレッジは既定で無効。見たいときは `--cov=app --cov-report=term-missing`）
+  - ローカルPostgresを起動し `TEST_DATABASE_URL=postgresql+asyncpg://kaikei:kaikei_dev@127.0.0.1:5432/kaikei_test python -m pytest -m db -q`
   - Alembicは新規スクラッチDBで `alembic upgrade head`（単一ヘッド維持）
   - frontend: `npx tsc --noEmit` / `npm run build` / `npm test`
 - **1改善 = 1ブランチ = 1PR**。CI（build/test）green を確認してから main へマージ。
-- コミットtrailer: `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>` /
-  `Claude-Session: <session-url>`。**モデルIDはコミット/PR/コード/コメントに含めない**。
+- **モデル名・モデルIDはコミットメッセージ/PR/コード/コメントなど、リポジトリに
+  push されるあらゆる成果物に含めない**（会話での言及のみ）。
 - **日本の税・社保・労保は法令を必ず自分で再確認**（率・端数処理・境界・上限）。
   レビューは「確信できる法令ルールのみ」を数値例つきで報告・修正する。
-- **jose/crypto の PanicException** で `app` 全体importは環境依存で失敗する。エンドポイント検証は
-  `python -m py_compile` またはテスト経由で行う（テストは認証チェーンをimportしない）。
-- 環境: docker registry 403。ローカルPostgres16バイナリを使用。**DBテストのスキーマは
-  conftestの `Base.metadata.create_all`（マイグレーション未経由）で作られる**点に注意
-  （＝マイグレーション欠落はテストでは表面化しない。§改善参照）。
-- **model↔migration列パリティ**は `backend/tests/test_migration_model_parity.py` が保証する
-  （全modelテーブルにcreate_tableがあること）。新モデル追加時はマイグレーションも必ず追加。
+- `app.main` は現在そのままimportできる（過去に jose→cryptography の PanicException で
+  失敗する環境があった）。HTTP経路のテストは `tests/test_tenant_scope_api_db.py` の
+  `api` fixture を参考にすること。ミドルウェアが読み込み時のグローバルなエンジンを
+  掴んでいるため、テスト用セッションを差し替えないと「別ループのFuture」エラーで
+  本来の応答が握り潰される。
+- 環境: docker registry 403。ローカルPostgres16バイナリを使用。DBテストのスキーマは
+  conftestの `Base.metadata.create_all`（マイグレーション未経由）で作られるため、
+  索引など「モデルに書いていない差分」はテストDBに現れない。
+  マイグレーション自体の欠落は `tests/test_migration_parity_db.py` が
+  使い捨てDBに `alembic upgrade head` して検出する。
+- **model↔migration パリティ**は `tests/test_migration_model_parity.py`（静的）と
+  `tests/test_migration_parity_db.py`（実際に `alembic upgrade head` して照合）が保証する。
+  新モデル・新カラム追加時はマイグレーションも必ず追加。
 - **ルート重複ガード**は `backend/tests/test_route_uniqueness.py` が保証する。FastAPIは
   同一パスを先勝ちで解決するため、merge等で重複定義が入ると後続が到達不能な死にコードになる。
 
@@ -73,19 +80,63 @@ su postgres -c "/usr/lib/postgresql/16/bin/createdb -p 5432 -O kaikei kaikei_tes
 
 ## 2. 短所（弱み）※本書更新時点
 
-- 🟡 **フロント欠落画面**: main追加のバックエンド機能のうち **支払(/payments)・
-  treasury(/treasury)・jobs(/jobs)・ops(/ops)・税予測(/tax)** にフロント画面が無い
-  （予算/budgetsは実装済み）。
-- 🟡 **ドキュメントdrift**: 統合後にmainが追加したテーブル7件/エンドポイントが
-  `docs/OpenAPISpec.md`・`docs/DataDictionary.md`・`docs/DatabaseDesign.md` に未反映の可能性。
-- ~~🟡 全銀エクスポートがモック~~ → **解消済み**（`zengin_transfer.py` に固定長120バイトの
-  全銀協 総合振込フォーマットを実装済み）。
-- 🟡 **フロントテスト薄い**: vitest 12件程度。ページ統合テストが少ない。
-- ⚪ **マルチレプリカの完全排他なし**: FOR UPDATE SKIP LOCKED で主要窓は閉じたが、
+### 🔴 最優先（利用者に誤った数字が出る／人手が必要）
+
+- **給与の源泉所得税・社会保険料が概算のまま**。源泉所得税は「給与所得の源泉徴収
+  税額表」を扶養親族等の数と甲欄/乙欄で引く必要があり、社会保険料は標準報酬月額の
+  等級と都道府県別料率で決まるが、いずれも未実装で総額の5%・15%を掛けている。
+  **現在は応答の `estimate_notice` と給与画面の警告で「概算」だと明示している**が、
+  法定計算そのものは未対応。`Employee` に扶養親族等の数・都道府県を持たせる
+  スキーマ変更から必要。
+- **CIワークフロー本体が未修正**。`.github/workflows/*.yml` は GitHub App に
+  `workflows` 権限が無く自動更新できない。現在は編集可能なファイル側の暫定措置で
+  回避している（`docs/ci/backend-ci-db-tests.md` 参照）。**人手での適用が必要**で、
+  適用したら暫定措置3点を削除すること。
+- **DB統合テストがCIで走らない**。`TEST_DATABASE_URL` を渡す `db-test` ジョブが無く、
+  テナント分離・監査ログ・マイグレーション整合性など148件がCI未実行。上と同じ理由。
+
+### 🟡 中
+
+- **画面の無いエンドポイントが多い**: 267ルート中166本にフロントの呼び出しが無い。
+  特に `/payroll/*` は50本中47本が未使用（純粋な計算APIとして実装されている）。
+  「消す」か「画面を作る」かは製品判断。外部利用者がいる可能性があるため
+  独断で削除していない。
+- **ドキュメントdrift**: `docs/OpenAPISpec.md`・`docs/DataDictionary.md`・
+  `docs/DatabaseDesign.md` が実装に追いついていない可能性。
+
+### ⚪ 低
+
+- **マルチレプリカの完全排他なし**: FOR UPDATE SKIP LOCKED で主要窓は閉じたが、
   claim/lease方式の完全な分散ロックではない。
-- ⚪ **MFAリカバリなし**: バックアップコード/管理者リセット導線が無い。
-- ⚪ **Peppol実送信なし**: UBL XML生成のみ。アクセスポイント連携は未実装。
-- ⚪ **JWT/S3既定値**: 本番fail-fastは実装済みだが ENVIRONMENT 設定に依存。
+- **Peppol実送信なし**: UBL XML生成のみ。アクセスポイント連携は未実装。
+- **本番と検証のPythonバージョン差**: Dockerfile は 3.12、CIと開発環境は 3.11。
+  ruff の target-version はサポート下限の py311 に合わせてある。
+
+### 解消済み（再実装しないこと）
+
+- ~~フロント欠落画面~~ → payments / treasury / jobs / ops / budgets いずれも実装・テスト済み。
+- ~~全銀エクスポートがモック~~ → `zengin_transfer.py` に固定長120バイトの実装済み。
+- ~~フロントテスト薄い~~ → vitest 74件。権限ゲートの横断テストを含む。
+- ~~MFAリカバリなし~~ → バックアップコード実装済み。
+
+## 2-1. 壊してはいけない防御（横断テスト）
+
+以下は「性質そのもの」を固定するテストで、**新しく追加されたコードにも自動的に効く**。
+落ちたときは、テストを緩めるのではなく実装側を直すこと。走査ロジック自体の
+自己検証も含んでいるため、「常に空を返す実装」に退化しても気付ける。
+
+| テスト | 固定している性質 |
+| --- | --- |
+| `backend/tests/test_tenant_scope_coverage.py` | 未スコープの参照が0件／ボディの company_id 検証漏れが0件 |
+| `backend/tests/test_endpoint_smoke_db.py` | 自テナントで404/500にならない／他テナントは必ず404 |
+| `backend/tests/test_route_shadowing.py` | 文字列ルートがパラメータ付きルートに隠れていない |
+| `backend/tests/test_migration_parity_db.py` | マイグレーションとモデル定義が一致 |
+| `backend/tests/test_frontend_api_contract.py` | フロントが存在しないAPIを呼んでいない |
+| `backend/tests/test_lint.py` | ruff の指摘が0件（CIの lint は `\|\| true` で握り潰される） |
+| `frontend/app/permission-gate.test.tsx` | 権限ゼロならAPIを呼ばない（12画面） |
+| `frontend/app/permission-resolve.test.tsx` | 権限が後から確定したら取得し直す（9画面） |
+
+新しい画面・エンドポイントを追加したら、上2つのフロントテストのリストにも追加すること。
 
 ## 3. 改善案（優先度順・実行指示）
 
@@ -119,11 +170,20 @@ start/complete API 経由の外部ワーカーモデルを踏襲（副作用は�
 実装され、`POST /payments/zengin/transfer-data` から利用できる。旧 `payment_export.py`
 （pipe区切りの簡易出力）は別用途として併存。
 
-### 改善4 🟡 フロントテスト拡充（スコープ中・**残タスク**）
-- 対象: `frontend/**/*.test.tsx`。@testing-library/react、`vitest.setup.ts` の cleanup 利用。
-  budgets/payments/ar-aging 等の主要ページの表示/権限分岐/エラー状態をテスト。
-- 現状 vitest は12件のみでページ統合テストが薄い。
-- 検証: `npm test` グリーン。
+### ✅ 済 改善4: フロントテスト拡充（実装済み）
+vitest 74件。payments / ar-aging / treasury / budgets / ops / payroll の
+表示・権限分岐・エラー状態に加え、権限ゲートの横断テスト2本（2-1参照）。
+`CI=true npm run build` でCIでも実行される。
+
+### 改善7 🔴 給与の法定計算（**残タスク・要スキーマ変更**）
+`POST /payroll/calculate` の源泉所得税と社会保険料が概算のまま。
+- 源泉所得税: 「給与所得の源泉徴収税額表」（月額表 甲欄/乙欄）と扶養親族等の数が必要。
+  `Employee` に扶養親族等の数・甲欄/乙欄区分を追加するところから。
+- 社会保険料: 標準報酬月額の等級（`standard_remuneration.py` にあり）と
+  都道府県別料率が必要。会社に都道府県・料率を持たせる必要がある。
+- 対応したら `PAYROLL_ESTIMATE_NOTICE` を返さないようにする。警告は自動的に消え、
+  `test_estimated_fields_are_disclosed` の対になるテストが通る設計にしてある。
+- **金額を推測で埋めないこと**。誤った納付額は概算表示より有害。
 
 ### ✅ 済 改善5-a: MFAバックアップコード（実装済み）
 `users.mfa_backup_codes`(JSONB, migration 0026)＋`mfa.py` の生成/ハッシュ/照合/消費。

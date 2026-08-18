@@ -1,4 +1,6 @@
+import logging
 import time
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -19,6 +21,9 @@ from app.core.security import (
 from app.models.models import Tenant, User
 from app.schemas.schemas import TokenRefreshRequest, TokenResponse, UserCreate, UserResponse
 from app.services import mfa as mfa_service
+from app.services import refresh_tokens
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -87,20 +92,60 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> To
         subject=str(user.user_id),
         extra_claims={"tenant_id": str(user.tenant_id), "role": user.role},
     )
-    refresh_token = create_refresh_token(subject=str(user.user_id))
-    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+    issued = await refresh_tokens.issue_new_family(db, user.user_id)
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=create_refresh_token(subject=str(user.user_id), jti=str(issued.token_id)),
+    )
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh_token(payload: TokenRefreshRequest) -> TokenResponse:
+async def refresh_token(payload: TokenRefreshRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
+    """リフレッシュトークンを1回だけ使い、新しい組に交換する。
+
+    使用済みトークンの再提示は盗難の疑いとして扱い、その認証に紐づく
+    セッションを全て失効させる（RFC 9700 §4.14.2）。
+    """
     decoded = decode_token(payload.refresh_token)
     if not decoded or decoded.get("type") != "refresh":
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
-    user_id = decoded.get("sub")
-    access_token = create_access_token(subject=user_id)
-    new_refresh = create_refresh_token(subject=user_id)
-    return TokenResponse(access_token=access_token, refresh_token=new_refresh)
+    raw_jti = decoded.get("jti")
+    if not raw_jti:
+        # 台帳が入る前に発行された古いトークン。失効させられないので受け付けない。
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+    try:
+        token_id = UUID(str(raw_jti))
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="Invalid refresh token") from exc
+
+    try:
+        successor = await refresh_tokens.rotate(db, token_id)
+    except refresh_tokens.RefreshTokenError as exc:
+        if exc.reuse_detected:
+            # 盗難の疑い。調査できるよう、通常の失敗とは区別して記録する。
+            logger.warning("Refresh token reuse detected; revoked the token family")
+        raise HTTPException(status_code=401, detail="Invalid refresh token") from exc
+
+    # 利用者を無効化・削除しても更新が通り続けていた（最大で有効期限いっぱい）。
+    # トークンの有効性とは別に、毎回いまの利用者の状態を確認する。
+    user = (
+        await db.execute(
+            select(User).where(User.user_id == successor.user_id, User.is_deleted == False)  # noqa: E712
+        )
+    ).scalar_one_or_none()
+    if user is None or not user.is_active:
+        await refresh_tokens.revoke_family(db, successor.family_id)
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    access_token = create_access_token(
+        subject=str(user.user_id),
+        extra_claims={"tenant_id": str(user.tenant_id), "role": user.role},
+    )
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=create_refresh_token(subject=str(user.user_id), jti=str(successor.token_id)),
+    )
 
 
 class MfaSetupRequest(BaseModel):
