@@ -103,3 +103,36 @@ def test_detection_logic_works():
     # 一致しないもの（改名・階層違い）を通さないこと
     assert not _matches(["budgest", "{}"], ["budgets", "{}"])
     assert not _matches(["budgets"], ["budgets", "{}"])
+
+
+# 「概算です」の通知は、応答に載せるだけでは利用者に届かない。画面が出さなければ
+# 概算だと分からないまま給与明細や申告書に使われる（実際に賞与で発生した）。
+_ESTIMATE_TO_PAGE = {
+    "payroll.py": "payroll",
+    "bonus.py": "bonus",
+    "year_end.py": "year-end",
+    "tax_returns.py": "tax-returns",
+}
+
+
+def _endpoints_with_estimate_notice() -> set[str]:
+    endpoints = pathlib.Path(__file__).resolve().parents[1] / "app" / "api" / "v1" / "endpoints"
+    return {p.name for p in endpoints.glob("*.py") if "estimate_notice=" in p.read_text()}
+
+
+def test_every_estimate_notice_is_shown_on_a_page():
+    """概算の通知を返すエンドポイントには、それを表示する画面があること。"""
+    missing = []
+    for module in sorted(_endpoints_with_estimate_notice()):
+        page_dir = _ESTIMATE_TO_PAGE.get(module)
+        if page_dir is None:
+            missing.append(f"{module}: 対応する画面が _ESTIMATE_TO_PAGE に未登録")
+            continue
+        page = FRONTEND_DIR / "app" / page_dir / "page.tsx"
+        if not page.is_file():
+            missing.append(f"{module}: {page_dir}/page.tsx が無い")
+        elif "<EstimateNotice" not in page.read_text():
+            # import だけでは表示されない。要素として使われていることを見る。
+            missing.append(f"{module}: {page_dir}/page.tsx が EstimateNotice を表示していない")
+
+    assert not missing, "概算の通知が画面に出ていない:\n" + "\n".join(f"  {m}" for m in missing)

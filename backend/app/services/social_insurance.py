@@ -153,3 +153,40 @@ def care_insurance_applicable(birth_date: date | None, as_of: date) -> bool:
         return False
     age = _age_attained_on(birth_date, as_of)
     return CARE_INSURANCE_START_AGE <= age < CARE_INSURANCE_END_AGE
+
+
+# 標準賞与額の上限（健康保険法40条2項 / 厚生年金保険法24条の4）
+# 健康保険は年度（4月1日〜翌3月31日）の累計、厚生年金は1回の支払ごとに判定する。
+HEALTH_STANDARD_BONUS_ANNUAL_CAP = Decimal("5730000")
+PENSION_STANDARD_BONUS_PER_PAYMENT_CAP = Decimal("1500000")
+STANDARD_BONUS_UNIT = Decimal("1000")
+
+
+@dataclass(frozen=True)
+class StandardBonus:
+    health: Decimal
+    pension: Decimal
+
+
+def standard_bonus_amounts(
+    bonus_amount: Decimal,
+    health_bonus_total_this_year: Decimal = Decimal("0"),
+) -> StandardBonus:
+    """賞与額から標準賞与額（健康保険・厚生年金）を求める。
+
+    - 1,000円未満は切り捨てる。
+    - 健康保険は年度累計573万円まで。既に累計している分を差し引いた残枠が上限。
+    - 厚生年金は1回の支払につき150万円まで。
+
+    賞与額に率を直接掛けると、これらの上限も切り捨ても効かないため、
+    高額賞与で保険料を過大に徴収することになる。
+    """
+    if bonus_amount < 0 or health_bonus_total_this_year < 0:
+        raise ValueError("bonus amounts must be non-negative")
+
+    base = (bonus_amount // STANDARD_BONUS_UNIT) * STANDARD_BONUS_UNIT
+
+    remaining = HEALTH_STANDARD_BONUS_ANNUAL_CAP - health_bonus_total_this_year
+    health = max(min(base, remaining), Decimal("0"))
+    pension = min(base, PENSION_STANDARD_BONUS_PER_PAYMENT_CAP)
+    return StandardBonus(health=health, pension=pension)

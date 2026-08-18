@@ -82,7 +82,7 @@ su postgres -c "/usr/lib/postgresql/16/bin/createdb -p 5432 -O kaikei kaikei_tes
 
 ### 🔴 最優先（利用者に誤った数字が出る／人手が必要）
 
-- **給与の源泉所得税が概算のまま**（社会保険料は解消済み）。「給与所得の源泉徴収
+- **給与・賞与の源泉所得税、消費税申告が概算のまま**（社会保険料は解消済み）。「給与所得の源泉徴収
   税額表」を扶養親族等の数と甲欄/乙欄で引く必要があるが未実装で、総支給の5%を
   掛けている。**応答の `estimate_notice` と給与画面の警告で「概算」だと明示して
   いる**が、法定計算そのものは未対応。`Employee` に扶養親族等の数・甲乙区分を
@@ -132,6 +132,8 @@ su postgres -c "/usr/lib/postgresql/16/bin/createdb -p 5432 -O kaikei kaikei_tes
 | `backend/tests/test_migration_parity_db.py` | マイグレーションとモデル定義が一致 |
 | `backend/tests/test_frontend_api_contract.py` | フロントが存在しないAPIを呼んでいない |
 | `backend/tests/test_lint.py` | ruff の指摘が0件（CIの lint は `\|\| true` で握り潰される） |
+| `backend/tests/test_no_inline_rate_arithmetic.py` | エンドポイントに税率・保険料率を直書きしていない |
+| `backend/tests/test_frontend_api_contract.py` | 存在しないAPIを呼んでいない／概算の通知が画面に出ている |
 | `frontend/app/permission-gate.test.tsx` | 権限ゼロならAPIを呼ばない（12画面） |
 | `frontend/app/permission-resolve.test.tsx` | 権限が後から確定したら取得し直す（9画面） |
 
@@ -193,6 +195,19 @@ vitest 74件。payments / ar-aging / treasury / budgets / ops / payroll の
   `test_estimated_fields_are_disclosed` の対になるフロントテスト
   （通知が無ければ警告を出さない）が通る設計にしてある。
 - **金額を推測で埋めないこと**。誤った納付額は、概算だと明示された数字より有害。
+
+### 改善8 🔴 消費税申告の課税区分集計（**残タスク**）
+
+`POST /tax-returns/calculate` は課税売上・課税仕入を**売上/費用の一律80%/20%按分**で
+求めており、簡易課税のみなし仕入率も事業区分によらず90%固定。申告書の数値が概算のまま。
+
+- 本来は仕訳明細の税区分（`journal_lines.tax_rule_id`）から集計する。
+  税率別（10%/8%軽減/不課税/非課税/免税）の内訳が必要。
+- 簡易課税のみなし仕入率は `simplified_consumption_tax.py` に事業区分別の実装がある。
+  会社または売上に事業区分を持たせて選択できるようにする。
+- 現状は `estimate_notice` で概算だと明示している。対応したら
+  `ESTIMATED_TAX_RETURN_FIELDS` を空にする。
+- **申告書はそのまま提出されうる**。推測で数字を作らないこと。
 
 ### ✅ 済 改善5-a: MFAバックアップコード（実装済み）
 `users.mfa_backup_codes`(JSONB, migration 0026)＋`mfa.py` の生成/ハッシュ/照合/消費。

@@ -7,15 +7,23 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.business_time import business_today
 from app.core.csv_export import csv_line
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.core.tenant_scope import assert_company_access
-from app.models.models import BonusRecord, Employee
+from app.models.models import BonusRecord, Company, Employee
 from app.schemas.schemas import BonusCalculateRequest, BonusListResponse, BonusRecordResponse, NotificationCreate
 from app.services.auto_journal import generate_bonus_journal
 from app.services.notification_service import create_notification
+from app.services.social_insurance import (
+    DEFAULT_CARE_INSURANCE_RATE,
+    DEFAULT_HEALTH_INSURANCE_RATE,
+    SocialInsurancePremiumService,
+    care_insurance_applicable,
+    standard_bonus_amounts,
+)
 
 BONUS_TERM_LABELS = {
     "summer": "夏季賞与",
@@ -25,6 +33,18 @@ BONUS_TERM_LABELS = {
 }
 
 router = APIRouter()
+
+
+# 賞与の源泉所得税は「賞与に対する源泉徴収税額の算出率表」を、前月の社会保険料等
+# 控除後給与と扶養親族等の数で引く必要がある。扶養親族等の数を保持していないため
+# 算出率を決められず、概算のままになっている。
+# 社会保険料は標準賞与額から正しく計算できるので、概算はこの1項目だけ。
+ESTIMATED_BONUS_FIELDS = ("income_tax",)
+
+BONUS_ESTIMATE_NOTICE = (
+    "賞与の源泉所得税は概算です（算出率表・前月給与・扶養親族等の数が未対応）。"
+    "納付額の算出にはそのまま使用しないでください。"
+)
 
 
 def _to_bonus_response(rec: BonusRecord, emp_name: str | None = None) -> BonusRecordResponse:
@@ -43,21 +63,16 @@ def _to_bonus_response(rec: BonusRecord, emp_name: str | None = None) -> BonusRe
         net_pay=rec.net_pay,
         status=rec.status,
         employee_name=emp_name,
+        estimated_fields=list(ESTIMATED_BONUS_FIELDS),
+        estimate_notice=BONUS_ESTIMATE_NOTICE,
     )
 
 
-def _calc_bonus_tax(gross: Decimal) -> Decimal:
-    """賞与の源泉所得税（簡易: 賞与額の10.21%を基準に一律計算）。"""
+def _estimate_bonus_tax(gross: Decimal) -> Decimal:
+    """賞与の源泉所得税の概算。算出率表によらない（ESTIMATED_BONUS_FIELDS 参照）。"""
     if gross <= 0:
         return Decimal("0")
     return (gross * Decimal("0.1021")).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
-
-
-def _calc_bonus_social_insurance(gross: Decimal) -> Decimal:
-    """賞与の社会保険料（簡易: 賞与額の15%）。"""
-    if gross <= 0:
-        return Decimal("0")
-    return (gross * Decimal("0.15")).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
 
 
 BONUS_TERM_LABELS = {
@@ -102,14 +117,46 @@ async def calculate_bonus(
     if not employees:
         raise HTTPException(status_code=404, detail="アクティブな従業員がいません")
 
+    company = (
+        await db.execute(select(Company).where(Company.company_id == payload.company_id))
+    ).scalar_one()
+
+    # 健康保険の標準賞与額は年度累計573万円が上限。同一年度に支給済みの賞与を集計する
+    # （夏季・冬季とも同じ年度に入るため bonus_year を年度として扱う）。
+    paid_rows = await db.execute(
+        select(BonusRecord.employee_id, func.sum(BonusRecord.bonus_amount))
+        .where(
+            BonusRecord.company_id == payload.company_id,
+            BonusRecord.bonus_year == payload.bonus_year,
+        )
+        .group_by(BonusRecord.employee_id)
+    )
+    paid_health_bonus_by_employee = {row[0]: row[1] or Decimal("0") for row in paid_rows}
+    # 介護保険の要否は支給日時点の満年齢で判定する。
+    bonus_paid_on = business_today()
+
     records: list[BonusRecord] = []
     for emp in employees:
         factor = payload.performance_factors.get(emp.employee_id, Decimal("1.00"))
         bonus_amount = (emp.base_salary * payload.bonus_base_months * factor).quantize(
             Decimal("1"), rounding=ROUND_HALF_UP
         )
-        income_tax = _calc_bonus_tax(bonus_amount)
-        social_ins = _calc_bonus_social_insurance(bonus_amount)
+        income_tax = _estimate_bonus_tax(bonus_amount)
+        # 社会保険料は標準賞与額（1,000円未満切捨・年度/1回あたりの上限あり）で決まる。
+        # 賞与額に率を直接掛けると、上限も切り捨ても効かず高額賞与で過大徴収になる。
+        paid_health_bonus = paid_health_bonus_by_employee.get(emp.employee_id, Decimal("0"))
+        standard = standard_bonus_amounts(bonus_amount, paid_health_bonus)
+        social_ins = SocialInsurancePremiumService.compute_bonus(
+            health_standard_bonus=standard.health,
+            pension_standard_bonus=standard.pension,
+            health_rate=company.health_insurance_rate
+            if company.health_insurance_rate is not None
+            else DEFAULT_HEALTH_INSURANCE_RATE,
+            care_rate=company.care_insurance_rate
+            if company.care_insurance_rate is not None
+            else DEFAULT_CARE_INSURANCE_RATE,
+            care_applicable=care_insurance_applicable(emp.birth_date, bonus_paid_on),
+        ).total_employee
         total_deductions = income_tax + social_ins
         net_pay = bonus_amount - total_deductions
 
