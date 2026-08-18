@@ -100,7 +100,7 @@ export default function BudgetsPage() {
   );
 
   const load = useCallback(async () => {
-    if (!companyId) return;
+    if (!companyId || !canRead) return;
     setLoading(true);
     setError("");
     try {
@@ -115,7 +115,7 @@ export default function BudgetsPage() {
     } finally {
       setLoading(false);
     }
-  }, [companyId]);
+  }, [companyId, canRead]);
 
   useEffect(() => {
     load();
