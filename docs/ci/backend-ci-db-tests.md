@@ -5,6 +5,21 @@
 > manually (or grant the App `workflows` scope) — the test code it drives is
 > already merged.
 
+## Interim workaround already in place
+
+Two shims live in files that *can* be edited, so CI is meaningful today even
+without the workflow change. **Both should be removed once the workflow is fixed.**
+
+| Shim | What it does | Remove when |
+| --- | --- | --- |
+| `pytest_configure` in `backend/tests/conftest.py` | When `CI` is set, widens collection from the 5 hardcoded files to all of `tests/`. Prints a line saying so, to keep the CI log honest. | The `Run unit tests` step runs `tests/` |
+| `backend/tests/test_lint.py` | Runs `python -m ruff check app tests` and fails the test if there are findings — the workflow's own lint step ends in `\|\| true` and always passes. | The `Ruff lint` step drops `\|\| true` and covers `tests/` |
+
+Verified by running CI's exact command locally: **5 files → 1,521 tests**.
+
+DB-marked tests still skip (no `TEST_DATABASE_URL` in CI), so the `db-test` job
+below is still needed for the integration tests.
+
 ## Why
 
 - The `test` job runs only a **hardcoded list of 5 test files**, so the vast majority
