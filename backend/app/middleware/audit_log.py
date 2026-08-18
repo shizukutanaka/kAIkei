@@ -63,6 +63,26 @@ def redact_sensitive_fields(body_text: str) -> str:
     return json.dumps(_redact_value(data), ensure_ascii=False)
 
 
+async def _tenant_of(session, user_id: uuid.UUID | None) -> uuid.UUID | None:
+    """利用者の所属テナントを引く。特定できなければ None。
+
+    認証前のイベント（ログイン失敗等）は user_id が無いか、あっても実在しない。
+    そうした記録こそ監査上の価値が高いので、テナント不明でも捨てずに残せるよう
+    `audit_logs.tenant_id` は NULL を許容している。
+
+    user_id が実在しない場合に user_id ごと落とすのは、users への外部キー違反で
+    書き込み自体が失敗するのを避けるため。
+    """
+    if user_id is None:
+        return None
+    from sqlalchemy import select
+
+    from app.models.models import User
+
+    result = await session.execute(select(User.tenant_id).where(User.user_id == user_id))
+    return result.scalar_one_or_none()
+
+
 class AuditLogMiddleware(BaseHTTPMiddleware):
     """操作証跡ログミドルウェア。
 
@@ -123,9 +143,12 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
                 body_text = redact_sensitive_fields(body_bytes.decode("utf-8", errors="replace"))[:2000]
 
         async with async_session_factory() as session:
+            # tenant_id は利用者から引く。ここに固定値を入れると tenants への
+            # 外部キー制約に必ず違反し、監査ログが1件も残らない。
+            tenant_id = await _tenant_of(session, user_id)
             log = AuditLog(
-                tenant_id=uuid.UUID(int=0),
-                user_id=user_id,
+                tenant_id=tenant_id,
+                user_id=user_id if tenant_id is not None else None,
                 action=action,
                 resource_type=resource_type,
                 resource_id=resource_id,

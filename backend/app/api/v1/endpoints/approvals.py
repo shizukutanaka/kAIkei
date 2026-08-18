@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import CurrentUser, get_current_user, require_permission, verified_company_id
 from app.core.rbac import Permission
+from app.core.tenant_scope import assert_company_access
 from app.schemas.schemas import NotificationCreate
 from app.services.approval_service import ApprovalWorkflowService
 from app.services.notification_service import create_notification
@@ -228,6 +229,7 @@ async def create_workflow(
     db: AsyncSession = Depends(get_db),
 ) -> WorkflowResponse:
     """承認ワークフロー定義を作成する。"""
+    await assert_company_access(db, current_user, payload.company_id)
     from decimal import Decimal
 
     workflow = await ApprovalWorkflowService.create_workflow(

@@ -11,6 +11,7 @@ from app.core.csv_export import csv_line
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
+from app.core.tenant_scope import assert_company_access
 from app.models.models import BonusRecord, Employee, PayrollRecord, YearEndAdjustment
 from app.schemas.schemas import (
     NotificationCreate,
@@ -82,6 +83,7 @@ async def calculate_year_end_adjustment(
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> list[YearEndAdjustmentResponse]:
     """年末調整を計算する。"""
+    await assert_company_access(db, current_user, payload.company_id)
     await db.execute(
         delete(YearEndAdjustment).where(
             YearEndAdjustment.company_id == payload.company_id,

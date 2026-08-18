@@ -14,7 +14,7 @@ from app.core.csv_export import csv_document
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
-from app.core.tenant_scope import scope_to_tenant
+from app.core.tenant_scope import assert_company_access, scope_to_tenant
 from app.models.models import Account, JournalHeader, JournalLine
 from app.schemas.schemas import (
     EventJournalDraftRequest,
@@ -65,6 +65,7 @@ async def create_journal(
     db: AsyncSession = Depends(get_db),
 ) -> JournalHeader:
     """Create a new journal entry after validation."""
+    await assert_company_access(db, current_user, payload.company_id)
     try:
         ValidationEngine.validate(payload, created_by=current_user.user_id)
     except ValidationError as e:

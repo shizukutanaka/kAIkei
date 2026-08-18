@@ -11,6 +11,7 @@ from app.core.csv_export import csv_line
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
+from app.core.tenant_scope import assert_company_access
 from app.models.models import BonusRecord, Employee
 from app.schemas.schemas import BonusCalculateRequest, BonusListResponse, BonusRecordResponse, NotificationCreate
 from app.services.auto_journal import generate_bonus_journal
@@ -74,6 +75,7 @@ async def calculate_bonus(
     db: AsyncSession = Depends(get_db),
 ) -> list[BonusRecordResponse]:
     """賞与計算を実行する。"""
+    await assert_company_access(db, current_user, payload.company_id)
     valid_terms = {"summer", "winter", "yearend", "other"}
     if payload.bonus_term not in valid_terms:
         raise HTTPException(

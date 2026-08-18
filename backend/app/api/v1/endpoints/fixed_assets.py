@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
-from app.core.tenant_scope import scope_to_tenant
+from app.core.tenant_scope import assert_company_access, scope_to_tenant
 from app.models.models import DepreciationRecord, FixedAsset
 from app.schemas.schemas import FixedAssetCreate, FixedAssetResponse
 from app.services.auto_journal import generate_depreciation_journal
@@ -45,6 +45,7 @@ async def create_fixed_asset(
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> FixedAssetResponse:
+    await assert_company_access(db, current_user, payload.company_id)
     existing = await db.execute(
         select(FixedAsset).where(
             FixedAsset.company_id == payload.company_id,

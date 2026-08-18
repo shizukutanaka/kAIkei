@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
+from app.core.tenant_scope import assert_company_access
 from app.models.models import PaymentRequest
 from app.schemas.schemas import (
     PaymentMatchingRequest,
@@ -84,6 +85,7 @@ async def create_payment_request(
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> PaymentRequestResponse:
+    await assert_company_access(db, current_user, payload.company_id)
     request = PaymentRequest(
         company_id=payload.company_id,
         partner_id=payload.partner_id,

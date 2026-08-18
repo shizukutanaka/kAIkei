@@ -12,6 +12,7 @@ from app.core.csv_export import csv_line
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
+from app.core.tenant_scope import assert_company_access
 from app.models.models import Employee, ExpenseItem, ExpenseReport
 from app.schemas.schemas import (
     ExpenseItemResponse,
@@ -67,6 +68,7 @@ async def create_expense_report(
     db: AsyncSession = Depends(get_db),
 ) -> ExpenseReportResponse:
     """経費精算を提出する。"""
+    await assert_company_access(db, current_user, payload.company_id)
     if not payload.items:
         raise HTTPException(status_code=422, detail="明細が空です")
 

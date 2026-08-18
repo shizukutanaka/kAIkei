@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
+from app.core.tenant_scope import assert_company_access
 from app.schemas.schemas import (
     AiCalibrationResponse,
     AiInferenceApplyRequest,
@@ -25,6 +26,7 @@ async def create_log(
     db: AsyncSession = Depends(get_db),
 ) -> AiInferenceLogResponse:
     """AI推論の証跡を記録する。"""
+    await assert_company_access(db, current_user, payload.company_id)
     log = await ai_inference_log.log_inference(
         db,
         tenant_id=current_user.tenant_id,

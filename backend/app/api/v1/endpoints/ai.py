@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
+from app.core.tenant_scope import assert_company_access
 from app.services.ai.enhanced_inference import EnhancedInferenceEngine
 from app.services.ai.inference_engine import ai_engine
 from app.services.ai.pdf_extractor import PdfTextExtractor
@@ -75,6 +76,7 @@ async def infer_journal_enhanced(
     過去の処理済み仕訳から類似パターンを抽出し、AIプロンプトにコンテキストとして
     含めることで、一貫性のある仕訳推論を可能にする。
     """
+    await assert_company_access(db, current_user, payload.company_id)
     from app.services.ai.base_provider import InferenceRequest
 
     if not ai_engine.is_available:

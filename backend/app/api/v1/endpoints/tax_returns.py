@@ -10,7 +10,7 @@ from app.core.csv_export import csv_line
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
-from app.core.tenant_scope import scope_to_tenant
+from app.core.tenant_scope import assert_company_access, scope_to_tenant
 from app.models.models import Account, JournalHeader, JournalLine, TaxReturn
 from app.schemas.schemas import TaxReturnCalculateRequest, TaxReturnListResponse, TaxReturnResponse
 
@@ -57,6 +57,7 @@ async def calculate_tax_return(
     db: AsyncSession = Depends(get_db),
 ) -> TaxReturnResponse:
     """消費税申告を計算する（仕訳データから集計）。"""
+    await assert_company_access(db, current_user, payload.company_id)
     if payload.filing_type not in VALID_FILING_TYPES:
         raise HTTPException(
             status_code=422,

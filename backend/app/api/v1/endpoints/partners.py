@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
+from app.core.tenant_scope import assert_company_access
 from app.models.models import Partner
 from app.schemas.schemas import PartnerCreate, PartnerListResponse, PartnerResponse, PartnerUpdate
 
@@ -72,6 +73,7 @@ async def create_partner(
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),
     db: AsyncSession = Depends(get_db),
 ) -> PartnerResponse:
+    await assert_company_access(db, current_user, payload.company_id)
     existing = await db.execute(
         select(Partner).where(
             Partner.company_id == payload.company_id,

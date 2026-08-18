@@ -32,12 +32,21 @@ async def api(db_session, monkeypatch):
         # セッションの close はここでは呼ばない（テスト側が管理しているため）。
         yield db_session
 
+    @contextlib.asynccontextmanager
+    async def _unavailable():
+        raise RuntimeError("audit log disabled in this test")
+        yield  # pragma: no cover
+
     # いずれもモジュール読み込み時のグローバルなエンジンを掴んでおり、
     # テストのイベントループとは別のループに紐づくため、そのままでは
     # 「別ループのFuture」エラーで本来の応答が握り潰される。
-    # テスト用セッションを渡してループを揃える。
-    for module in (audit_log, idempotency, ip_restriction):
+    for module in (idempotency, ip_restriction):
         monkeypatch.setattr(module, "async_session_factory", _test_session)
+
+    # 監査ログだけは書き込み自体を止める。tenant_id に固定のゼロUUIDを入れる
+    # 実装のためFK違反になり、テスト用セッションを共有すると
+    # そのトランザクションごと巻き添えで壊れる（本体は例外を握り潰す作り）。
+    monkeypatch.setattr(audit_log, "async_session_factory", _unavailable)
 
     app.dependency_overrides[get_db] = lambda: db_session
     transport = ASGITransport(app=app)
@@ -137,6 +146,50 @@ async def test_own_budget_id_is_readable(api, tenants):
 
     assert res.status_code == 200
     assert res.json()["name"] == "TA の予算"
+
+
+async def test_cannot_create_into_another_tenants_company(api, tenants):
+    """リクエストボディで他テナントの company_id を指定しても作成できない。
+
+    参照系より重い。防げないと他社の帳簿に行を書き込めることになる。
+    """
+    a, b = tenants["a"], tenants["b"]
+    res = await api.post(
+        "/api/v1/budgets",
+        json={
+            "company_id": str(b["company_id"]),
+            "fiscal_year": 2027,
+            "name": "他社に作った予算",
+            "lines": [],
+        },
+        headers=_auth(a),
+    )
+
+    assert res.status_code == 404, res.text
+
+    # 実際に書き込まれていないことまで確認する。
+    check = await api.get(
+        "/api/v1/budgets", params={"company_id": str(b["company_id"])}, headers=_auth(b)
+    )
+    assert "他社に作った予算" not in check.text
+
+
+async def test_can_create_into_own_company(api, tenants):
+    """自社への作成は従来通り通ること。"""
+    a = tenants["a"]
+    res = await api.post(
+        "/api/v1/budgets",
+        json={
+            "company_id": str(a["company_id"]),
+            "fiscal_year": 2027,
+            "name": "自社の予算",
+            "lines": [],
+        },
+        headers=_auth(a),
+    )
+
+    assert res.status_code == 201, res.text
+    assert res.json()["name"] == "自社の予算"
 
 
 async def test_unauthenticated_request_is_rejected(api, tenants):
