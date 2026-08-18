@@ -62,7 +62,7 @@ export default function AuditLogPage() {
   const [exportLoading, setExportLoading] = useState(false);
 
   const fetchLogs = async () => {
-    if (!companyId) return;
+    if (!companyId || !canView) return;
     setLoading(true);
     setError("");
     try {
@@ -85,7 +85,7 @@ export default function AuditLogPage() {
 
   useEffect(() => {
     if (companyId && canView) fetchLogs();
-  }, [companyId, page, actionFilter, resourceFilter]);
+  }, [companyId, page, actionFilter, resourceFilter, canView]);
 
   const handleExport = async () => {
     if (!companyId) return;
