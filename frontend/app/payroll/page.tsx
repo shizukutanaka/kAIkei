@@ -21,6 +21,7 @@ interface Employee {
   base_salary: string;
   hourly_rate: string;
   hire_date: string;
+  birth_date?: string | null;
   termination_date: string | null;
   is_active: boolean;
 }
@@ -113,6 +114,7 @@ export default function PayrollPage() {
     base_salary: "",
     hourly_rate: "",
     hire_date: new Date().toISOString().split("T")[0],
+    birth_date: "",
   });
   const [payrollYear, setPayrollYear] = useState(new Date().getFullYear().toString());
   const [payrollMonth, setPayrollMonth] = useState((new Date().getMonth() + 1).toString());
@@ -196,6 +198,7 @@ export default function PayrollPage() {
         ...formData,
         base_salary: parseFloat(formData.base_salary) || 0,
         hourly_rate: parseFloat(formData.hourly_rate) || 0,
+        birth_date: formData.birth_date || null,
       });
       setShowForm(false);
       setFormData({
@@ -207,6 +210,7 @@ export default function PayrollPage() {
         base_salary: "",
         hourly_rate: "",
         hire_date: new Date().toISOString().split("T")[0],
+        birth_date: "",
       });
       toast("従業員を登録しました", "success");
       await fetchEmployees();
@@ -468,6 +472,11 @@ export default function PayrollPage() {
                 <div>
                   <label htmlFor="hire_date" className="mb-1 block text-sm font-medium">入社日</label>
                   <input id="hire_date" type="date" value={formData.hire_date} onChange={(e) => setFormData({ ...formData, hire_date: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label htmlFor="birth_date" className="mb-1 block text-sm font-medium">生年月日</label>
+                  <input id="birth_date" type="date" value={formData.birth_date} onChange={(e) => setFormData({ ...formData, birth_date: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm" />
+                  <p className="mt-1 text-xs text-muted-foreground">介護保険料（40歳以上65歳未満）の判定に使います。未入力なら徴収しません。</p>
                 </div>
                 <div>
                   <label htmlFor="base_salary" className="mb-1 block text-sm font-medium">基本給（月額）</label>
