@@ -99,3 +99,15 @@ python -m pytest tests/ -m "not db" -q        # 1440 passed
 
 The DB tests auto-skip when `TEST_DATABASE_URL` is unset (see
 `backend/tests/conftest.py`), so a no-DB run stays green.
+
+## Frontend CI also skips its tests
+
+`.github/workflows/frontend-ci.yml` runs `npm ci`, `npx tsc --noEmit` and `npm run build`
+— but **never `npm test`**, so the vitest suite does not run in CI either.
+
+Add a step to that workflow (same `workflows` permission is required):
+
+```yaml
+      - name: Run tests
+        run: npm test
+```
