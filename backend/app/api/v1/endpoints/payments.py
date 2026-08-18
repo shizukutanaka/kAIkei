@@ -2,7 +2,6 @@ from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,11 +18,9 @@ from app.schemas.schemas import (
     ReceivableJournalResponse,
     ReceivableMatchingRequest,
     ReceivableMatchingResponse,
-    ZenginExportRequest,
     ZenginTransferRequest,
     ZenginTransferResponse,
 )
-from app.services.payment_export import ZenginExportService
 from app.services.payment_matching import (
     BankWithdrawal,
     ExpectedPayment,
@@ -138,31 +135,6 @@ async def cancel_payment_request(
 ) -> PaymentRequestResponse:
     """支払申請を取り消す（draft/approved→cancelled）。"""
     return PaymentRequestResponse.model_validate(await _transition(db, company_id, request_id, "cancel"))
-
-
-@router.post("/zengin-export")
-async def export_zengin(
-    payload: ZenginExportRequest,
-    current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),  # noqa: B008
-    db: AsyncSession = Depends(get_db),  # noqa: B008
-) -> Response:
-    stmt = select(PaymentRequest).where(
-        PaymentRequest.company_id == payload.company_id,
-        PaymentRequest.payment_date == payload.payment_date,
-        PaymentRequest.bank_account_id == payload.bank_account_id,
-        PaymentRequest.status.in_(("approved", "executed")),
-    )
-    if payload.payment_request_ids:
-        stmt = stmt.where(PaymentRequest.payment_request_id.in_(payload.payment_request_ids))
-    result = await db.execute(stmt)
-    requests = result.scalars().all()
-    body = ZenginExportService.render(
-        requests=requests,
-        company_id=payload.company_id,
-        payment_date=payload.payment_date.isoformat(),
-        bank_account_id=payload.bank_account_id,
-    )
-    return Response(content=body, media_type="application/octet-stream")
 
 
 @router.post("/zengin/transfer-data", response_model=ZenginTransferResponse)
