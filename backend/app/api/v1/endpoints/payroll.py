@@ -2,7 +2,7 @@
 from calendar import monthrange
 from contextlib import suppress
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -101,6 +101,7 @@ from app.services.bonus_employment_insurance import BonusEmploymentInsuranceServ
 from app.services.bonus_withholding_tax import BonusWithholdingTaxService
 from app.services.bonus_net_pay import BonusNetPayService
 from app.services.labor_insurance_installment import LaborInsuranceInstallmentService
+from app.services.monthly_withholding import estimate_monthly_withholding
 from app.services.overtime_pay import OVERTIME_MONTHLY_THRESHOLD_HOURS, OvertimePayService
 from app.services.santei_export import SanteiEmployee, SanteiKisoService, SanteiMonth
 from app.services.notification_service import create_notification
@@ -575,28 +576,20 @@ def _to_payroll_response(rec: PayrollRecord, emp_name: str | None = None) -> Pay
 # 社会保険料は標準報酬月額の等級・折半端数・介護保険の要否まで実装済みなので、
 # ここには含めない（料率は会社ごとに設定でき、未設定なら代表値を使う）。
 #
-# 源泉所得税は「給与所得の源泉徴収税額表」を扶養親族等の数と甲欄/乙欄で引く
-# 必要があるが、Employee がそれらを保持しておらず税額表も未実装のため、
-# 概算（総支給の5%）のままになっている。
+# 源泉所得税は本来「給与所得の源泉徴収税額表（月額表）」を引く。表そのものは
+# 未実装のため、検証済みの法定計算（給与所得控除→速算表→復興特別所得税）を
+# 年額で組み立てて12で割っている（monthly_withholding.py）。考え方は月額表と
+# 同じだが、表の丸めや区分の刻みまでは一致しない。
 #
-# 「概算である」ことが利用者に見えていないと、そのまま給与明細や納付額として
-# 使われてしまう。応答に明示して、UI で警告を出せるようにする。
+# 年末調整で精算される前提の概算なので、その旨を応答に明示して UI で警告を出す。
 ESTIMATED_PAYROLL_FIELDS = ("income_tax",)
 
 PAYROLL_ESTIMATE_NOTICE = (
-    "源泉所得税は概算です（給与所得の源泉徴収税額表・扶養親族等の数が未対応）。"
-    "給与明細の確定や納付額の算出にはそのまま使用しないでください。"
+    "源泉所得税は概算です（年税額を12等分して算出。月額表そのものではありません）。"
+    "年末調整で精算されますが、納付額の確定にはそのまま使用しないでください。"
 )
 
-# 概算に用いる率。法定の算出方法ではないため、名前で概算だと分かるようにする。
-_ESTIMATED_INCOME_TAX_RATE = Decimal("0.05")
 
-
-def _estimate_income_tax(gross: Decimal) -> Decimal:
-    """源泉所得税の概算。法定の税額表ではない（ESTIMATED_PAYROLL_FIELDS 参照）。"""
-    if gross <= 0:
-        return Decimal("0")
-    return (gross * _ESTIMATED_INCOME_TAX_RATE).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
 
 
 
@@ -665,6 +658,7 @@ async def create_employee(
         hourly_rate=payload.hourly_rate,
         hire_date=payload.hire_date,
         birth_date=payload.birth_date,
+        dependents=payload.dependents,
     )
     db.add(emp)
     await db.commit()
@@ -763,7 +757,11 @@ async def calculate_payroll(
             else DEFAULT_CARE_INSURANCE_RATE,
             care_applicable=care_insurance_applicable(emp.birth_date, period_end),
         ).total_employee
-        income_tax = _estimate_income_tax(total_gross)
+        income_tax = estimate_monthly_withholding(
+            monthly_gross=total_gross,
+            monthly_social_insurance=social_ins,
+            dependents=emp.dependents,
+        )
         total_deductions = income_tax + social_ins
         net_pay = total_gross - total_deductions
 

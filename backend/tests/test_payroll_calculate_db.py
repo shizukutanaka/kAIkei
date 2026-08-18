@@ -70,7 +70,7 @@ async def company(db_session):
     }
 
 
-async def _add_employee(db_session, company_id, birth_date: date | None = None) -> Employee:
+async def _add_employee(db_session, company_id, birth_date: date | None = None, dependents: int = 0) -> Employee:
     emp = Employee(
         company_id=company_id,
         employee_code=f"E-{uuid.uuid4().hex[:6]}",
@@ -79,6 +79,7 @@ async def _add_employee(db_session, company_id, birth_date: date | None = None) 
         hourly_rate=HOURLY,
         hire_date=date(2024, 4, 1),
         birth_date=birth_date,
+        dependents=dependents,
         is_active=True,
     )
     db_session.add(emp)
@@ -236,3 +237,32 @@ async def test_only_income_tax_remains_an_estimate(api, company, db_session):
 
     assert record["estimated_fields"] == ["income_tax"]
     assert "社会保険料" not in (record["estimate_notice"] or "")
+
+
+async def test_income_tax_is_progressive_not_a_flat_rate(api, company, db_session):
+    """源泉所得税が総支給の一律5%ではなくなっていること。
+
+    一律の率は累進にならないため、納税義務のない人からも徴収し、
+    高所得者からは取り足りない。
+    """
+    from app.services.monthly_withholding import estimate_monthly_withholding
+
+    emp = await _add_employee(db_session, company["company_id"])
+    record = (await _calculate(api, company, emp, "0")).json()[0]
+
+    gross = Decimal(record["total_gross"])
+    social = Decimal(record["social_insurance"])
+    assert Decimal(record["income_tax"]) == estimate_monthly_withholding(gross, social, 0)
+    assert Decimal(record["income_tax"]) != (gross * Decimal("0.05")).quantize(Decimal("1"))
+
+
+async def test_dependents_reduce_the_withholding(api, company, db_session):
+    """扶養親族等の数が源泉所得税に反映されること。"""
+    none = await _add_employee(db_session, company["company_id"])
+    withheld_none = Decimal((await _calculate(api, company, none, "0")).json()[0]["income_tax"])
+
+    many = await _add_employee(db_session, company["company_id"], dependents=3)
+    records = {r["employee_id"]: r for r in (await _calculate(api, company, many, "0")).json()}
+    withheld_many = Decimal(records[str(many.employee_id)]["income_tax"])
+
+    assert withheld_many < withheld_none, "扶養親族等の数が効いていない"
