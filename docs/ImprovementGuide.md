@@ -82,7 +82,7 @@ su postgres -c "/usr/lib/postgresql/16/bin/createdb -p 5432 -O kaikei kaikei_tes
 
 ### 🔴 最優先（利用者に誤った数字が出る／人手が必要）
 
-- **給与の源泉所得税が概算のまま**（社会保険料は解消済み）。「給与所得の源泉徴収
+- **給与・賞与の源泉所得税、消費税申告が概算のまま**（社会保険料は解消済み）。「給与所得の源泉徴収
   税額表」を扶養親族等の数と甲欄/乙欄で引く必要があるが未実装で、総支給の5%を
   掛けている。**応答の `estimate_notice` と給与画面の警告で「概算」だと明示して
   いる**が、法定計算そのものは未対応。`Employee` に扶養親族等の数・甲乙区分を
@@ -133,6 +133,7 @@ su postgres -c "/usr/lib/postgresql/16/bin/createdb -p 5432 -O kaikei kaikei_tes
 | `backend/tests/test_frontend_api_contract.py` | フロントが存在しないAPIを呼んでいない |
 | `backend/tests/test_lint.py` | ruff の指摘が0件（CIの lint は `\|\| true` で握り潰される） |
 | `backend/tests/test_no_inline_rate_arithmetic.py` | エンドポイントに税率・保険料率を直書きしていない |
+| `backend/tests/test_frontend_api_contract.py` | 存在しないAPIを呼んでいない／概算の通知が画面に出ている |
 | `frontend/app/permission-gate.test.tsx` | 権限ゼロならAPIを呼ばない（12画面） |
 | `frontend/app/permission-resolve.test.tsx` | 権限が後から確定したら取得し直す（9画面） |
 
