@@ -201,6 +201,8 @@ class EmployeeCreate(BaseModel):
     hire_date: date
     # 介護保険（40歳以上65歳未満）の判定に使う。未設定なら徴収しない。
     birth_date: date | None = None
+    # 控除対象扶養親族等の数。源泉所得税・年末調整の扶養控除に使う。
+    dependents: int = Field(default=0, ge=0)
 
 
 class EmployeeResponse(BaseModel):
@@ -215,6 +217,7 @@ class EmployeeResponse(BaseModel):
     hourly_rate: Decimal
     hire_date: date
     birth_date: date | None = None
+    dependents: int = 0
     termination_date: date | None
     is_active: bool
 

@@ -299,6 +299,8 @@ class Employee(Base):
     # 介護保険（第2号被保険者・40歳以上65歳未満）の判定に必要。
     # 未設定なら介護保険料を徴収しない（誤徴収より徴収漏れを選ぶ）。
     birth_date: Mapped[date | None] = mapped_column(Date)
+    # 控除対象扶養親族等の数。源泉所得税と年末調整の扶養控除に使う。
+    dependents: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     base_salary: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
     hourly_rate: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
     hire_date: Mapped[date] = mapped_column(Date, nullable=False)

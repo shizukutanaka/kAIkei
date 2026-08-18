@@ -118,7 +118,9 @@ async def calculate_year_end_adjustment(
         total_withholding = withholding_tax + bonus_tax
         total_social_ins = social_ins_total + bonus_social_ins
 
-        dependents = payload.dependents_override.get(emp.employee_id, 0)
+        # 従業員に登録された扶養親族等の数を既定とし、リクエストで上書きできる。
+        # 以前は上書きが無ければ常に0人として計算していた。
+        dependents = payload.dependents_override.get(emp.employee_id, emp.dependents)
 
         # 課税対象は「給与収入」ではなく、給与所得控除・社会保険料控除・基礎控除・
         # 扶養控除を差し引いた課税給与所得金額。控除を引かずに税率を掛けると
