@@ -27,6 +27,17 @@ from app.services.year_end_adjustment import YearEndAdjustmentService
 router = APIRouter()
 
 
+# 年税額の計算自体は法定どおり（給与所得控除→速算表→復興特別所得税）だが、
+# 比較対象の「徴収済み税額」は月次の源泉所得税に由来し、それが概算のままである。
+# したがって還付・追徴の金額も概算になる。月次が法定計算に対応すれば解消する。
+ESTIMATED_YEAR_END_FIELDS = ("withholding_tax_total", "adjustment_amount")
+
+YEAR_END_ESTIMATE_NOTICE = (
+    "還付・追徴額は概算です（毎月の源泉所得税が概算のため）。"
+    "実際の精算にはそのまま使用しないでください。"
+)
+
+
 def _to_response(rec: YearEndAdjustment, emp_name: str | None = None) -> YearEndAdjustmentResponse:
     return YearEndAdjustmentResponse(
         adjustment_id=rec.adjustment_id,
@@ -44,6 +55,8 @@ def _to_response(rec: YearEndAdjustment, emp_name: str | None = None) -> YearEnd
         adjustment_amount=rec.adjustment_amount,
         status=rec.status,
         employee_name=emp_name,
+        estimated_fields=list(ESTIMATED_YEAR_END_FIELDS),
+        estimate_notice=YEAR_END_ESTIMATE_NOTICE,
     )
 
 

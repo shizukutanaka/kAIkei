@@ -316,7 +316,8 @@ class YearEndAdjustmentResponse(BaseModel):
     adjustment_amount: Decimal
     status: str
     employee_name: str | None = None
-    # 法定の算出方法をまだ実装できていない項目（賞与の源泉所得税）。
+    # 年税額の計算自体は法定どおりだが、比較対象の徴収済み税額が月次の概算に
+    # 由来するため、還付・追徴額も概算になる。
     estimated_fields: list[str] = Field(default_factory=list)
     estimate_notice: str | None = None
 
@@ -346,6 +347,9 @@ class BonusRecordResponse(BaseModel):
     net_pay: Decimal
     status: str
     employee_name: str | None = None
+    # 法定の算出方法をまだ実装できていない項目（賞与の源泉所得税）。
+    estimated_fields: list[str] = Field(default_factory=list)
+    estimate_notice: str | None = None
 
     model_config = {"from_attributes": True}
 
