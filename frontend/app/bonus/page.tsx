@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
+import { EstimateNotice } from "@/components/estimate-notice";
 import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
@@ -24,6 +25,7 @@ interface BonusRecord {
   total_deductions: string;
   net_pay: string;
   status: string;
+  estimate_notice?: string | null;
   employee_name: string | null;
 }
 
@@ -282,6 +284,7 @@ export default function BonusPage() {
         <SkeletonTable rows={5} columns={7} />
       ) : bonusRecords.length > 0 ? (
         <>
+          <EstimateNotice notice={bonusRecords[0].estimate_notice} />
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <div className="relative" role="search">
               <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

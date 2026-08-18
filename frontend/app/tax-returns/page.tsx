@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import PageLayout from "@/components/page-layout";
+import { EstimateNotice } from "@/components/estimate-notice";
 import { apiGet, apiPost } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
@@ -27,6 +28,7 @@ interface TaxReturn {
   tax_adjustment: string;
   tax_payable: string;
   status: string;
+  estimate_notice?: string | null;
   note: string | null;
 }
 
@@ -342,7 +344,9 @@ export default function TaxReturnsPage() {
       {loading ? (
         <SkeletonTable rows={5} columns={6} />
       ) : filteredRecords.length > 0 ? (
-        <div className="overflow-x-auto rounded-lg border">
+        <>
+          <EstimateNotice notice={filteredRecords[0].estimate_notice} />
+          <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
             <caption className="sr-only">消費税申告一覧</caption>
             <thead className="bg-muted/50">
@@ -391,6 +395,7 @@ export default function TaxReturnsPage() {
             </tfoot>
           </table>
         </div>
+        </>
       ) : (
         <div className="flex flex-col items-center justify-center rounded-lg border bg-card p-12">
           <Calculator className="mb-3 h-10 w-10 text-muted-foreground" />

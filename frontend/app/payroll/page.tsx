@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useDeferredValue, useMemo, useRef } from "react";
 import PageLayout from "@/components/page-layout";
+import { EstimateNotice } from "@/components/estimate-notice";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { useUser } from "@/lib/use-user";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { SkeletonTable } from "@/components/skeleton";
-import { Users, Plus, Calculator, Trash2, FileText, Download, CheckCircle, XCircle, Banknote, Search, Loader2, X, RefreshCw, AlertTriangle } from "lucide-react";
+import { Users, Plus, Calculator, Trash2, FileText, Download, CheckCircle, XCircle, Banknote, Search, Loader2, X, RefreshCw } from "lucide-react";
 
 interface Employee {
   employee_id: string;
@@ -615,15 +616,7 @@ export default function PayrollPage() {
             <SkeletonTable rows={5} columns={8} />
           ) : payrollRecords.length > 0 ? (
             <>
-              {payrollRecords[0].estimate_notice && (
-                <div
-                  role="note"
-                  className="mb-4 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-                >
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                  <span>{payrollRecords[0].estimate_notice}</span>
-                </div>
-              )}
+              <EstimateNotice notice={payrollRecords[0].estimate_notice} />
               <div className="overflow-x-auto rounded-lg border">
                 <table className="w-full text-sm">
                   <caption className="sr-only">給与計算結果</caption>
