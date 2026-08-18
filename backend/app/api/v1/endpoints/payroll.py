@@ -99,7 +99,7 @@ from app.services.bonus_employment_insurance import BonusEmploymentInsuranceServ
 from app.services.bonus_withholding_tax import BonusWithholdingTaxService
 from app.services.bonus_net_pay import BonusNetPayService
 from app.services.labor_insurance_installment import LaborInsuranceInstallmentService
-from app.services.overtime_pay import OvertimePayService
+from app.services.overtime_pay import OVERTIME_MONTHLY_THRESHOLD_HOURS, OvertimePayService
 from app.services.santei_export import SanteiEmployee, SanteiKisoService, SanteiMonth
 from app.services.notification_service import create_notification
 from app.services.standard_remuneration import RemunerationMonth
@@ -558,6 +558,8 @@ def _to_payroll_response(rec: PayrollRecord, emp_name: str | None = None) -> Pay
         total_gross=rec.total_gross,
         income_tax=rec.income_tax,
         social_insurance=rec.social_insurance,
+        estimated_fields=list(ESTIMATED_PAYROLL_FIELDS),
+        estimate_notice=PAYROLL_ESTIMATE_NOTICE,
         total_deductions=rec.total_deductions,
         net_pay=rec.net_pay,
         status=rec.status,
@@ -565,20 +567,39 @@ def _to_payroll_response(rec: PayrollRecord, emp_name: str | None = None) -> Pay
     )
 
 
-def _calc_income_tax(gross: Decimal) -> Decimal:
-    """簡易源泉所得税計算（月額表の近似）。"""
-    if gross <= 0:
-        return Decimal("0")
-    # 簡易税率: 5% (実際の源泉所得税表は複雑)
-    return (gross * Decimal("0.05")).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+# 月次給与計算のうち、法定の算出方法をまだ実装できていない項目。
+#
+# 源泉所得税は本来「給与所得の源泉徴収税額表」を扶養親族等の数と甲欄/乙欄で
+# 引く必要があるが、Employee に扶養親族等の数を保持しておらず、税額表も
+# 未実装のため概算のままになっている。社会保険料も本来は標準報酬月額の等級と
+# 都道府県別の保険料率で決まるが、いずれも未保持。
+#
+# これらは「概算である」ことが利用者に見えていないと、そのまま給与明細や
+# 納付額として使われてしまう。応答に明示して、UI で警告を出せるようにする。
+ESTIMATED_PAYROLL_FIELDS = ("income_tax", "social_insurance")
+
+PAYROLL_ESTIMATE_NOTICE = (
+    "源泉所得税と社会保険料は概算です（税額表・標準報酬月額の等級・都道府県別料率が未対応）。"
+    "給与明細の確定や納付額の算出にはそのまま使用しないでください。"
+)
+
+# 概算に用いる率。法定の算出方法ではないため、名前で概算だと分かるようにする。
+_ESTIMATED_INCOME_TAX_RATE = Decimal("0.05")
+_ESTIMATED_SOCIAL_INSURANCE_RATE = Decimal("0.15")
 
 
-def _calc_social_insurance(gross: Decimal) -> Decimal:
-    """簡易社会保険料計算（健康保険+厚生年金）。"""
+def _estimate_income_tax(gross: Decimal) -> Decimal:
+    """源泉所得税の概算。法定の税額表ではない（ESTIMATED_PAYROLL_FIELDS 参照）。"""
     if gross <= 0:
         return Decimal("0")
-    # 簡易: 総額の約15%
-    return (gross * Decimal("0.15")).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    return (gross * _ESTIMATED_INCOME_TAX_RATE).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+
+
+def _estimate_social_insurance(gross: Decimal) -> Decimal:
+    """社会保険料の概算。標準報酬月額の等級によらない（ESTIMATED_PAYROLL_FIELDS 参照）。"""
+    if gross <= 0:
+        return Decimal("0")
+    return (gross * _ESTIMATED_SOCIAL_INSURANCE_RATE).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
 
 
 
@@ -712,10 +733,17 @@ async def calculate_payroll(
     records: list[PayrollRecord] = []
     for emp in employees:
         ot_hours = payload.overtime_hours.get(emp.employee_id, Decimal("0"))
-        ot_pay = (emp.hourly_rate * ot_hours * Decimal("1.25")).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        # 労基法37条は月60時間を境に割増率が変わる（1.25倍 → 1.5倍）。
+        # 一律1.25倍だと60時間を超えた分が不足し、賃金の未払いになる。
+        # 率の判定は検証済みの OvertimePayService に委ねる。
+        ot_pay = OvertimePayService.compute(
+            hourly_wage=emp.hourly_rate,
+            overtime_hours=min(ot_hours, OVERTIME_MONTHLY_THRESHOLD_HOURS),
+            overtime_over_60_hours=max(ot_hours - OVERTIME_MONTHLY_THRESHOLD_HOURS, Decimal("0")),
+        ).total_premium
         total_gross = emp.base_salary + ot_pay
-        income_tax = _calc_income_tax(total_gross)
-        social_ins = _calc_social_insurance(total_gross)
+        income_tax = _estimate_income_tax(total_gross)
+        social_ins = _estimate_social_insurance(total_gross)
         total_deductions = income_tax + social_ins
         net_pay = total_gross - total_deductions
 

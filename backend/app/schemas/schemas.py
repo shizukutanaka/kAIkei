@@ -241,6 +241,10 @@ class PayrollRecordResponse(BaseModel):
     net_pay: Decimal
     status: str
     employee_name: str | None = None
+    # 法定の算出方法をまだ実装できていない項目。利用者に概算だと分かるようにする
+    # ための情報で、金額そのものには影響しない。
+    estimated_fields: list[str] = Field(default_factory=list)
+    estimate_notice: str | None = None
 
     model_config = {"from_attributes": True}
 
