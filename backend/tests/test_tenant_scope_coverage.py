@@ -108,6 +108,64 @@ def test_no_unscoped_tenant_lookup(path: pathlib.Path):
     )
 
 
+def _unverified_payload_handlers(path: pathlib.Path) -> list[tuple[int, str]]:
+    """ボディの company_id を検証せずに使っているハンドラを返す。
+
+    クエリパラメータは依存関係 `verified_company_id` で検証されるが、
+    リクエストボディはFastAPIの依存関係では触れないため、ハンドラ内で
+    `assert_company_access` を呼ぶ必要がある。呼び忘れると他テナントの
+    会社に対してデータを作成できてしまう。
+    """
+    source = path.read_text()
+    tree = ast.parse(source)
+
+    found = []
+    for fn in ast.walk(tree):
+        if not isinstance(fn, ast.AsyncFunctionDef | ast.FunctionDef):
+            continue
+        args = {a.arg for a in fn.args.args + fn.args.kwonlyargs}
+        # 認証済み・DBに触れるハンドラだけが対象
+        if "current_user" not in args or "db" not in args:
+            continue
+        body = ast.get_source_segment(source, fn) or ""
+        if "assert_company_access" in body:
+            continue
+        payloads = [a for a in args if f"{a}.company_id" in body and a not in {"current_user", "db"}]
+        if payloads:
+            found.append((fn.lineno, fn.name))
+    return found
+
+
+@pytest.mark.parametrize("path", ENDPOINT_FILES, ids=lambda p: p.name)
+def test_payload_company_id_is_verified(path: pathlib.Path):
+    unverified = _unverified_payload_handlers(path)
+    detail = ", ".join(f"{path.name}:{ln} {name}()" for ln, name in unverified)
+    assert not unverified, (
+        f"ボディの company_id を検証していないハンドラがある: {detail}. "
+        "先頭で await assert_company_access(db, current_user, <payload>.company_id) を呼ぶこと。"
+    )
+
+
+def test_payload_scanner_detects_a_missing_check(tmp_path):
+    """走査ロジック自体が機能していること。"""
+    sample = tmp_path / "sample.py"
+    sample.write_text(
+        "async def create(payload, current_user, db):\n"
+        "    return Budget(company_id=payload.company_id)\n"
+    )
+    assert _unverified_payload_handlers(sample) == [(1, "create")]
+
+
+def test_payload_scanner_accepts_a_checked_handler(tmp_path):
+    sample = tmp_path / "sample.py"
+    sample.write_text(
+        "async def create(payload, current_user, db):\n"
+        "    await assert_company_access(db, current_user, payload.company_id)\n"
+        "    return Budget(company_id=payload.company_id)\n"
+    )
+    assert _unverified_payload_handlers(sample) == []
+
+
 def test_scanner_detects_an_unscoped_lookup(tmp_path):
     """走査ロジック自体が機能していること（常に空を返す実装になっていないか）。"""
     sample = tmp_path / "sample.py"
