@@ -51,7 +51,12 @@ plugins = ["pydantic.mypy"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
-addopts = "-v --cov=app --cov-report=term-missing"
+# カバレッジは既定で取らない。閾値(fail_under)を設けていないため結果は
+# 表示されるだけで何の判断にも使われない一方、実測で全実行時間の約4割
+# (33.5秒 → 20.0秒) を占めていた。見たいときに明示する:
+#     python -m pytest --cov=app --cov-report=term-missing
+# -v も外す。1500件のテスト名を毎回流すと、失敗の行が埋もれて読みにくい。
+addopts = ""
 markers = [
     "db: tests that require a Postgres database (deselect with -m 'not db')",
 ]
