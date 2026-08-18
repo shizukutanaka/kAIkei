@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
+from app.core.tenant_scope import scope_to_tenant
 from app.models.models import Account, SubAccount, TaxRule
 from app.schemas.schemas import (
     AccountCreate,
@@ -224,7 +225,14 @@ async def get_account(
     db: AsyncSession = Depends(get_db),
 ) -> Account:
     result = await db.execute(
-        select(Account).where(Account.account_id == account_id, Account.is_deleted == False)  # noqa: E712
+        scope_to_tenant(
+            select(Account).where(
+                Account.account_id == account_id,
+                Account.is_deleted == False,  # noqa: E712
+            ),
+            Account,
+            current_user.tenant_id,
+        )
     )
     account = result.scalar_one_or_none()
     if not account:
@@ -240,7 +248,14 @@ async def update_account(
     db: AsyncSession = Depends(get_db),
 ) -> Account:
     result = await db.execute(
-        select(Account).where(Account.account_id == account_id, Account.is_deleted == False)  # noqa: E712
+        scope_to_tenant(
+            select(Account).where(
+                Account.account_id == account_id,
+                Account.is_deleted == False,  # noqa: E712
+            ),
+            Account,
+            current_user.tenant_id,
+        )
     )
     account = result.scalar_one_or_none()
     if not account:
@@ -265,7 +280,14 @@ async def delete_account(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     result = await db.execute(
-        select(Account).where(Account.account_id == account_id, Account.is_deleted == False)  # noqa: E712
+        scope_to_tenant(
+            select(Account).where(
+                Account.account_id == account_id,
+                Account.is_deleted == False,  # noqa: E712
+            ),
+            Account,
+            current_user.tenant_id,
+        )
     )
     account = result.scalar_one_or_none()
     if not account:
@@ -287,7 +309,14 @@ async def create_sub_account(
     db: AsyncSession = Depends(get_db),
 ) -> SubAccount:
     account_result = await db.execute(
-        select(Account).where(Account.account_id == payload.account_id, Account.is_deleted == False)  # noqa: E712
+        scope_to_tenant(
+            select(Account).where(
+                Account.account_id == payload.account_id,
+                Account.is_deleted == False,  # noqa: E712
+            ),
+            Account,
+            current_user.tenant_id,
+        )
     )
     if not account_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Parent account not found")

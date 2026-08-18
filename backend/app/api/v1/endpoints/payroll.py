@@ -12,6 +12,7 @@ from app.core.csv_export import csv_line
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
+from app.core.tenant_scope import scope_to_tenant
 from app.models.models import Employee, PayrollRecord
 from app.schemas.schemas import (
     EmployeeCreate,
@@ -658,9 +659,13 @@ async def delete_employee(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     result = await db.execute(
-        select(Employee).where(
-            Employee.employee_id == employee_id,
-            Employee.is_deleted == False,  # noqa: E712
+        scope_to_tenant(
+            select(Employee).where(
+                Employee.employee_id == employee_id,
+                Employee.is_deleted == False,  # noqa: E712
+            ),
+            Employee,
+            current_user.tenant_id,
         )
     )
     emp = result.scalar_one_or_none()

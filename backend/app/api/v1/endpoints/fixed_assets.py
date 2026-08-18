@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
+from app.core.tenant_scope import scope_to_tenant
 from app.models.models import DepreciationRecord, FixedAsset
 from app.schemas.schemas import FixedAssetCreate, FixedAssetResponse
 from app.services.auto_journal import generate_depreciation_journal
@@ -96,7 +97,14 @@ async def get_fixed_asset(
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> FixedAssetResponse:
     result = await db.execute(
-        select(FixedAsset).where(FixedAsset.asset_id == asset_id, FixedAsset.is_deleted == False)  # noqa: E712
+        scope_to_tenant(
+            select(FixedAsset).where(
+                FixedAsset.asset_id == asset_id,
+                FixedAsset.is_deleted == False,  # noqa: E712
+            ),
+            FixedAsset,
+            current_user.tenant_id,
+        )
     )
     asset = result.scalar_one_or_none()
     if not asset:
@@ -111,7 +119,14 @@ async def get_depreciation_schedule(
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> list[dict[str, Decimal | int]]:
     result = await db.execute(
-        select(FixedAsset).where(FixedAsset.asset_id == asset_id, FixedAsset.is_deleted == False)  # noqa: E712
+        scope_to_tenant(
+            select(FixedAsset).where(
+                FixedAsset.asset_id == asset_id,
+                FixedAsset.is_deleted == False,  # noqa: E712
+            ),
+            FixedAsset,
+            current_user.tenant_id,
+        )
     )
     asset = result.scalar_one_or_none()
     if not asset:
@@ -145,7 +160,14 @@ async def run_depreciation(
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> FixedAssetResponse:
     result = await db.execute(
-        select(FixedAsset).where(FixedAsset.asset_id == asset_id, FixedAsset.is_deleted == False)  # noqa: E712
+        scope_to_tenant(
+            select(FixedAsset).where(
+                FixedAsset.asset_id == asset_id,
+                FixedAsset.is_deleted == False,  # noqa: E712
+            ),
+            FixedAsset,
+            current_user.tenant_id,
+        )
     )
     asset = result.scalar_one_or_none()
     if not asset:
@@ -208,7 +230,14 @@ async def dispose_fixed_asset(
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> None:
     result = await db.execute(
-        select(FixedAsset).where(FixedAsset.asset_id == asset_id, FixedAsset.is_deleted == False)  # noqa: E712
+        scope_to_tenant(
+            select(FixedAsset).where(
+                FixedAsset.asset_id == asset_id,
+                FixedAsset.is_deleted == False,  # noqa: E712
+            ),
+            FixedAsset,
+            current_user.tenant_id,
+        )
     )
     asset = result.scalar_one_or_none()
     if not asset:

@@ -13,6 +13,7 @@ from app.core.csv_export import csv_document
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
+from app.core.tenant_scope import scope_to_tenant
 from app.models.models import Account, JournalHeader, JournalLine
 from app.schemas.schemas import (
     EventJournalDraftRequest,
@@ -157,9 +158,13 @@ async def get_journal(
     db: AsyncSession = Depends(get_db),
 ) -> JournalHeader:
     result = await db.execute(
-        select(JournalHeader).where(
-            JournalHeader.journal_header_id == journal_header_id,
-            JournalHeader.is_deleted == False,  # noqa: E712
+        scope_to_tenant(
+            select(JournalHeader).where(
+                JournalHeader.journal_header_id == journal_header_id,
+                JournalHeader.is_deleted == False,  # noqa: E712
+            ),
+            JournalHeader,
+            current_user.tenant_id,
         )
     )
     journal = result.scalar_one_or_none()
@@ -175,9 +180,13 @@ async def void_journal(
     db: AsyncSession = Depends(get_db),
 ) -> JournalHeader:
     result = await db.execute(
-        select(JournalHeader).where(
-            JournalHeader.journal_header_id == journal_header_id,
-            JournalHeader.is_deleted == False,  # noqa: E712
+        scope_to_tenant(
+            select(JournalHeader).where(
+                JournalHeader.journal_header_id == journal_header_id,
+                JournalHeader.is_deleted == False,  # noqa: E712
+            ),
+            JournalHeader,
+            current_user.tenant_id,
         )
     )
     journal = result.scalar_one_or_none()

@@ -10,6 +10,7 @@ from app.core.csv_export import csv_line
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
+from app.core.tenant_scope import scope_to_tenant
 from app.models.models import Account, JournalHeader, JournalLine, TaxReturn
 from app.schemas.schemas import TaxReturnCalculateRequest, TaxReturnListResponse, TaxReturnResponse
 
@@ -224,7 +225,13 @@ async def export_tax_return(
     db: AsyncSession = Depends(get_db),
 ) -> str:
     """消費税申告をCSV形式で出力する。"""
-    result = await db.execute(select(TaxReturn).where(TaxReturn.return_id == return_id))
+    result = await db.execute(scope_to_tenant(
+        select(TaxReturn).where(
+            TaxReturn.return_id == return_id,
+        ),
+        TaxReturn,
+        current_user.tenant_id,
+    ))
     tr = result.scalar_one_or_none()
     if not tr:
         raise HTTPException(status_code=404, detail="消費税申告が見つかりません")

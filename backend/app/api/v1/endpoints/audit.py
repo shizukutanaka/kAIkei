@@ -11,6 +11,7 @@ from app.core.business_time import business_now
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
+from app.core.tenant_scope import scope_to_tenant
 from app.models.models import (
     Account,
     AuditLog,
@@ -171,10 +172,14 @@ async def inspect_audit(
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> list[AuditDetectionResponse]:
     target_result = await db.execute(
-        select(JournalHeader).where(
-            JournalHeader.journal_header_id == payload.journal_header_id,
-            JournalHeader.is_deleted == False,  # noqa: E712
-            JournalHeader.is_voided == False,  # noqa: E712
+        scope_to_tenant(
+            select(JournalHeader).where(
+                JournalHeader.journal_header_id == payload.journal_header_id,
+                JournalHeader.is_deleted == False,  # noqa: E712
+                JournalHeader.is_voided == False,  # noqa: E712
+            ),
+            JournalHeader,
+            current_user.tenant_id,
         )
     )
     target_header = target_result.scalar_one_or_none()

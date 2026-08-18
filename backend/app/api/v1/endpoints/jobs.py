@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
+from app.core.tenant_scope import scope_to_tenant
 from app.models.models import JobExecution, ScheduledJob
 from app.schemas.schemas import (
     JobExecutionComplete,
@@ -76,7 +77,13 @@ async def run_scheduled_job(
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> JobExecutionResponse:
     job_result = await db.execute(
-        select(ScheduledJob).where(ScheduledJob.scheduled_job_id == scheduled_job_id)
+        scope_to_tenant(
+            select(ScheduledJob).where(
+                ScheduledJob.scheduled_job_id == scheduled_job_id,
+            ),
+            ScheduledJob,
+            current_user.tenant_id,
+        )
     )
     job = job_result.scalar_one_or_none()
     if job is None:
@@ -116,9 +123,13 @@ async def dispatch_due_jobs(
     return [JobExecutionResponse.model_validate(execution) for execution in created]
 
 
-async def _get_execution(db: AsyncSession, job_execution_id: UUID) -> JobExecution:
+async def _get_execution(db: AsyncSession, job_execution_id: UUID, tenant_id: UUID) -> JobExecution:
     result = await db.execute(
-        select(JobExecution).where(JobExecution.job_execution_id == job_execution_id)
+        scope_to_tenant(
+            select(JobExecution).where(JobExecution.job_execution_id == job_execution_id),
+            JobExecution,
+            tenant_id,
+        )
     )
     execution = result.scalar_one_or_none()
     if execution is None:
@@ -132,7 +143,7 @@ async def start_job_execution(
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> JobExecutionResponse:
-    execution = await _get_execution(db, job_execution_id)
+    execution = await _get_execution(db, job_execution_id, current_user.tenant_id)
     if execution.status not in {"pending", "failed_retry"}:
         raise HTTPException(status_code=409, detail=f"Cannot start execution in status {execution.status}")
     execution.status = "running"
@@ -150,7 +161,7 @@ async def complete_job_execution(
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_CREATE)),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> JobExecutionResponse:
-    execution = await _get_execution(db, job_execution_id)
+    execution = await _get_execution(db, job_execution_id, current_user.tenant_id)
     try:
         new_status = JobSchedulerService.next_status(
             execution.status,

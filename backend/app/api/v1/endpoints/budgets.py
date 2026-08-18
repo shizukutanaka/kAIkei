@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission
 from app.core.rbac import Permission
+from app.core.tenant_scope import scope_to_tenant
 from app.models.models import Account, Budget, BudgetLine, MonthlyBalance
 from app.schemas.schemas import (
     BudgetCreate,
@@ -74,9 +75,13 @@ async def list_budgets(
     return [BudgetResponse.model_validate(b) for b in result.scalars().unique().all()]
 
 
-async def _get_budget_or_404(budget_id: UUID, db: AsyncSession) -> Budget:
+async def _get_budget_or_404(budget_id: UUID, db: AsyncSession, tenant_id: UUID) -> Budget:
     result = await db.execute(
-        select(Budget).where(Budget.budget_id == budget_id, Budget.is_deleted == False)  # noqa: E712
+        scope_to_tenant(
+            select(Budget).where(Budget.budget_id == budget_id, Budget.is_deleted == False),  # noqa: E712
+            Budget,
+            tenant_id,
+        )
     )
     budget = result.scalar_one_or_none()
     if not budget:
@@ -90,7 +95,7 @@ async def get_budget(
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> BudgetResponse:
-    budget = await _get_budget_or_404(budget_id, db)
+    budget = await _get_budget_or_404(budget_id, db, current_user.tenant_id)
     return BudgetResponse.model_validate(budget)
 
 
@@ -100,7 +105,7 @@ async def delete_budget(
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_DELETE)),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    budget = await _get_budget_or_404(budget_id, db)
+    budget = await _get_budget_or_404(budget_id, db, current_user.tenant_id)
     budget.is_deleted = True
     await db.flush()
 
@@ -111,7 +116,7 @@ async def get_budget_variance(
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> BudgetVarianceResponse:
-    budget = await _get_budget_or_404(budget_id, db)
+    budget = await _get_budget_or_404(budget_id, db, current_user.tenant_id)
 
     budgeted_by_account: dict[UUID, Decimal] = {}
     for line in budget.lines:
