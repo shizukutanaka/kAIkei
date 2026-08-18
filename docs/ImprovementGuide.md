@@ -8,22 +8,29 @@
 ## 0. 実行者への共通ルール（必読）
 
 - **全テストをゲートにする**。変更後に必ず:
-  - `cd backend && python -m pytest -m "not db" -q -o addopts="" -p no:cacheprovider`
-  - ローカルPostgresを起動し `TEST_DATABASE_URL=postgresql+asyncpg://kaikei:kaikei_dev@127.0.0.1:5432/kaikei_test python -m pytest -m db -q -o addopts="" -p no:cacheprovider`
+  - `cd backend && python -m pytest -m "not db" -q`
+    （カバレッジは既定で無効。見たいときは `--cov=app --cov-report=term-missing`）
+  - ローカルPostgresを起動し `TEST_DATABASE_URL=postgresql+asyncpg://kaikei:kaikei_dev@127.0.0.1:5432/kaikei_test python -m pytest -m db -q`
   - Alembicは新規スクラッチDBで `alembic upgrade head`（単一ヘッド維持）
   - frontend: `npx tsc --noEmit` / `npm run build` / `npm test`
 - **1改善 = 1ブランチ = 1PR**。CI（build/test）green を確認してから main へマージ。
-- コミットtrailer: `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>` /
-  `Claude-Session: <session-url>`。**モデルIDはコミット/PR/コード/コメントに含めない**。
+- **モデル名・モデルIDはコミットメッセージ/PR/コード/コメントなど、リポジトリに
+  push されるあらゆる成果物に含めない**（会話での言及のみ）。
 - **日本の税・社保・労保は法令を必ず自分で再確認**（率・端数処理・境界・上限）。
   レビューは「確信できる法令ルールのみ」を数値例つきで報告・修正する。
-- **jose/crypto の PanicException** で `app` 全体importは環境依存で失敗する。エンドポイント検証は
-  `python -m py_compile` またはテスト経由で行う（テストは認証チェーンをimportしない）。
-- 環境: docker registry 403。ローカルPostgres16バイナリを使用。**DBテストのスキーマは
-  conftestの `Base.metadata.create_all`（マイグレーション未経由）で作られる**点に注意
-  （＝マイグレーション欠落はテストでは表面化しない。§改善参照）。
-- **model↔migration列パリティ**は `backend/tests/test_migration_model_parity.py` が保証する
-  （全modelテーブルにcreate_tableがあること）。新モデル追加時はマイグレーションも必ず追加。
+- `app.main` は現在そのままimportできる（過去に jose→cryptography の PanicException で
+  失敗する環境があった）。HTTP経路のテストは `tests/test_tenant_scope_api_db.py` の
+  `api` fixture を参考にすること。ミドルウェアが読み込み時のグローバルなエンジンを
+  掴んでいるため、テスト用セッションを差し替えないと「別ループのFuture」エラーで
+  本来の応答が握り潰される。
+- 環境: docker registry 403。ローカルPostgres16バイナリを使用。DBテストのスキーマは
+  conftestの `Base.metadata.create_all`（マイグレーション未経由）で作られるため、
+  索引など「モデルに書いていない差分」はテストDBに現れない。
+  マイグレーション自体の欠落は `tests/test_migration_parity_db.py` が
+  使い捨てDBに `alembic upgrade head` して検出する。
+- **model↔migration パリティ**は `tests/test_migration_model_parity.py`（静的）と
+  `tests/test_migration_parity_db.py`（実際に `alembic upgrade head` して照合）が保証する。
+  新モデル・新カラム追加時はマイグレーションも必ず追加。
 - **ルート重複ガード**は `backend/tests/test_route_uniqueness.py` が保証する。FastAPIは
   同一パスを先勝ちで解決するため、merge等で重複定義が入ると後続が到達不能な死にコードになる。
 
