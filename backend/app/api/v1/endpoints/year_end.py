@@ -1,5 +1,5 @@
 from contextlib import suppress
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -19,8 +19,10 @@ from app.schemas.schemas import (
     YearEndAdjustmentResponse,
     YearEndListResponse,
 )
+from app.services.income_deduction import basic_deduction, dependent_deduction
 from app.services.notification_service import create_notification
 from app.services.salary_deduction import SalaryIncomeDeductionService
+from app.services.year_end_adjustment import YearEndAdjustmentService
 
 router = APIRouter()
 
@@ -43,37 +45,6 @@ def _to_response(rec: YearEndAdjustment, emp_name: str | None = None) -> YearEnd
         status=rec.status,
         employee_name=emp_name,
     )
-
-
-def _calc_annual_tax(gross: Decimal, dependents: int) -> Decimal:
-    """簡易年間所得税計算（累進税率 + 扶養控除）。"""
-    dependent_deduction = Decimal(str(dependents * 380000))
-    taxable = gross - dependent_deduction
-    if taxable <= 0:
-        return Decimal("0")
-    if taxable <= 1950000:
-        rate = Decimal("0.05")
-        deduction = Decimal("0")
-    elif taxable <= 3300000:
-        rate = Decimal("0.10")
-        deduction = Decimal("97500")
-    elif taxable <= 6945000:
-        rate = Decimal("0.20")
-        deduction = Decimal("427500")
-    elif taxable <= 9000000:
-        rate = Decimal("0.23")
-        deduction = Decimal("636000")
-    elif taxable <= 18000000:
-        rate = Decimal("0.33")
-        deduction = Decimal("1536000")
-    elif taxable <= 40000000:
-        rate = Decimal("0.40")
-        deduction = Decimal("2796000")
-    else:
-        rate = Decimal("0.45")
-        deduction = Decimal("4796000")
-    tax = (taxable * rate - deduction).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
-    return max(tax, Decimal("0"))
 
 
 @router.post("/calculate", response_model=list[YearEndAdjustmentResponse])
@@ -135,11 +106,21 @@ async def calculate_year_end_adjustment(
         total_social_ins = social_ins_total + bonus_social_ins
 
         dependents = payload.dependents_override.get(emp.employee_id, 0)
-        dependent_deduction = Decimal(str(dependents * 380000))
-        estimated_tax = _calc_annual_tax(total_gross, dependents)
-        adjustment_amount = (total_withholding - estimated_tax).quantize(
-            Decimal("1"), rounding=ROUND_HALF_UP
+
+        # 課税対象は「給与収入」ではなく、給与所得控除・社会保険料控除・基礎控除・
+        # 扶養控除を差し引いた課税給与所得金額。控除を引かずに税率を掛けると
+        # 税額が数倍になり、還付すべき人に追徴が出る。
+        salary_income = total_gross - SalaryIncomeDeductionService.compute(total_gross)
+        dependent_deduction_amount = dependent_deduction(dependents)
+        deductions = total_social_ins + basic_deduction(salary_income) + dependent_deduction_amount
+        adjustment = YearEndAdjustmentService.compute(
+            annual_gross_salary=total_gross,
+            total_income_deductions=deductions,
+            withheld_tax_total=total_withholding,
         )
+        estimated_tax = adjustment.year_tax
+        # 還付は正、追徴は負で保持する（従来の符号を踏襲）。
+        adjustment_amount = adjustment.refund - adjustment.additional_collection
 
         rec = YearEndAdjustment(
             employee_id=emp.employee_id,
@@ -152,7 +133,7 @@ async def calculate_year_end_adjustment(
             estimated_annual_tax=estimated_tax,
             social_insurance_total=total_social_ins,
             dependents=dependents,
-            dependent_deduction=dependent_deduction,
+            dependent_deduction=dependent_deduction_amount,
             adjustment_amount=adjustment_amount,
             status="calculated",
         )

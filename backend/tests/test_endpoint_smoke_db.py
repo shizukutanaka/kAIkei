@@ -10,12 +10,9 @@
 """
 from uuid import uuid4
 
-import httpx
 import pytest
 import pytest_asyncio
-from httpx import ASGITransport
 
-from app.core.database import get_db
 from app.main import app
 from app.models.models import Company, Tenant, User
 
@@ -46,22 +43,12 @@ SMOKE_PATHS = _company_only_get_paths()
 
 
 @pytest_asyncio.fixture
-async def api(db_session, monkeypatch):
-    import contextlib
+async def api(api_client):
+    """共有の `api_client`（conftest.py）を使う。
 
-    from app.middleware import audit_log, idempotency, ip_restriction
-
-    @contextlib.asynccontextmanager
-    async def _test_session():
-        yield db_session
-
-    for module in (audit_log, idempotency, ip_restriction):
-        monkeypatch.setattr(module, "async_session_factory", _test_session)
-
-    app.dependency_overrides[get_db] = lambda: db_session
-    async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        yield client
-    app.dependency_overrides.clear()
+    ミドルウェアのセッション差し替えとレート制限の解除はそこに集約している。
+    """
+    return api_client
 
 
 @pytest_asyncio.fixture

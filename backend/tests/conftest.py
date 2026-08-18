@@ -134,3 +134,49 @@ async def seed_company(db_session):
         "company_id": company.company_id,
         "user_id": user.user_id,
     }
+
+
+@pytest_asyncio.fixture
+async def api_client(db_session, monkeypatch):
+    """アプリ全体をASGI経由で叩くクライアント。
+
+    HTTP経路のテストを書くために2点を整える。
+
+    1. ミドルウェア（監査ログ・冪等性・IP制限）は**モジュール読み込み時の
+       グローバルなエンジン**を掴んでいる。テストは別のイベントループで動くため、
+       そのままでは「別ループのFuture」エラーになり、本来の応答が握り潰される。
+       テスト用セッションに差し替えてループを揃える。
+    2. レート制限はプロセス内にカウンタを持つ。スイート全体では同じクライアントIPから
+       大量に叩くことになり、後から動くテストだけが 429 で落ちる（順序依存）。
+       テストごとにカウンタを空にする。
+    """
+    import contextlib
+
+    import httpx
+    from httpx import ASGITransport
+
+    from app.core.database import get_db
+    from app.main import app
+    from app.middleware import audit_log, idempotency, ip_restriction
+
+    @contextlib.asynccontextmanager
+    async def _test_session():
+        # セッションの close はテスト側が管理するので、ここでは呼ばない。
+        yield db_session
+
+    for module in (audit_log, idempotency, ip_restriction):
+        monkeypatch.setattr(module, "async_session_factory", _test_session)
+
+    # 上限はミドルウェアのインスタンスに保持されるため、クラス属性を書き換えても
+    # 効かない。dispatch を素通しにして、スイート全体での積み上がりを断つ。
+    from app.middleware.rate_limit import RateLimitMiddleware
+
+    async def _passthrough(self, request, call_next):
+        return await call_next(request)
+
+    monkeypatch.setattr(RateLimitMiddleware, "dispatch", _passthrough)
+
+    app.dependency_overrides[get_db] = lambda: db_session
+    async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        yield client
+    app.dependency_overrides.clear()

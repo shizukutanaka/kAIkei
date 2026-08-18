@@ -316,6 +316,9 @@ class YearEndAdjustmentResponse(BaseModel):
     adjustment_amount: Decimal
     status: str
     employee_name: str | None = None
+    # 法定の算出方法をまだ実装できていない項目（賞与の源泉所得税）。
+    estimated_fields: list[str] = Field(default_factory=list)
+    estimate_notice: str | None = None
 
     model_config = {"from_attributes": True}
 
