@@ -1959,17 +1959,6 @@ class BudgetVarianceResponse(BaseModel):
 
 
 
-class BankReconciliationCandidate(BaseModel):
-    source_id: UUID
-    source_type: str
-    source_date: date
-    amount: Decimal
-    score: Decimal
-    reason: str
-
-
-
-
 
 class PaymentRequestCreate(BaseModel):
     company_id: UUID

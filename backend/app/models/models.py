@@ -566,6 +566,32 @@ class PeriodClose(Base):
     company = relationship("Company")
 
 
+class RefreshToken(Base):
+    """発行済みリフレッシュトークンの台帳（ローテーションと再利用検知用）。
+
+    リフレッシュトークンはブラウザの localStorage に置かれるため、XSS で
+    盗まれ得る。サーバ側に発行記録が無いと、盗まれたトークンは有効期限まで
+    使い放題で、更新のたびに期限が延びるため実質無期限になる。
+
+    1回の認証（ログイン）を family とし、更新のたびに新しい行を同じ family に
+    積む。使用済みのトークンがもう一度出てきたら、正規利用者と攻撃者の両方が
+    同じトークンを持っていたことになるので、family ごと失効させる
+    （RFC 9700 の refresh token rotation + reuse detection）。
+    """
+    __tablename__ = "refresh_tokens"
+
+    token_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    family_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # 更新に使われた時刻。埋まっているトークンが再度出てきたら再利用（盗難の疑い）。
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # このトークンを使って発行された後継。猶予時間内の再提示に同じ後継を返すために持つ。
+    replaced_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
 class Notification(Base):
     """通知（アプリ内/メール/プッシュ/チャット/Webhook）。"""
     __tablename__ = "notifications"

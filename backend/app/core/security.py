@@ -29,13 +29,20 @@ def create_access_token(subject: str, extra_claims: dict[str, Any] | None = None
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
-def create_refresh_token(subject: str) -> str:
+def create_refresh_token(subject: str, jti: str | None = None) -> str:
+    """リフレッシュトークンを発行する。
+
+    `jti` はサーバ側の失効管理（ローテーションと再利用検知）で使う識別子。
+    これが無いとトークンは発行しっぱなしになり、盗まれても失効させられない。
+    """
     expire = datetime.now(UTC) + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
     payload = {
         "sub": subject,
         "exp": expire,
         "type": "refresh",
     }
+    if jti is not None:
+        payload["jti"] = jti
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
