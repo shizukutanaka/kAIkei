@@ -14,8 +14,15 @@ without the workflow change. **Both should be removed once the workflow is fixed
 | --- | --- | --- |
 | `pytest_configure` in `backend/tests/conftest.py` | When `CI` is set, widens collection from the 5 hardcoded files to all of `tests/`. Prints a line saying so, to keep the CI log honest. | The `Run unit tests` step runs `tests/` |
 | `backend/tests/test_lint.py` | Runs `python -m ruff check app tests` and fails the test if there are findings — the workflow's own lint step ends in `\|\| true` and always passes. | The `Ruff lint` step drops `\|\| true` and covers `tests/` |
+| `frontend/scripts/ci-run-tests.mjs` (npm `prebuild`) | Runs `vitest run` before `next build` when `CI` is set — `frontend-ci.yml` never runs `npm test`, so the 74 frontend tests were not running either. A failing test now exits 1 before Next compiles. | The frontend workflow gains an `npm test` step |
 
-Verified by running CI's exact command locally: **5 files → 1,521 tests**.
+Verified by running each CI command locally:
+
+- backend: **5 files → 1,521 tests**
+- frontend: `CI=true npm run build` runs **74 tests** first; a deliberately broken test makes `npm run build` exit 1 without compiling.
+
+All three shims are gated on the `CI` environment variable, so local single-file
+runs and local builds behave as before.
 
 DB-marked tests still skip (no `TEST_DATABASE_URL` in CI), so the `db-test` job
 below is still needed for the integration tests.
@@ -118,7 +125,7 @@ The DB tests auto-skip when `TEST_DATABASE_URL` is unset (see
 ## Frontend CI also skips its tests
 
 `.github/workflows/frontend-ci.yml` runs `npm ci`, `npx tsc --noEmit` and `npm run build`
-— but **never `npm test`**, so the vitest suite does not run in CI either.
+— but **never `npm test`**, so the vitest suite did not run in CI either.
 
 Add a step to that workflow (same `workflows` permission is required):
 
@@ -126,3 +133,7 @@ Add a step to that workflow (same `workflows` permission is required):
       - name: Run tests
         run: npm test
 ```
+
+Until then, the `prebuild` shim above covers it. When you add this step, delete
+`frontend/scripts/ci-run-tests.mjs` and the `prebuild` entry in `package.json`,
+otherwise the suite runs twice.
