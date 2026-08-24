@@ -63,6 +63,8 @@ export default function TaxReturnsPage() {
   const [selectedRecord, setSelectedRecord] = useState<TaxReturn | null>(null);
   const [calcYear, setCalcYear] = useState(new Date().getFullYear().toString());
   const [filingType, setFilingType] = useState("general");
+  // 簡易課税のみなし仕入率は事業区分で決まる（消費税法施行令57条）。
+  const [businessCategory, setBusinessCategory] = useState("4");
   const [taxAdjustment, setTaxAdjustment] = useState("0");
   const [calculating, setCalculating] = useState(false);
   const [transitionLoading, setTransitionLoading] = useState(false);
@@ -100,6 +102,7 @@ export default function TaxReturnsPage() {
         company_id: companyId,
         tax_year: parseInt(calcYear),
         filing_type: filingType,
+        business_category: parseInt(businessCategory),
         tax_adjustment: parseFloat(taxAdjustment) || 0,
       });
       setRecords([data, ...records.filter((r) => r.return_id !== data.return_id)]);
@@ -199,6 +202,19 @@ export default function TaxReturnsPage() {
                 <option value="simplified">簡易課税</option>
               </select>
             </div>
+            {filingType === "simplified" && (
+              <div>
+                <label htmlFor="business-category" className="mb-1 block text-sm font-medium">事業区分</label>
+                <select id="business-category" value={businessCategory} onChange={(e) => setBusinessCategory(e.target.value)} className="rounded-md border px-3 py-2 text-sm">
+                  <option value="1">第1種 卸売業（90%）</option>
+                  <option value="2">第2種 小売業（80%）</option>
+                  <option value="3">第3種 製造業等（70%）</option>
+                  <option value="4">第4種 その他（60%）</option>
+                  <option value="5">第5種 サービス業等（50%）</option>
+                  <option value="6">第6種 不動産業（40%）</option>
+                </select>
+              </div>
+            )}
             <div>
               <label htmlFor="tax-adjustment" className="mb-1 block text-sm font-medium">調整額</label>
               <input id="tax-adjustment" type="number" value={taxAdjustment} onChange={(e) => setTaxAdjustment(e.target.value)} className="w-32 rounded-md border px-3 py-2 text-sm" />

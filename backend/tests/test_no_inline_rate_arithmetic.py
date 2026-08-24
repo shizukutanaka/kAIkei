@@ -30,15 +30,7 @@ _RATE = re.compile(r'Decimal\(\s*"(0\.\d+|1\.\d+)"\s*\)')
 _IDENTITY = {"1.0", "1.00", "1.000"}
 
 # 意図的な例外。(ファイル名, 関数名) -> 理由。
-ALLOWED: dict[tuple[str, str], str] = {
-    # 概算であることを応答と画面で明示している。法定計算に必要な入力
-    # （扶養親族等の数・税額表）が未実装のため、暫定的に残している。
-    ("payroll.py", "_estimate_income_tax"): "源泉所得税の概算。estimate_notice で明示済み",
-    ("bonus.py", "_estimate_bonus_tax"): "賞与源泉所得税の概算。estimate_notice で明示済み",
-    # 仕訳の税区分から集計するのが本来。一律按分であることを estimate_notice で
-    # 明示している。改善8（docs/ImprovementGuide.md）で解消する。
-    ("tax_returns.py", "calculate_tax_return"): "消費税申告の一律按分。estimate_notice で明示済み",
-}
+ALLOWED: dict[tuple[str, str], str] = {}
 
 
 def _inline_rate_functions(path: pathlib.Path) -> list[tuple[int, str, list[str]]]:
@@ -96,3 +88,26 @@ def test_scanner_ignores_non_rate_constants(tmp_path):
         '    return (gross // Decimal("1000")) * Decimal("1000")\n'
     )
     assert _inline_rate_functions(sample) == []
+
+
+def test_allowed_entries_still_exist():
+    """例外リストに、既に存在しない関数が残っていないこと。
+
+    不具合を直して関数を消しても例外だけが残ると、あとから同名の関数を
+    足したときに黙って検査を素通りする。例外は不具合と一緒に消えるべき。
+    """
+    stale = []
+    for (file_name, func_name), reason in ALLOWED.items():
+        path = ENDPOINTS_DIR / file_name
+        if not path.is_file():
+            stale.append(f"{file_name} が無い（{reason}）")
+            continue
+        tree = ast.parse(path.read_text())
+        names = {
+            n.name for n in ast.walk(tree)
+            if isinstance(n, ast.AsyncFunctionDef | ast.FunctionDef)
+        }
+        if func_name not in names:
+            stale.append(f"{file_name}:{func_name} が無い（{reason}）")
+
+    assert not stale, "例外リストが古い:\n" + "\n".join(f"  {m}" for m in stale)

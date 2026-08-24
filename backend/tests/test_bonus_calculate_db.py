@@ -59,7 +59,7 @@ async def company(db_session):
     return {"company_id": co.company_id, "token": create_access_token(str(user.user_id))}
 
 
-async def _add_employee(db_session, company_id, birth_date: date | None = None) -> Employee:
+async def _add_employee(db_session, company_id, birth_date: date | None = None, dependents: int = 0) -> Employee:
     emp = Employee(
         company_id=company_id,
         employee_code=f"E-{uuid.uuid4().hex[:6]}",
@@ -68,6 +68,7 @@ async def _add_employee(db_session, company_id, birth_date: date | None = None) 
         hourly_rate=Decimal("2500"),
         hire_date=date(2020, 4, 1),
         birth_date=birth_date,
+        dependents=dependents,
         is_active=True,
     )
     db_session.add(emp)
@@ -184,3 +185,44 @@ async def test_income_tax_is_disclosed_as_an_estimate(api, company, db_session):
 
     assert record["estimated_fields"] == ["income_tax"]
     assert "概算" in (record["estimate_notice"] or "")
+
+
+async def test_income_tax_is_not_a_flat_rate(api, company, db_session):
+    """賞与の源泉所得税が一律10.21%ではなくなっていること。"""
+    from app.services.monthly_withholding import estimate_bonus_withholding
+    from app.services.standard_remuneration import StandardRemunerationService
+
+    emp = await _add_employee(db_session, company["company_id"])
+    record = (await _calculate(api, company)).json()[0]
+
+    bonus = Decimal(record["bonus_amount"])
+    grade = StandardRemunerationService.lookup_health_grade(BASE_SALARY)
+    monthly_social = SocialInsurancePremiumService.compute(
+        standard_monthly_remuneration=grade.standard_monthly_remuneration,
+        health_rate=DEFAULT_HEALTH_INSURANCE_RATE,
+        care_rate=DEFAULT_CARE_INSURANCE_RATE,
+        care_applicable=False,
+    ).total_employee
+    expected = estimate_bonus_withholding(
+        monthly_gross=BASE_SALARY,
+        monthly_social_insurance=monthly_social,
+        bonus_gross=bonus,
+        bonus_social_insurance=Decimal(record["social_insurance"]),
+        dependents=emp.dependents,
+    )
+
+    assert Decimal(record["income_tax"]) == expected
+    assert Decimal(record["income_tax"]) != (bonus * Decimal("0.1021")).quantize(Decimal("1"))
+
+
+async def test_dependents_reduce_the_bonus_withholding(api, company, db_session):
+    """扶養親族等の数が賞与の源泉所得税にも効くこと。"""
+    none = await _add_employee(db_session, company["company_id"])
+    without = Decimal((await _calculate(api, company)).json()[0]["income_tax"])
+
+    await _add_employee(db_session, company["company_id"], dependents=4)
+    records = (await _calculate(api, company)).json()
+    with_deps = min(Decimal(r["income_tax"]) for r in records)
+
+    assert with_deps < without, "扶養親族等の数が効いていない"
+    assert none is not None

@@ -16,6 +16,7 @@ from app.core.tenant_scope import assert_company_access
 from app.models.models import BonusRecord, Company, Employee
 from app.schemas.schemas import BonusCalculateRequest, BonusListResponse, BonusRecordResponse, NotificationCreate
 from app.services.auto_journal import generate_bonus_journal
+from app.services.monthly_withholding import estimate_bonus_withholding
 from app.services.notification_service import create_notification
 from app.services.social_insurance import (
     DEFAULT_CARE_INSURANCE_RATE,
@@ -24,6 +25,7 @@ from app.services.social_insurance import (
     care_insurance_applicable,
     standard_bonus_amounts,
 )
+from app.services.standard_remuneration import StandardRemunerationService
 
 BONUS_TERM_LABELS = {
     "summer": "夏季賞与",
@@ -35,15 +37,15 @@ BONUS_TERM_LABELS = {
 router = APIRouter()
 
 
-# 賞与の源泉所得税は「賞与に対する源泉徴収税額の算出率表」を、前月の社会保険料等
-# 控除後給与と扶養親族等の数で引く必要がある。扶養親族等の数を保持していないため
-# 算出率を決められず、概算のままになっている。
-# 社会保険料は標準賞与額から正しく計算できるので、概算はこの1項目だけ。
+# 賞与の源泉所得税は本来「賞与に対する源泉徴収税額の算出率表」を、前月の
+# 社会保険料等控除後給与と扶養親族等の数で引く。表そのものは未実装のため、
+# 賞与を含む年税額と含まない年税額の差額（限界税額）を用いる
+# （monthly_withholding.estimate_bonus_withholding）。年末調整で精算される。
 ESTIMATED_BONUS_FIELDS = ("income_tax",)
 
 BONUS_ESTIMATE_NOTICE = (
-    "賞与の源泉所得税は概算です（算出率表・前月給与・扶養親族等の数が未対応）。"
-    "納付額の算出にはそのまま使用しないでください。"
+    "賞与の源泉所得税は概算です（年税額の差額から算出。算出率表そのものではありません）。"
+    "年末調整で精算されますが、納付額の確定にはそのまま使用しないでください。"
 )
 
 
@@ -66,13 +68,6 @@ def _to_bonus_response(rec: BonusRecord, emp_name: str | None = None) -> BonusRe
         estimated_fields=list(ESTIMATED_BONUS_FIELDS),
         estimate_notice=BONUS_ESTIMATE_NOTICE,
     )
-
-
-def _estimate_bonus_tax(gross: Decimal) -> Decimal:
-    """賞与の源泉所得税の概算。算出率表によらない（ESTIMATED_BONUS_FIELDS 参照）。"""
-    if gross <= 0:
-        return Decimal("0")
-    return (gross * Decimal("0.1021")).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
 
 
 BONUS_TERM_LABELS = {
@@ -141,22 +136,45 @@ async def calculate_bonus(
         bonus_amount = (emp.base_salary * payload.bonus_base_months * factor).quantize(
             Decimal("1"), rounding=ROUND_HALF_UP
         )
-        income_tax = _estimate_bonus_tax(bonus_amount)
+
         # 社会保険料は標準賞与額（1,000円未満切捨・年度/1回あたりの上限あり）で決まる。
         # 賞与額に率を直接掛けると、上限も切り捨ても効かず高額賞与で過大徴収になる。
         paid_health_bonus = paid_health_bonus_by_employee.get(emp.employee_id, Decimal("0"))
         standard = standard_bonus_amounts(bonus_amount, paid_health_bonus)
+        health_rate = (
+            company.health_insurance_rate
+            if company.health_insurance_rate is not None
+            else DEFAULT_HEALTH_INSURANCE_RATE
+        )
+        care_rate = (
+            company.care_insurance_rate
+            if company.care_insurance_rate is not None
+            else DEFAULT_CARE_INSURANCE_RATE
+        )
+        care_applicable = care_insurance_applicable(emp.birth_date, bonus_paid_on)
         social_ins = SocialInsurancePremiumService.compute_bonus(
             health_standard_bonus=standard.health,
             pension_standard_bonus=standard.pension,
-            health_rate=company.health_insurance_rate
-            if company.health_insurance_rate is not None
-            else DEFAULT_HEALTH_INSURANCE_RATE,
-            care_rate=company.care_insurance_rate
-            if company.care_insurance_rate is not None
-            else DEFAULT_CARE_INSURANCE_RATE,
-            care_applicable=care_insurance_applicable(emp.birth_date, bonus_paid_on),
+            health_rate=health_rate,
+            care_rate=care_rate,
+            care_applicable=care_applicable,
         ).total_employee
+
+        # 月次給与の社会保険料も等級から求め、年換算の課税所得を組み立てる。
+        monthly_grade = StandardRemunerationService.lookup_health_grade(emp.base_salary)
+        monthly_social = SocialInsurancePremiumService.compute(
+            standard_monthly_remuneration=monthly_grade.standard_monthly_remuneration,
+            health_rate=health_rate,
+            care_rate=care_rate,
+            care_applicable=care_applicable,
+        ).total_employee
+        income_tax = estimate_bonus_withholding(
+            monthly_gross=emp.base_salary,
+            monthly_social_insurance=monthly_social,
+            bonus_gross=bonus_amount,
+            bonus_social_insurance=social_ins,
+            dependents=emp.dependents,
+        )
         total_deductions = income_tax + social_ins
         net_pay = bonus_amount - total_deductions
 

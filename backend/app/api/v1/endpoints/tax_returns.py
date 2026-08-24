@@ -11,12 +11,17 @@ from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.core.tenant_scope import assert_company_access, scope_to_tenant
-from app.models.models import Account, JournalHeader, JournalLine, TaxReturn
+from app.models.models import Account, JournalHeader, JournalLine, TaxReturn, TaxRule
 from app.schemas.schemas import TaxReturnCalculateRequest, TaxReturnListResponse, TaxReturnResponse
+from app.services.consumption_tax_classification import (
+    TaxClassifiedAmounts,
+    classify,
+)
+from app.services.consumption_tax_classification import output_tax as consumption_output_tax
+from app.services.simplified_consumption_tax import SimplifiedConsumptionTaxService
 
 router = APIRouter()
 
-TAX_RATE = Decimal("10")  # 10% (軽減税率8%は複雑なので簡略化)
 VALID_FILING_TYPES = {"general", "simplified"}
 VALID_TRANSITIONS: dict[str, set[str]] = {
     "calculated": {"filed"},
@@ -28,11 +33,9 @@ def _round(v: Decimal) -> Decimal:
     return v.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
 
 
-# 消費税申告の課税売上・課税仕入は、本来は仕訳明細の税区分（tax_rule_id）から
-# 集計する必要がある。現状は売上・費用を一律 80%/20% で按分し、簡易課税の
-# みなし仕入率も事業区分によらず90%を使っているため、申告書の数値は概算。
-#
-# 申告書はそのまま提出されうるので、概算であることを応答に明示する。
+# 課税区分は仕訳明細の税区分（tax_rules）から集計している。ただし税区分が
+# 設定されていない明細は、課税とも非課税とも判定できない。黙ってどちらかに
+# 倒すと申告額が静かに狂うので、件数を数えて利用者に伝える。
 ESTIMATED_TAX_RETURN_FIELDS = (
     "taxable_sales",
     "non_taxable_sales",
@@ -40,14 +43,23 @@ ESTIMATED_TAX_RETURN_FIELDS = (
     "purchases_not_subject_to_tax",
 )
 
-TAX_RETURN_ESTIMATE_NOTICE = (
-    "課税売上・課税仕入は仕訳の税区分ではなく一律按分（80%/20%）で算出した概算です。"
-    "簡易課税のみなし仕入率も事業区分によらず90%を使用しています。"
-    "申告にはそのまま使用しないでください。"
-)
+
+def _unclassified_notice(unclassified_count: int, unclassified_amount: Decimal) -> str | None:
+    """税区分未設定の明細があるときだけ警告を返す。
+
+    全ての明細に税区分が付いていれば None を返し、画面の警告も消える。
+    """
+    if unclassified_count <= 0:
+        return None
+    return (
+        f"税区分が設定されていない仕訳明細が{unclassified_count}件"
+        f"（合計 {unclassified_amount:,.0f} 円）あります。"
+        "これらは課税・非課税のいずれにも集計されていないため、"
+        "申告前に仕訳の税区分を設定してください。"
+    )
 
 
-def _to_response(tr: TaxReturn) -> TaxReturnResponse:
+def _to_response(tr: TaxReturn, notice: str | None = None) -> TaxReturnResponse:
     return TaxReturnResponse(
         return_id=tr.return_id,
         company_id=tr.company_id,
@@ -66,8 +78,8 @@ def _to_response(tr: TaxReturn) -> TaxReturnResponse:
         tax_payable=tr.tax_payable,
         status=tr.status,
         note=tr.note,
-        estimated_fields=list(ESTIMATED_TAX_RETURN_FIELDS),
-        estimate_notice=TAX_RETURN_ESTIMATE_NOTICE,
+        estimated_fields=list(ESTIMATED_TAX_RETURN_FIELDS) if notice else [],
+        estimate_notice=notice,
     )
 
 
@@ -93,63 +105,63 @@ async def calculate_tax_return(
         )
     )
 
-    # Aggregate journal lines by account type for the given year
-    # Revenue accounts -> sales, Expense accounts -> purchases
-    revenue_lines = await db.execute(
-        select(
-            func.coalesce(func.sum(JournalLine.amount), 0).label("total"),
+    # 仕訳明細に紐づく税区分（tax_rules）で集計する。
+    # 売上・費用を一律の比率で按分すると、実際の取引内容と無関係な申告額になる。
+    async def _classified(account_type: str, side: str) -> TaxClassifiedAmounts:
+        rows = await db.execute(
+            select(TaxRule.tax_type, TaxRule.tax_rate, JournalLine.amount)
+            .join(JournalHeader, JournalLine.journal_header_id == JournalHeader.journal_header_id)
+            .join(Account, JournalLine.account_id == Account.account_id)
+            .outerjoin(TaxRule, JournalLine.tax_rule_id == TaxRule.tax_rule_id)
+            .where(
+                JournalHeader.company_id == payload.company_id,
+                extract("year", JournalHeader.transaction_date) == payload.tax_year,
+                Account.account_type == account_type,
+                JournalLine.debit_credit == side,
+                JournalHeader.approval_status.in_(["approved", "posted"]),
+                JournalHeader.is_deleted == False,  # noqa: E712
+                JournalHeader.is_voided == False,  # noqa: E712
+                JournalLine.is_deleted == False,  # noqa: E712
+            )
         )
-        .join(JournalHeader, JournalLine.journal_header_id == JournalHeader.journal_header_id)
-        .join(Account, JournalLine.account_id == Account.account_id)
-        .where(
-            JournalHeader.company_id == payload.company_id,
-            extract("year", JournalHeader.transaction_date) == payload.tax_year,
-            Account.account_type == "revenue",
-            JournalLine.debit_credit == "credit",
-            JournalHeader.approval_status.in_(["approved", "posted"]),
-        )
-    )
-    total_revenue = revenue_lines.scalar() or Decimal("0")
+        return classify([(r[0], r[1], r[2]) for r in rows.all()])
 
-    expense_lines = await db.execute(
-        select(
-            func.coalesce(func.sum(JournalLine.amount), 0).label("total"),
-        )
-        .join(JournalHeader, JournalLine.journal_header_id == JournalHeader.journal_header_id)
-        .join(Account, JournalLine.account_id == Account.account_id)
-        .where(
-            JournalHeader.company_id == payload.company_id,
-            extract("year", JournalHeader.transaction_date) == payload.tax_year,
-            Account.account_type == "expense",
-            JournalLine.debit_credit == "debit",
-            JournalHeader.approval_status.in_(["approved", "posted"]),
-        )
-    )
-    total_expense = expense_lines.scalar() or Decimal("0")
+    sales = await _classified("revenue", "credit")
+    purchases = await _classified("expense", "debit")
 
-    # Simplified: assume 80% of revenue is taxable, 20% non-taxable
-    # In production, this would come from tax classification per journal line
-    taxable_sales = _round(total_revenue * Decimal("0.8"))
-    non_taxable_sales = _round(total_revenue * Decimal("0.2"))
-    export_taxable_sales = Decimal("0")
-    total_sales = taxable_sales + non_taxable_sales + export_taxable_sales
+    taxable_sales = _round(sales.taxable)
+    non_taxable_sales = _round(sales.non_taxable + sales.exempt)
+    export_taxable_sales = _round(sales.export)
+    total_sales = _round(sales.total)
+
+    output_tax = _round(consumption_output_tax(sales))
 
     if payload.filing_type == "simplified":
-        # 簡易課税: みなし仕入率（小売50%, 卸売60%, 製造70%, 飲食80%, その他90%）
-        # Default to 90% (その他)
-        deemed_purchase_rate = Decimal("0.90")
-        purchases_subject_to_tax = _round(taxable_sales * deemed_purchase_rate)
-        purchases_not_subject_to_tax = _round(total_expense - purchases_subject_to_tax)
+        # 簡易課税: 課税売上に係る消費税額へ事業区分ごとのみなし仕入率を適用する
+        # （消費税法37条）。実際の仕入額は使わない。
+        simplified = SimplifiedConsumptionTaxService.compute(
+            sales_tax=output_tax,
+            business_category=payload.business_category,
+        )
+        input_tax = simplified.deductible_tax
+        purchases_subject_to_tax = Decimal("0")
+        purchases_not_subject_to_tax = Decimal("0")
+        total_purchases = _round(purchases.total)
     else:
-        # 一般課税: actual purchases
-        purchases_subject_to_tax = _round(total_expense * Decimal("0.8"))
-        purchases_not_subject_to_tax = _round(total_expense * Decimal("0.2"))
+        # 一般課税: 課税仕入に係る消費税額を実額で控除する。
+        purchases_subject_to_tax = _round(purchases.taxable)
+        purchases_not_subject_to_tax = _round(
+            purchases.non_taxable + purchases.exempt + purchases.export
+        )
+        total_purchases = _round(purchases.total)
+        input_tax = _round(consumption_output_tax(purchases))
 
-    total_purchases = purchases_subject_to_tax + purchases_not_subject_to_tax
-
-    output_tax = _round(taxable_sales * TAX_RATE / Decimal("100"))
-    input_tax = _round(purchases_subject_to_tax * TAX_RATE / Decimal("100"))
     tax_payable = output_tax - input_tax + payload.tax_adjustment
+
+    notice = _unclassified_notice(
+        sales.unclassified_count + purchases.unclassified_count,
+        sales.unclassified + purchases.unclassified,
+    )
 
     tr = TaxReturn(
         company_id=payload.company_id,
@@ -171,7 +183,7 @@ async def calculate_tax_return(
     db.add(tr)
     await db.commit()
     await db.refresh(tr)
-    return _to_response(tr)
+    return _to_response(tr, notice)
 
 
 @router.get("/records", response_model=TaxReturnListResponse)

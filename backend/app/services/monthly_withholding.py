@@ -15,7 +15,9 @@
 丸めや区分の刻みまでは一致しないため、**月額表そのものではない**。年末調整で
 精算される前提の概算として扱い、その旨は応答と画面で明示する。
 
-賞与は算出率表（前月給与を基準にする別の仕組み）なので、ここでは扱わない。
+賞与も同じ考え方で扱う（`estimate_bonus_withholding`）。本来は「賞与に対する
+源泉徴収税額の算出率表」を前月給与と扶養親族等の数で引くが、表が無いので
+「賞与を含む年税額 − 含まない年税額」を賞与分の税額とする。
 """
 from __future__ import annotations
 
@@ -28,6 +30,20 @@ from app.services.salary_deduction import SalaryIncomeDeductionService
 MONTHS_PER_YEAR = Decimal("12")
 # 復興特別所得税（復興財源確保法28条）。源泉徴収税額に2.1%を上乗せする。
 RECONSTRUCTION_MULTIPLIER = Decimal("1.021")
+
+
+def _annual_tax(
+    annual_gross: Decimal,
+    annual_social_insurance: Decimal,
+    dependents: int,
+) -> Decimal:
+    """年間の給与収入に対する所得税額（復興特別所得税込み・端数処理前）。"""
+    salary_income = annual_gross - SalaryIncomeDeductionService.compute(annual_gross)
+    deductions = (
+        annual_social_insurance + basic_deduction(salary_income) + dependent_deduction(dependents)
+    )
+    taxable_income = max(salary_income - deductions, Decimal("0"))
+    return IncomeTaxService.compute(taxable_income) * RECONSTRUCTION_MULTIPLIER
 
 
 def estimate_monthly_withholding(
@@ -47,16 +63,57 @@ def estimate_monthly_withholding(
     if monthly_gross <= 0:
         return Decimal("0")
 
-    annual_gross = monthly_gross * MONTHS_PER_YEAR
-    salary_income = annual_gross - SalaryIncomeDeductionService.compute(annual_gross)
-
-    deductions = (
-        monthly_social_insurance * MONTHS_PER_YEAR
-        + basic_deduction(salary_income)
-        + dependent_deduction(dependents)
+    annual_tax = _annual_tax(
+        monthly_gross * MONTHS_PER_YEAR,
+        monthly_social_insurance * MONTHS_PER_YEAR,
+        dependents,
     )
-    taxable_income = max(salary_income - deductions, Decimal("0"))
-
-    annual_tax = IncomeTaxService.compute(taxable_income) * RECONSTRUCTION_MULTIPLIER
     # 1円未満は切り捨てる（国税通則法119条1項）。
     return (annual_tax / MONTHS_PER_YEAR).quantize(Decimal("1"), rounding=ROUND_DOWN)
+
+
+def estimate_bonus_withholding(
+    monthly_gross: Decimal,
+    monthly_social_insurance: Decimal,
+    bonus_gross: Decimal,
+    bonus_social_insurance: Decimal,
+    dependents: int = 0,
+) -> Decimal:
+    """賞与の源泉所得税額（概算）。
+
+    本来は「賞与に対する源泉徴収税額の算出率表」を、前月の社会保険料等控除後
+    給与と扶養親族等の数で引いて率を求める。表が無いため、賞与を含む年税額と
+    含まない年税額の差額（＝賞与に対応する限界税額）を用いる。
+
+    一律 10.21% を掛けていた旧実装は両方向に誤っていた。累進を無視するため、
+    低所得者からは取りすぎ（月給20万・賞与40万で実測3.6倍）、扶養が多く
+    課税所得が無い人からも徴収し、高所得者からは取り足りない。
+    """
+    for name, value in (
+        ("monthly_gross", monthly_gross),
+        ("monthly_social_insurance", monthly_social_insurance),
+        ("bonus_gross", bonus_gross),
+        ("bonus_social_insurance", bonus_social_insurance),
+    ):
+        if value < 0:
+            raise ValueError(f"{name} must be non-negative")
+    if dependents < 0:
+        raise ValueError("dependents must be non-negative")
+    if bonus_gross <= 0:
+        return Decimal("0")
+
+    annual_salary = monthly_gross * MONTHS_PER_YEAR
+    annual_social = monthly_social_insurance * MONTHS_PER_YEAR
+
+    without_bonus = _annual_tax(annual_salary, annual_social, dependents)
+    with_bonus = _annual_tax(
+        annual_salary + bonus_gross,
+        annual_social + bonus_social_insurance,
+        dependents,
+    )
+
+    difference = with_bonus - without_bonus
+    if difference <= 0:
+        return Decimal("0")
+    # 1円未満は切り捨てる（国税通則法119条1項）。
+    return difference.quantize(Decimal("1"), rounding=ROUND_DOWN)
