@@ -490,6 +490,9 @@ class TaxReturnCalculateRequest(BaseModel):
     tax_year: int
     filing_type: str = Field(default="general", description="general or simplified")
     tax_adjustment: Decimal = Field(default=Decimal("0"))
+    # 簡易課税の事業区分（消費税法施行令57条）。1:卸売 2:小売 3:製造等
+    # 4:その他 5:サービス業等 6:不動産。みなし仕入率の選択に使う。
+    business_category: int = Field(default=4, ge=1, le=6)
 
 
 class TaxReturnResponse(BaseModel):

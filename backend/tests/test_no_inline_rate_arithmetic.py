@@ -35,9 +35,6 @@ ALLOWED: dict[tuple[str, str], str] = {
     # （扶養親族等の数・税額表）が未実装のため、暫定的に残している。
     ("payroll.py", "_estimate_income_tax"): "源泉所得税の概算。estimate_notice で明示済み",
     ("bonus.py", "_estimate_bonus_tax"): "賞与源泉所得税の概算。estimate_notice で明示済み",
-    # 仕訳の税区分から集計するのが本来。一律按分であることを estimate_notice で
-    # 明示している。改善8（docs/ImprovementGuide.md）で解消する。
-    ("tax_returns.py", "calculate_tax_return"): "消費税申告の一律按分。estimate_notice で明示済み",
 }
 
 
