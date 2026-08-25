@@ -360,3 +360,63 @@ async def test_the_owner_can_still_approve_via_journals_router(api, two_tenants)
     )
 
     assert res.status_code == 200, res.text
+
+
+# ---------------------------------------------------------------------------
+# 勤怠打刻は employee_id を本文で受け取る。会社は照合していたが従業員は
+# していなかったため、他テナントの従業員IDで自社の勤怠を作れた
+# （存在しないIDなら外部キー違反で500になっていた）。
+# ---------------------------------------------------------------------------
+
+
+@pytest_asyncio.fixture
+async def b_employee(db_session, two_tenants):
+    from app.models.models import Employee
+
+    _, b = two_tenants
+    emp = Employee(
+        company_id=b["company_id"],
+        employee_code=f"E{uuid.uuid4().hex[:6]}",
+        employee_name="B社の従業員",
+        hire_date=date(2020, 4, 1),
+    )
+    db_session.add(emp)
+    await db_session.flush()
+    return emp
+
+
+async def test_another_tenants_employee_cannot_be_clocked_in(api, two_tenants, b_employee):
+    a, _ = two_tenants
+
+    res = await api.post(
+        "/api/v1/attendance/clock-in",
+        json={"company_id": str(a["company_id"]), "employee_id": str(b_employee.employee_id)},
+        headers={"Authorization": f"Bearer {a['token']}"},
+    )
+
+    assert res.status_code == 404, f"他テナントの従業員を打刻できる ({res.status_code}) {res.text[:200]}"
+
+
+async def test_a_nonexistent_employee_is_not_a_server_error(api, two_tenants):
+    """存在しない従業員IDで 500 にならないこと（外部キー違反が素通りしていた）。"""
+    a, _ = two_tenants
+
+    res = await api.post(
+        "/api/v1/attendance/clock-in",
+        json={"company_id": str(a["company_id"]), "employee_id": str(uuid.uuid4())},
+        headers={"Authorization": f"Bearer {a['token']}"},
+    )
+
+    assert res.status_code == 404, f"{res.status_code} / {res.text[:200]}"
+
+
+async def test_the_owner_can_still_clock_in_their_own_employee(api, two_tenants, b_employee):
+    _, b = two_tenants
+
+    res = await api.post(
+        "/api/v1/attendance/clock-in",
+        json={"company_id": str(b["company_id"]), "employee_id": str(b_employee.employee_id)},
+        headers={"Authorization": f"Bearer {b['token']}"},
+    )
+
+    assert res.status_code == 200, res.text
