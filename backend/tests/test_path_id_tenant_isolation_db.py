@@ -142,6 +142,29 @@ async def two_tenants(db_session):
     )
     await db_session.flush()
 
+    # 仕訳ルータの承認は draft/waiting しか受け付けない（承認ルータは submitted）。
+    # 状態違いの 400 でテナント照合が隠れないよう、専用に1件用意する。
+    draft = JournalHeader(
+        company_id=b["company_id"],
+        journal_number=f"BD-{uuid.uuid4().hex[:8]}",
+        transaction_date=date(2026, 6, 17),
+        summary="B社の下書き",
+        approval_status="draft",
+        created_by=b["user_id"],
+    )
+    db_session.add(draft)
+    await db_session.flush()
+    db_session.add(
+        JournalLine(
+            journal_header_id=draft.journal_header_id,
+            line_number=1,
+            debit_credit="debit",
+            account_id=account.account_id,
+            amount=Decimal("330000"),
+        )
+    )
+    await db_session.flush()
+
     # 職務分離により作成者は承認できないので、B に承認者役をもう1人置く。
     from app.core.security import create_access_token
 
@@ -159,6 +182,7 @@ async def two_tenants(db_session):
     b["journal_header_id"] = header.journal_header_id
     b["pending_journal_id"] = pending.journal_header_id
     b["account_id"] = account.account_id
+    b["draft_journal_id"] = draft.journal_header_id
     b["approver_token"] = create_access_token(str(approver.user_id))
     return a, b
 
@@ -285,3 +309,54 @@ async def test_the_owner_can_still_approve_their_own_journal(api, two_tenants):
 
     assert res.status_code == 200, res.text
     assert res.json()["approval_status"] == "approved"
+
+
+# ---------------------------------------------------------------------------
+# 仕訳ルータ側にも同じ承認・記帳がある（/journals/{id}/approve, /post）。
+# `/approvals` を塞いでもこちらが空いていれば意味が無い。
+# ---------------------------------------------------------------------------
+
+
+async def test_another_tenants_journal_cannot_be_approved_via_journals_router(api, two_tenants):
+    a, b = two_tenants
+
+    res = await api.put(
+        f"/api/v1/journals/{b['draft_journal_id']}/approve",
+        headers={"Authorization": f"Bearer {a['token']}"},
+    )
+
+    assert res.status_code == 404, f"他テナントの仕訳を承認できる ({res.status_code}) {res.text[:200]}"
+
+
+async def test_another_tenants_journal_cannot_be_posted_via_journals_router(api, two_tenants):
+    a, b = two_tenants
+
+    res = await api.put(
+        f"/api/v1/journals/{b['journal_header_id']}/post",
+        headers={"Authorization": f"Bearer {a['token']}"},
+    )
+
+    assert res.status_code == 404, f"他テナントの仕訳を記帳できる ({res.status_code}) {res.text[:200]}"
+
+
+async def test_another_tenants_journal_cannot_be_voided(api, two_tenants):
+    """取消は帳簿の改竄そのもの。"""
+    a, b = two_tenants
+
+    res = await api.put(
+        f"/api/v1/journals/{b['journal_header_id']}/void",
+        headers={"Authorization": f"Bearer {a['token']}"},
+    )
+
+    assert res.status_code == 404, f"他テナントの仕訳を取り消せる ({res.status_code}) {res.text[:200]}"
+
+
+async def test_the_owner_can_still_approve_via_journals_router(api, two_tenants):
+    _, b = two_tenants
+
+    res = await api.put(
+        f"/api/v1/journals/{b['draft_journal_id']}/approve",
+        headers={"Authorization": f"Bearer {b['approver_token']}"},
+    )
+
+    assert res.status_code == 200, res.text

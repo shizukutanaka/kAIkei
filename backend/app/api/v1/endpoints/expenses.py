@@ -12,7 +12,7 @@ from app.core.csv_export import csv_line
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
-from app.core.tenant_scope import assert_company_access
+from app.core.tenant_scope import assert_company_access, scope_to_tenant
 from app.models.models import Employee, ExpenseItem, ExpenseReport
 from app.schemas.schemas import (
     ExpenseItemResponse,
@@ -242,10 +242,14 @@ async def export_expense_report(
 ) -> str:
     """経費精算をCSV形式で出力する。"""
     result = await db.execute(
-        select(ExpenseReport, Employee.employee_name, Employee.employee_code, Employee.department)
-        .join(Employee, ExpenseReport.employee_id == Employee.employee_id)
-        .where(ExpenseReport.report_id == report_id)
-        .options(selectinload(ExpenseReport.items))
+        scope_to_tenant(
+            select(ExpenseReport, Employee.employee_name, Employee.employee_code, Employee.department)
+            .join(Employee, ExpenseReport.employee_id == Employee.employee_id)
+            .where(ExpenseReport.report_id == report_id)
+            .options(selectinload(ExpenseReport.items)),
+            ExpenseReport,
+            current_user.tenant_id,
+        )
     )
     row = result.first()
     if not row:

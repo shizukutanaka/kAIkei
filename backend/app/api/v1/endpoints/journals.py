@@ -15,7 +15,7 @@ from app.core.csv_export import csv_document
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
-from app.core.tenant_scope import assert_company_access, scope_to_tenant
+from app.core.tenant_scope import assert_company_access, assert_owns, scope_to_tenant
 from app.models.models import Account, JournalHeader, JournalLine
 from app.schemas.schemas import (
     EventJournalDraftRequest,
@@ -397,6 +397,10 @@ async def approve_journal(
     db: AsyncSession = Depends(get_db),
 ) -> JournalHeader:
     """Approve a journal entry (SoD check enforced)."""
+    await assert_owns(
+        db, current_user, JournalHeader, JournalHeader.journal_header_id,
+        journal_header_id, "Journal",
+    )
     try:
         return await JournalService.approve_journal(db, journal_header_id, current_user.user_id)
     except ValidationError as e:
@@ -412,6 +416,10 @@ async def post_journal(
     db: AsyncSession = Depends(get_db),
 ) -> JournalHeader:
     """Post an approved journal entry and update monthly balances."""
+    await assert_owns(
+        db, current_user, JournalHeader, JournalHeader.journal_header_id,
+        journal_header_id, "Journal",
+    )
     try:
         return await JournalService.post_journal(db, journal_header_id)
     except ValueError as e:

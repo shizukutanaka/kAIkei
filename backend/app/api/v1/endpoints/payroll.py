@@ -1193,9 +1193,13 @@ async def export_payslip(
 ) -> str:
     """給与明細をCSV形式で出力する。"""
     result = await db.execute(
-        select(PayrollRecord, Employee.employee_name, Employee.employee_code, Employee.department)
-        .join(Employee, PayrollRecord.employee_id == Employee.employee_id)
-        .where(PayrollRecord.payroll_id == payroll_id)
+        scope_to_tenant(
+            select(PayrollRecord, Employee.employee_name, Employee.employee_code, Employee.department)
+            .join(Employee, PayrollRecord.employee_id == Employee.employee_id)
+            .where(PayrollRecord.payroll_id == payroll_id),
+            PayrollRecord,
+            current_user.tenant_id,
+        )
     )
     row = result.first()
     if not row:

@@ -12,7 +12,7 @@ from app.core.csv_export import csv_line
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
-from app.core.tenant_scope import assert_company_access
+from app.core.tenant_scope import assert_company_access, scope_to_tenant
 from app.models.models import BonusRecord, Company, Employee
 from app.schemas.schemas import BonusCalculateRequest, BonusListResponse, BonusRecordResponse, NotificationCreate
 from app.services.auto_journal import generate_bonus_journal
@@ -331,9 +331,13 @@ async def export_bonus_slip(
 ) -> str:
     """賞与明細をCSV形式で出力する。"""
     result = await db.execute(
-        select(BonusRecord, Employee.employee_name, Employee.employee_code, Employee.department)
-        .join(Employee, BonusRecord.employee_id == Employee.employee_id)
-        .where(BonusRecord.bonus_id == bonus_id)
+        scope_to_tenant(
+            select(BonusRecord, Employee.employee_name, Employee.employee_code, Employee.department)
+            .join(Employee, BonusRecord.employee_id == Employee.employee_id)
+            .where(BonusRecord.bonus_id == bonus_id),
+            BonusRecord,
+            current_user.tenant_id,
+        )
     )
     row = result.first()
     if not row:
