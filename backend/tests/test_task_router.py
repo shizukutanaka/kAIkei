@@ -131,7 +131,7 @@ class TestTaskRouter:
             amount=10000,
             transaction_date="2026-06-26",
         )
-        result = asyncio.get_event_loop().run_until_complete(router.infer_journal(request))
+        result = asyncio.run(router.infer_journal(request))
         assert result["provider"] == "local_llm"
         assert result["complexity"] == "light"
         assert result["cost_tier"] == "free"
@@ -151,7 +151,7 @@ class TestTaskRouter:
             amount=10000,
             transaction_date="2026-06-26",
         )
-        result = asyncio.get_event_loop().run_until_complete(router.infer_journal(request))
+        result = asyncio.run(router.infer_journal(request))
         assert result["provider"] == "openai"
         assert result.get("fallback") is True
 

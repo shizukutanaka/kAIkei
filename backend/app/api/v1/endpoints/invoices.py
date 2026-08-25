@@ -12,7 +12,7 @@ from app.core.csv_export import csv_line
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
-from app.core.tenant_scope import assert_company_access
+from app.core.tenant_scope import assert_company_access, scope_to_tenant
 from app.models.models import Invoice, InvoiceLine, Partner
 from app.schemas.schemas import (
     CreditCheckRequest,
@@ -508,10 +508,14 @@ async def export_invoice(
 ) -> str:
     """請求書をCSV形式で出力する。"""
     result = await db.execute(
-        select(Invoice, Partner.partner_name, Partner.partner_code)
-        .outerjoin(Partner, Invoice.partner_id == Partner.partner_id)
-        .where(Invoice.invoice_id == invoice_id)
-        .options(selectinload(Invoice.lines))
+        scope_to_tenant(
+            select(Invoice, Partner.partner_name, Partner.partner_code)
+            .outerjoin(Partner, Invoice.partner_id == Partner.partner_id)
+            .where(Invoice.invoice_id == invoice_id)
+            .options(selectinload(Invoice.lines)),
+            Invoice,
+            current_user.tenant_id,
+        )
     )
     row = result.first()
     if not row:
@@ -555,10 +559,14 @@ async def export_invoice_peppol(
     from app.services.peppol_export import UblInvoice, UblLine, build_ubl_invoice
 
     result = await db.execute(
-        select(Invoice, Partner.partner_name)
-        .outerjoin(Partner, Invoice.partner_id == Partner.partner_id)
-        .where(Invoice.invoice_id == invoice_id)
-        .options(selectinload(Invoice.lines))
+        scope_to_tenant(
+            select(Invoice, Partner.partner_name)
+            .outerjoin(Partner, Invoice.partner_id == Partner.partner_id)
+            .where(Invoice.invoice_id == invoice_id)
+            .options(selectinload(Invoice.lines)),
+            Invoice,
+            current_user.tenant_id,
+        )
     )
     row = result.first()
     if not row:

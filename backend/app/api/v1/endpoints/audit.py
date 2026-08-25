@@ -263,8 +263,10 @@ async def export_audit_package(
                 header.transaction_date.isoformat() if header.transaction_date else "",
                 account.account_code if account else "",
                 account.account_name if account else "",
-                str(line.debit_amount) if line.debit_amount else "0",
-                str(line.credit_amount) if line.credit_amount else "0",
+                # 明細は借方/貸方を debit_credit で区別し、金額は amount に持つ。
+                # 借方額・貸方額という列は存在しない。
+                str(line.amount) if line.debit_credit == "debit" else "0",
+                str(line.amount) if line.debit_credit == "credit" else "0",
                 line.description or "",
             ])
         zf.writestr("general_ledger.csv", gl_csv.getvalue())

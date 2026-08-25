@@ -60,6 +60,35 @@ su postgres -c "/usr/lib/postgresql/16/bin/createdb -p 5432 -O kaikei kaikei_tes
 
 復旧後は必ず全テストを再実行して、失敗が環境起因でなく実装起因でないことを確認する。
 
+## 0-1. 実際に起動して確かめること（必読）
+
+テストが1,600件超すべて緑でも、**製品として最初の一歩が通っていなかった**。
+
+- `POST /companies` が存在せず、会社を作る手段がAPIに無かった。ほぼ全ての機能が
+  `company_id` を要求するため、登録した利用者はどの画面も使えない。
+  画面の空状態は「UUIDを入力」と表示しており、入手する方法の無い値を求めていた。
+- `POST /journals` が必ず500だった。応答の明細を遅延ロードしており、非同期
+  セッションでは MissingGreenlet になる。仕訳を1件も登録できない（会計システムの中核）。
+
+どちらもテストがDBへ直接INSERTしていたため検出されなかった。
+**HTTP経路で「作る」テストが1件も無かった**ことが根本原因。
+
+新しい機能を足したら、テストが緑になっただけで終わりにせず、実際に起動して
+登録から辿ること。
+
+```bash
+# API
+DATABASE_URL=postgresql+asyncpg://... python -m alembic upgrade head
+DATABASE_URL=postgresql+asyncpg://... JWT_SECRET_KEY=dev \
+  python -m uvicorn app.main:app --port 8090
+
+# 画面
+NEXT_PUBLIC_API_URL=http://127.0.0.1:8090/api/v1 npx next start -p 3100
+```
+
+登録 → ログイン → 会社作成 → 勘定科目の初期化 → 仕訳/従業員登録 → 帳票、
+までを一度通すこと。この2件はそれで初めて分かった。
+
 ## 1. 長所（強み）
 
 - **レイヤ分離**: 各機能が「DB非依存の純粋関数コア＋非同期DBサービス＋FastAPI＋RBAC＋

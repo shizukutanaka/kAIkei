@@ -11,7 +11,7 @@ from app.core.csv_export import csv_line
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
-from app.core.tenant_scope import assert_company_access
+from app.core.tenant_scope import assert_company_access, scope_to_tenant
 from app.models.models import BonusRecord, Employee, PayrollRecord, YearEndAdjustment
 from app.schemas.schemas import (
     NotificationCreate,
@@ -292,9 +292,13 @@ async def export_year_end_slip(
 ) -> str:
     """年末調整明細をCSV形式で出力する。"""
     result = await db.execute(
-        select(YearEndAdjustment, Employee.employee_name, Employee.employee_code, Employee.department)
-        .join(Employee, YearEndAdjustment.employee_id == Employee.employee_id)
-        .where(YearEndAdjustment.adjustment_id == adjustment_id)
+        scope_to_tenant(
+            select(YearEndAdjustment, Employee.employee_name, Employee.employee_code, Employee.department)
+            .join(Employee, YearEndAdjustment.employee_id == Employee.employee_id)
+            .where(YearEndAdjustment.adjustment_id == adjustment_id),
+            YearEndAdjustment,
+            current_user.tenant_id,
+        )
     )
     row = result.first()
     if not row:
