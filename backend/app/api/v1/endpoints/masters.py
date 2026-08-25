@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
-from app.core.tenant_scope import assert_company_access, scope_to_tenant
+from app.core.tenant_scope import assert_company_access, assert_owns, scope_to_tenant
 from app.models.models import Account, SubAccount, TaxRule
 from app.schemas.schemas import (
     AccountCreate,
@@ -365,6 +365,8 @@ async def list_sub_accounts(
     current_user: CurrentUser = Depends(require_permission(Permission.MASTER_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> list[SubAccount]:
+    # 補助科目は company_id を持たないので、親の勘定科目でテナントを照合する。
+    await assert_owns(db, current_user, Account, Account.account_id, account_id, "Account")
     result = await db.execute(
         select(SubAccount).where(
             SubAccount.account_id == account_id,

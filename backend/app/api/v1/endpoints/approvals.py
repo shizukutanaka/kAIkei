@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import CurrentUser, get_current_user, require_permission, verified_company_id
 from app.core.rbac import Permission
-from app.core.tenant_scope import assert_company_access
+from app.core.tenant_scope import assert_company_access, assert_owns
+from app.models.models import JournalHeader
 from app.schemas.schemas import NotificationCreate
 from app.services.approval_service import ApprovalWorkflowService
 from app.services.notification_service import create_notification
@@ -77,6 +78,10 @@ async def submit_for_approval(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """仕訳を承認待ちに提出する（draft → submitted）。"""
+    await assert_owns(
+        db, current_user, JournalHeader, JournalHeader.journal_header_id,
+        payload.journal_header_id, "Journal",
+    )
     try:
         journal = await ApprovalWorkflowService.submit_for_approval(
             db, payload.journal_header_id, current_user.user_id
@@ -109,6 +114,10 @@ async def approve_journal(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """仕訳を承認する（submitted → approved）。"""
+    await assert_owns(
+        db, current_user, JournalHeader, JournalHeader.journal_header_id,
+        payload.journal_header_id, "Journal",
+    )
     try:
         journal = await ApprovalWorkflowService.approve(
             db, payload.journal_header_id, current_user.user_id, payload.comment
@@ -142,6 +151,10 @@ async def reject_journal(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """仕訳を差し戻す（submitted → rejected）。"""
+    await assert_owns(
+        db, current_user, JournalHeader, JournalHeader.journal_header_id,
+        payload.journal_header_id, "Journal",
+    )
     try:
         journal = await ApprovalWorkflowService.reject(
             db, payload.journal_header_id, current_user.user_id, payload.comment
@@ -174,6 +187,10 @@ async def post_journal(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """承認済み仕訳を転記する（approved → posted）。"""
+    await assert_owns(
+        db, current_user, JournalHeader, JournalHeader.journal_header_id,
+        payload.journal_header_id, "Journal",
+    )
     try:
         journal = await ApprovalWorkflowService.post(
             db, payload.journal_header_id, current_user.user_id
@@ -206,6 +223,10 @@ async def get_approval_history(
     db: AsyncSession = Depends(get_db),
 ) -> list[ApprovalLogResponse]:
     """承認履歴を取得する。"""
+    await assert_owns(
+        db, current_user, JournalHeader, JournalHeader.journal_header_id,
+        journal_header_id, "Journal",
+    )
     logs = await ApprovalWorkflowService.get_approval_history(db, journal_header_id)
     return [
         ApprovalLogResponse(

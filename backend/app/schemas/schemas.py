@@ -8,6 +8,8 @@ from app.services.labor_insurance import BUSINESS_TYPE_GENERAL, DEFAULT_WORKERS_
 
 
 class TokenResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
@@ -151,6 +153,8 @@ class JournalResponse(BaseModel):
 
 
 class JournalListResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     items: list[JournalResponse]
     total: int
     page: int
@@ -525,6 +529,8 @@ class TaxReturnResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class InvoiceListResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     items: list[InvoiceResponse]
     total: int
     page: int
@@ -532,6 +538,8 @@ class InvoiceListResponse(BaseModel):
 
 
 class ExpenseListResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     items: list[ExpenseReportResponse]
     total: int
     page: int
@@ -539,6 +547,8 @@ class ExpenseListResponse(BaseModel):
 
 
 class PayrollListResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     items: list[PayrollRecordResponse]
     total: int
     page: int
@@ -546,6 +556,8 @@ class PayrollListResponse(BaseModel):
 
 
 class PartnerListResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     items: list[PartnerResponse]
     total: int
     page: int
@@ -553,6 +565,8 @@ class PartnerListResponse(BaseModel):
 
 
 class AuditLogResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     log_id: UUID
     user_id: UUID | None = None
     action: str
@@ -567,6 +581,8 @@ class AuditLogResponse(BaseModel):
 
 
 class AuditLogListResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     items: list[AuditLogResponse]
     total: int
     page: int
@@ -574,6 +590,8 @@ class AuditLogListResponse(BaseModel):
 
 
 class YearEndListResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     items: list[YearEndAdjustmentResponse]
     total: int
     page: int
@@ -581,6 +599,8 @@ class YearEndListResponse(BaseModel):
 
 
 class BonusListResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     items: list[BonusRecordResponse]
     total: int
     page: int
@@ -588,6 +608,8 @@ class BonusListResponse(BaseModel):
 
 
 class TaxReturnListResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     items: list[TaxReturnResponse]
     total: int
     page: int
@@ -595,6 +617,8 @@ class TaxReturnListResponse(BaseModel):
 
 
 class EmployeeListResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     items: list[EmployeeResponse]
     total: int
     page: int
@@ -602,6 +626,8 @@ class EmployeeListResponse(BaseModel):
 
 
 class AttendanceListResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     items: list[AttendanceResponse]
     total: int
     page: int
@@ -629,6 +655,8 @@ class NotificationResponse(BaseModel):
 
 
 class NotificationListResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     items: list[NotificationResponse]
     total: int
     page: int
@@ -719,6 +747,8 @@ class BankStatementLineResponse(BaseModel):
 
 
 class BankImportResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     imported: int
     lines: list[BankStatementLineResponse]
 
@@ -731,6 +761,8 @@ class AutoReconcileRequest(BaseModel):
 
 
 class AutoReconcileResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     total_unreconciled: int
     matched: int
     unmatched: int
@@ -757,6 +789,8 @@ class AuditDetectionResponse(BaseModel):
 
 
 class AuditScanResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     scanned: int
     detections_created: int
 
@@ -803,6 +837,8 @@ class TaxAdjustmentLineResult(BaseModel):
 
 
 class TaxAdjustmentComputeResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     accounting_income: Decimal
     taxable_income: Decimal
     total_additions: Decimal
@@ -830,6 +866,8 @@ class ArchivedDocumentResponse(BaseModel):
 
 
 class DocumentVerifyResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     archived_document_id: str
     is_valid: bool
     expected_hash: str
@@ -858,6 +896,8 @@ class ApprovalPolicyResponse(BaseModel):
 
 
 class ApprovalStepsResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     document_type: str
     amount: Decimal
     required_steps: list[str]
@@ -914,6 +954,8 @@ class AiInferenceApplyRequest(BaseModel):
 
 
 class AiInferenceStatsResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     total: int
     applied: int
     acceptance_rate: float
@@ -931,6 +973,8 @@ class AiCalibrationBand(BaseModel):
 
 
 class AiCalibrationResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     applied_total: int
     ece: float
     bands: list[AiCalibrationBand]
@@ -969,6 +1013,8 @@ class OfficeTaskStatusUpdate(BaseModel):
 
 
 class OfficeTaskProgressResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     total: int
     todo: int
     in_progress: int
@@ -996,6 +1042,8 @@ class InvoiceTaxRateBreakdownResponse(BaseModel):
 
 
 class InvoiceTaxComputeResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     by_rate: list[InvoiceTaxRateBreakdownResponse]
     total_taxable: Decimal
     total_tax: Decimal
@@ -1022,6 +1070,8 @@ class QualifiedInvoiceCheckRequest(BaseModel):
 
 
 class QualifiedInvoiceCheckResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     is_valid: bool
     missing_fields: list[str]
     registration_number_valid: bool
@@ -1042,6 +1092,8 @@ class LaborInsuranceEmployeeResponse(BaseModel):
 
 
 class LaborInsuranceSummaryResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     company_id: UUID
     target_year: int
     target_month: int
@@ -1062,6 +1114,8 @@ class AuditLedgerImbalanceEntry(BaseModel):
 
 
 class AuditLedgerBalanceCheckResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     headers_checked: int
     imbalanced_count: int
     total_debit: Decimal
@@ -1080,6 +1134,8 @@ class AuditLedgerCacheDriftEntry(BaseModel):
 
 
 class AuditLedgerCacheDriftResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     rows_checked: int
     drift_count: int
     drift_entries: list[AuditLedgerCacheDriftEntry]
@@ -1091,6 +1147,8 @@ class LedgerCheckRequest(BaseModel):
 
 
 class LedgerCheckResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     status: str
     balance_check: AuditLedgerBalanceCheckResponse
     cache_drift_check: AuditLedgerCacheDriftResponse
@@ -1101,6 +1159,8 @@ class AuditInspectRequest(BaseModel):
 
 
 class TaxForecastResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     forecasted_profit_before_tax: Decimal
     estimated_taxable_income: Decimal
     estimated_tax_amount: Decimal
@@ -1108,12 +1168,16 @@ class TaxForecastResponse(BaseModel):
 
 
 class SocialInsuranceBreakdownResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     total: Decimal
     employee: Decimal
     employer: Decimal
 
 
 class SocialInsurancePremiumResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     standard_monthly_remuneration: Decimal
     health_rate: Decimal
     care_rate: Decimal
@@ -1127,6 +1191,8 @@ class SocialInsurancePremiumResponse(BaseModel):
 
 
 class BonusEmploymentInsuranceResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     employee_premium: Decimal
     employer_premium: Decimal
     total_premium: Decimal
@@ -1135,6 +1201,8 @@ class BonusEmploymentInsuranceResponse(BaseModel):
 
 
 class BonusWithholdingTaxResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     bonus_after_social_insurance: Decimal
     bonus_tax_rate: Decimal
     prior_month_salary_after_social_insurance: Decimal | None = None
@@ -1144,6 +1212,8 @@ class BonusWithholdingTaxResponse(BaseModel):
 
 
 class YearEndAdjustmentCalcResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     salary_income_deduction: Decimal
     salary_income: Decimal
     taxable_income: Decimal
@@ -1162,6 +1232,8 @@ class LegalLedgerCheckRequest(BaseModel):
 
 
 class LegalLedgerCheckResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     ledger_type: str
     required_fields: list[str]
     missing_fields: list[str]
@@ -1169,11 +1241,15 @@ class LegalLedgerCheckResponse(BaseModel):
 
 
 class SocialInsuranceExemptionResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     exempt: bool
     reason: str
 
 
 class DependentEligibilityResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     income_limit: Decimal
     income_requirement_met: bool
     relationship_requirement_met: bool
@@ -1182,6 +1258,8 @@ class DependentEligibilityResponse(BaseModel):
 
 
 class MinimumWageCheckResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     effective_hourly_wage: Decimal
     minimum_hourly_wage: Decimal
     meets_minimum: bool
@@ -1189,6 +1267,8 @@ class MinimumWageCheckResponse(BaseModel):
 
 
 class MonthlyPayslipResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     taxable_earnings: Decimal
     non_taxable_commute_allowance: Decimal
     total_earnings: Decimal
@@ -1203,6 +1283,8 @@ class MonthlyPayslipResponse(BaseModel):
 
 
 class RetirementIncomeTaxResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     years_of_service: int
     retirement_income_deduction: Decimal
     taxable_base: Decimal
@@ -1222,6 +1304,8 @@ class OvertimeLimitCheckRequest(BaseModel):
 
 
 class OvertimeLimitCheckResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     annual_overtime_total: Decimal
     annual_limit_exceeded: bool
     months_over_45_count: int
@@ -1233,6 +1317,8 @@ class OvertimeLimitCheckResponse(BaseModel):
 
 
 class PaidLeaveGrantResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     granted_days: int
     is_proportional: bool
     meets_attendance_requirement: bool
@@ -1240,6 +1326,8 @@ class PaidLeaveGrantResponse(BaseModel):
 
 
 class CommuteAllowanceResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     mode: str
     monthly_allowance: Decimal
     non_taxable_limit: Decimal
@@ -1248,11 +1336,15 @@ class CommuteAllowanceResponse(BaseModel):
 
 
 class ResidenceTaxMonthlyAmountResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     month: int
     amount: Decimal
 
 
 class ResidenceTaxResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     annual_tax: Decimal
     first_month_amount: Decimal
     ordinary_month_amount: Decimal
@@ -1261,6 +1353,8 @@ class ResidenceTaxResponse(BaseModel):
 
 
 class BonusNetPayResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     gross_bonus: Decimal
     standard_bonus: Decimal
     health_standard_bonus: Decimal
@@ -1276,6 +1370,8 @@ class BonusNetPayResponse(BaseModel):
 
 
 class LaborInsuranceInstallmentResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     estimated_premium: Decimal
     threshold: Decimal
     both_insurances: bool
@@ -1541,6 +1637,8 @@ class ReceivableJournalDraftSchema(BaseModel):
 
 
 class ReceivableJournalResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     matching: ReceivableMatchingResponse
     drafts: list[ReceivableJournalDraftSchema]
     total_receivable_cleared: Decimal
@@ -1888,6 +1986,8 @@ class JobExecutionComplete(BaseModel):
 
 
 class HealthSummaryResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     total: int
     failed: int
     dead: int
@@ -1896,6 +1996,8 @@ class HealthSummaryResponse(BaseModel):
 
 
 class OperationsHealthResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     company_id: UUID
     overall_level: str
     jobs: HealthSummaryResponse
@@ -1911,12 +2013,16 @@ class EventJournalDraftRequest(BaseModel):
 
 
 class JournalLineDraftResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     account_role: str
     debit: Decimal
     credit: Decimal
 
 
 class EventJournalDraftResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     event_type: str
     description: str
     total_debit: Decimal
@@ -1970,6 +2076,8 @@ class BudgetVarianceLine(BaseModel):
 
 
 class BudgetVarianceResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     budget_id: UUID
     fiscal_year: int
     budgeted_total: Decimal
@@ -2024,6 +2132,8 @@ class CashflowForecastBucket(BaseModel):
 
 
 class CashflowForecastResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     company_id: UUID
     as_of: date
     buckets: list[CashflowForecastBucket]
@@ -2048,6 +2158,8 @@ class ArAgingPartnerLine(BaseModel):
 
 
 class ArAgingResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     company_id: UUID
     as_of: date
     buckets: ArAgingBucketAmounts
@@ -2070,6 +2182,8 @@ class DenchouElectronicCheckRequest(BaseModel):
 
 
 class DenchouElectronicCheckResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     authenticity_met: bool
     visibility_met: bool
     required_search_level: str
@@ -2096,6 +2210,8 @@ class DenchouScannerCheckRequest(BaseModel):
 
 
 class DenchouScannerCheckResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     resolution_met: bool
     color_met: bool
     input_period_met: bool
@@ -2113,6 +2229,8 @@ class HighAgeBenefitRequest(BaseModel):
 
 
 class HighAgeBenefitResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     eligible: bool
     reduction_ratio: Decimal
     benefit_amount: Decimal
@@ -2137,6 +2255,8 @@ class MaternityAllowanceRequest(BaseModel):
 
 
 class HealthInsuranceBenefitResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     daily_benefit: Decimal
     effective_daily_benefit: Decimal
     payable_days: int
@@ -2154,6 +2274,8 @@ class ShortTimeInsuranceRequest(BaseModel):
 
 
 class ShortTimeInsuranceResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     covered: bool
     is_specified_workplace: bool
     meets_hours: bool
@@ -2172,6 +2294,8 @@ class ChildcareLeaveBenefitRequest(BaseModel):
 
 
 class ChildcareLeaveBenefitResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     eligible: bool
     daily_wage: Decimal
     benefit_rate: Decimal
@@ -2188,6 +2312,8 @@ class CaregiverLeaveBenefitRequest(BaseModel):
 
 
 class CaregiverLeaveBenefitResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     eligible: bool
     daily_wage: Decimal
     payable_days: int
@@ -2203,6 +2329,8 @@ class WorkersAccidentLeaveRequest(BaseModel):
 
 
 class WorkersAccidentLeaveResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     payable_days: int
     daily_compensation: Decimal
     daily_special: Decimal
@@ -2219,6 +2347,8 @@ class HighCostMedicalRequest(BaseModel):
 
 
 class HighCostMedicalResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     self_pay_limit: Decimal
     high_cost_benefit: Decimal
 
@@ -2232,6 +2362,8 @@ class PostnatalLeaveBenefitRequest(BaseModel):
 
 
 class PostnatalLeaveBenefitResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     eligible: bool
     daily_wage: Decimal
     payable_days: int

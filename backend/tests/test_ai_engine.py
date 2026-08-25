@@ -14,7 +14,7 @@ class TestAIInferenceEngine:
                 amount=10000,
                 transaction_date="2026-06-26",
             )
-            result = asyncio.get_event_loop().run_until_complete(engine.infer_journal(request))
+            result = asyncio.run(engine.infer_journal(request))
             assert result["status"] == "unavailable"
             assert result["results"] == []
 
@@ -23,7 +23,7 @@ class TestAIInferenceEngine:
         if not engine.is_available:
             import asyncio
 
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 engine.predict_tax("現金売上", 10000)
             )
             assert result["status"] == "unavailable"
@@ -34,7 +34,7 @@ class TestAIInferenceEngine:
         if not engine.is_available:
             import asyncio
 
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 engine.detect_anomaly({"amount": 10000})
             )
             assert result["status"] == "unavailable"

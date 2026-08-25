@@ -73,3 +73,20 @@ async def assert_company_access(db, current_user, company_id: UUID) -> None:
     found = await db.execute(is_company_in_tenant(company_id, current_user.tenant_id))
     if found.scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail="Company not found")
+
+
+async def assert_owns(db, current_user, model: type, pk_column, row_id: UUID, label: str) -> None:
+    """`row_id` の行が呼び出し元テナントのものでなければ 404 を送出する。
+
+    `company_id` を直接持たない子テーブル（承認履歴、補助科目など）は
+    `scope_to_tenant` を掛けられない。そこで**親**を照合する。
+
+        assert_owns(db, user, JournalHeader, JournalHeader.journal_header_id, jid, "Journal")
+
+    ID をパスやリクエストボディで受け取る経路は、業務処理に入る**前**に
+    これを通すこと。状態チェックを先に走らせると、他テナントの行に対して
+    「その状態では実行できません」と返ってしまい、存在と状態を教えることになる。
+    """
+    stmt = scope_to_tenant(select(pk_column).where(pk_column == row_id), model, current_user.tenant_id)
+    if (await db.execute(stmt)).scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail=f"{label} not found")
