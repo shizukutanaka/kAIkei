@@ -1,5 +1,10 @@
 """company_id を取る一覧系エンドポイントの疎通確認。
 
+**データを1件も入れずに叩くと、行を処理するコードが実行されない。**
+監査エクスポートは列名を間違えていたが、空の会社では取得が0件で
+ループ本体に入らないため 200 を返し、この疎通確認を通り抜けていた。
+実データを入れて初めて 500 になる。そのため会社には仕訳を1件入れておく。
+
 テナント検証の依存関係 `verified_company_id` を91箇所に一括で入れたため、
 どこか1つでも配線を間違えると、その画面だけ静かに壊れる。個別に気付くのは
 難しいので、company_id だけで呼べる GET を機械的に列挙して全て叩く。
@@ -8,6 +13,8 @@
 だけで、レスポンスの中身は各機能のテストの担当。逆に、他テナントの company_id
 では全て 404 になることも同じ一覧で確認する（1本でも検証漏れがあれば落ちる）。
 """
+from datetime import date
+from decimal import Decimal
 from uuid import uuid4
 
 import pytest
@@ -79,9 +86,66 @@ async def two_tenants(db_session):
         await db_session.flush()
         made[key] = {
             "company_id": company.company_id,
+            "user_id": user.user_id,
             "token": create_access_token(str(user.user_id)),
         }
+
+    # 空の会社だと行の処理が走らず、列名の誤りなどを見逃す。
+    await _seed_a_journal(db_session, made["a"])
     return made
+
+
+async def _seed_a_journal(db_session, entry) -> None:
+    """疎通確認用に仕訳を1件入れる（借方・貸方1行ずつ）。"""
+    from app.models.models import Account, JournalHeader, JournalLine
+
+    cash = Account(
+        company_id=entry["company_id"],
+        account_code="1000",
+        account_name="現金",
+        account_type="asset",
+        debit_credit="debit",
+    )
+    sales = Account(
+        company_id=entry["company_id"],
+        account_code="4000",
+        account_name="売上",
+        account_type="revenue",
+        debit_credit="credit",
+    )
+    db_session.add_all([cash, sales])
+    await db_session.flush()
+
+    header = JournalHeader(
+        company_id=entry["company_id"],
+        journal_number=f"J-{uuid4().hex[:8]}",
+        transaction_date=date(2026, 6, 15),
+        summary="疎通確認",
+        approval_status="approved",
+        created_by=entry["user_id"],
+    )
+    db_session.add(header)
+    await db_session.flush()
+
+    db_session.add_all(
+        [
+            JournalLine(
+                journal_header_id=header.journal_header_id,
+                line_number=1,
+                debit_credit="debit",
+                account_id=cash.account_id,
+                amount=Decimal("110000"),
+            ),
+            JournalLine(
+                journal_header_id=header.journal_header_id,
+                line_number=2,
+                debit_credit="credit",
+                account_id=sales.account_id,
+                amount=Decimal("110000"),
+            ),
+        ]
+    )
+    await db_session.flush()
 
 
 def test_smoke_paths_were_discovered():
