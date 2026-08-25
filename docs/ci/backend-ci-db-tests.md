@@ -7,41 +7,22 @@
 
 ## Interim workaround already in place
 
-Two shims live in files that *can* be edited, so CI is meaningful today even
-without the workflow change. **Both should be removed once the workflow is fixed.**
+Four shims live in files that *can* be edited, so CI is meaningful today even
+without the workflow change. **All should be removed once the workflow is fixed.**
 
 | Shim | What it does | Remove when |
 | --- | --- | --- |
-| `pytest_configure` in `backend/tests/conftest.py` | When `CI` is set, widens collection from the 5 hardcoded files to all of `tests/`. Prints a line saying so, to keep the CI log honest. | The `Run unit tests` step runs `tests/` |
-| `backend/tests/test_lint.py` | Runs `python -m ruff check app tests` and fails the test if there are findings — the workflow's own lint step ends in `\|\| true` and always passes. | The `Ruff lint` step drops `\|\| true` and covers `tests/` |
-| `frontend/scripts/ci-run-tests.mjs` (npm `prebuild`) | Runs `vitest run` before `next build` when `CI` is set — `frontend-ci.yml` never runs `npm test`, so the 74 frontend tests were not running either. A failing test now exits 1 before Next compiles. | The frontend workflow gains an `npm test` step |
+| `pytest_configure` in `backend/tests/conftest.py` | When `CI` is set, widens collection from the 5 hardcoded files to all of `tests/`. | The `Run unit tests` step runs `tests/` |
+| `backend/tests/_ci_database.py` | When `CI` is set and `TEST_DATABASE_URL` is unset, starts the runner's pre-installed PostgreSQL and provisions a database, so the `-m db` tests run. Fails silently — if it can't, tests skip exactly as before. | The workflow provides a Postgres service |
+| `backend/tests/test_lint.py` | Runs `python -m ruff check app tests` as a test — the workflow's lint step ends in `\|\| true` and always passes. | The `Ruff lint` step drops `\|\| true` and covers `tests/` |
+| `frontend/scripts/ci-run-tests.mjs` (via `prebuild`) | Runs the vitest suite before `npm run build`, because the frontend workflow never calls `npm test`. | The frontend workflow adds a `npm test` step |
 
-Verified by running each CI command locally:
+Verified by running CI's exact command locally with PostgreSQL **stopped**:
+**5 files → 1,786 tests** (1,612 pure + 174 DB), and with provisioning made
+impossible it degrades to `1,612 passed, 174 skipped` rather than failing.
 
-- backend: **5 files → 1,521 tests**
-- frontend: `CI=true npm run build` runs **74 tests** first; a deliberately broken test makes `npm run build` exit 1 without compiling.
-
-All three shims are gated on the `CI` environment variable, so local single-file
-runs and local builds behave as before.
-
-DB-marked tests still skip (no `TEST_DATABASE_URL` in CI), so the `db-test` job
-below is still needed for the integration tests.
-
-## Why
-
-- The `test` job runs only a **hardcoded list of 5 test files**, so the vast majority
-  of the suite never runs in CI. As of this writing the suite is
-  **1,440 pure tests + 47 DB tests**, i.e. CI exercises well under 1% of it.
-  Every regression test added since — Benford MAD conformity, AI calibration,
-  Zengin half-width-kana matching, password hashing, the login timing oracle,
-  CSV injection, business-timezone date boundaries, rate-limit spoofing,
-  idempotency tenant scoping, audit-log redaction — **is not run by CI**.
-  A green check therefore does not mean those protections still hold.
-- The DB integration tests (`-m db`) need a real PostgreSQL (models use `JSONB`/`UUID`).
-- **The `Ruff lint` step ends in `|| true`, so lint failures are discarded** and the
-  step always reports success. Lint regressions have reached `main` this way.
-  The backend is currently **ruff-clean** (`ruff check app/ tests/` passes), so the
-  `|| true` can be dropped without any preparatory cleanup.
+The database shim uses a role name (`kaikei_ci`) deliberately distinct from the
+local development role, so it cannot disturb a developer's existing setup.
 
 ## What to change
 
@@ -114,9 +95,9 @@ docker run -d --name kaikei-test-db -e POSTGRES_USER=kaikei \
 cd backend
 # DB integration tests
 TEST_DATABASE_URL=postgresql+asyncpg://kaikei:kaikei_dev@localhost:5432/kaikei_test \
-  python -m pytest tests/ -m db -q            # 47 passed
+  python -m pytest tests/ -m db -q            # 174 passed
 # pure-logic suite (no DB); db tests auto-skip
-python -m pytest tests/ -m "not db" -q        # 1440 passed
+python -m pytest tests/ -m "not db" -q        # 1612 passed
 ```
 
 The DB tests auto-skip when `TEST_DATABASE_URL` is unset (see

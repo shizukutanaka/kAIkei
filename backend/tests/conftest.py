@@ -20,6 +20,30 @@ TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
 TESTS_DIR = str(pathlib.Path(__file__).parent)
 
 
+def _provision_ci_database() -> None:
+    """CI で TEST_DATABASE_URL が無ければ、自前で PostgreSQL を用意する。
+
+    DBを要するテストは金額と権限に直結する（テナント分離・給与・消費税）が、
+    CI では一度も実行されていなかった。ワークフローに Postgres サービスを
+    足すのが本来だが `workflows` 権限が無いため、ランナーに導入済みの
+    PostgreSQL を起動して使う。用意できなければ従来どおりスキップされる。
+    """
+    global TEST_DATABASE_URL
+    if TEST_DATABASE_URL or not os.environ.get("CI"):
+        return
+
+    from tests._ci_database import provision
+
+    url = provision()
+    if url is None:
+        print("\n[conftest] CI用のPostgreSQLを用意できませんでした。DBテストはスキップします。")
+        return
+
+    os.environ["TEST_DATABASE_URL"] = url
+    TEST_DATABASE_URL = url
+    print(f"\n[conftest] CI用のPostgreSQLを用意しました（{url.rsplit('/', 1)[-1]}）。DBテストを実行します。")
+
+
 def pytest_configure(config):
     """CI ではスイート全体を実行する。
 
@@ -38,6 +62,8 @@ def pytest_configure(config):
     働かせる。何が起きたかはログに明示する（5ファイルを指定したのに
     1500件走る理由が分からないと調査を妨げるため）。
     """
+    _provision_ci_database()
+
     if not os.environ.get("CI"):
         return
     if config.args and all(pathlib.Path(a).resolve() == pathlib.Path(TESTS_DIR).resolve() for a in config.args):
