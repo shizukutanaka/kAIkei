@@ -40,7 +40,9 @@ class JournalService:
         journal.approval_status = "approved"
         journal.approved_by = approver_id
         await db.flush()
-        await db.refresh(journal)
+        # 応答に明細を含めるため、遅延ロードにせず明示的に読み込む
+        # （非同期セッションでは遅延ロードが MissingGreenlet になる）。
+        await db.refresh(journal, attribute_names=["lines"])
         return journal
 
     @staticmethod
@@ -63,7 +65,9 @@ class JournalService:
         await db.flush()
 
         await JournalService._update_monthly_balance(db, journal)
-        await db.refresh(journal)
+        # 応答に明細を含めるため、遅延ロードにせず明示的に読み込む
+        # （非同期セッションでは遅延ロードが MissingGreenlet になる）。
+        await db.refresh(journal, attribute_names=["lines"])
         return journal
 
     @staticmethod
