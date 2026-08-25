@@ -9,7 +9,7 @@ from app.core.business_time import business_naive_now, business_today
 from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
-from app.core.tenant_scope import assert_company_access, scope_to_tenant
+from app.core.tenant_scope import assert_company_access, assert_owns, scope_to_tenant
 from app.models.models import AttendanceRecord, Employee
 from app.schemas.schemas import (
     AttendanceClockInRequest,
@@ -57,6 +57,11 @@ async def clock_in(
 ) -> AttendanceResponse:
     """出勤打刻。"""
     await assert_company_access(db, current_user, payload.company_id)
+    # 従業員を照合しないと、存在しないIDで外部キー違反の500になり、
+    # 他テナントの従業員IDなら自社の勤怠として登録できてしまう。
+    await assert_owns(
+        db, current_user, Employee, Employee.employee_id, payload.employee_id, "Employee"
+    )
     today = business_today()
     existing = await db.execute(
         scope_to_tenant(
@@ -129,6 +134,11 @@ async def create_manual_attendance(
 ) -> AttendanceResponse:
     """手動で勤怠記録を作成する。"""
     await assert_company_access(db, current_user, payload.company_id)
+    # 従業員を照合しないと、存在しないIDで外部キー違反の500になり、
+    # 他テナントの従業員IDなら自社の勤怠として登録できてしまう。
+    await assert_owns(
+        db, current_user, Employee, Employee.employee_id, payload.employee_id, "Employee"
+    )
     existing = await db.execute(
         scope_to_tenant(
             select(AttendanceRecord).where(
