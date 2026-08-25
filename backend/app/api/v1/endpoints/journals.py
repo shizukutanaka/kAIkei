@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from fastapi.responses import PlainTextResponse
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.csv_export import csv_document
 from app.core.database import get_db
@@ -115,7 +116,8 @@ async def create_journal(
         )
 
     await db.flush()
-    await db.refresh(header)
+    # 応答に明細を含めるため、遅延ロードにせず明示的に読み込む。
+    await db.refresh(header, attribute_names=["lines"])
     return header
 
 
@@ -132,6 +134,7 @@ async def list_journals(
     offset = (page - 1) * page_size
     query = (
         select(JournalHeader)
+        .options(selectinload(JournalHeader.lines))
         .where(JournalHeader.company_id == company_id, JournalHeader.is_deleted == False)  # noqa: E712
     )
     if approval_status:
@@ -341,7 +344,9 @@ async def get_journal(
 ) -> JournalHeader:
     result = await db.execute(
         scope_to_tenant(
-            select(JournalHeader).where(
+            select(JournalHeader)
+            .options(selectinload(JournalHeader.lines))
+            .where(
                 JournalHeader.journal_header_id == journal_header_id,
                 JournalHeader.is_deleted == False,  # noqa: E712
             ),
@@ -363,7 +368,9 @@ async def void_journal(
 ) -> JournalHeader:
     result = await db.execute(
         scope_to_tenant(
-            select(JournalHeader).where(
+            select(JournalHeader)
+            .options(selectinload(JournalHeader.lines))
+            .where(
                 JournalHeader.journal_header_id == journal_header_id,
                 JournalHeader.is_deleted == False,  # noqa: E712
             ),
@@ -379,7 +386,7 @@ async def void_journal(
 
     journal.is_voided = True
     await db.flush()
-    await db.refresh(journal)
+    await db.refresh(journal, attribute_names=["lines"])
     return journal
 
 
