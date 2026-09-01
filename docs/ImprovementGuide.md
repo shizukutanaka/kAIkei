@@ -219,6 +219,12 @@ Playwright で全画面を巡回し、コンソールエラーと4xx/5xxを集�
 - ~~承認の状態機械が2系統~~ → `/journals/{id}/approve|post` の別実装（幽霊ステータス
   `waiting`・承認履歴なし・提出飛ばし可）を削除し、`ApprovalWorkflowService` へ一本化。
 - ~~パスワード72バイト制限~~ → bcrypt_sha256 へ移行（日本語25文字以上で500になっていた）。
+- ~~決算書に取消・削除・期間外の仕訳が混入~~ → 集計クエリが会社・期間・取消・削除の
+  条件を**外部結合の結合条件**に書いていた。外部結合は条件に合わない行を落とさず
+  結合先の列をNULLにするだけなので、金額は条件に関係なく合計に入っていた。
+  実測で現金の借方が **100,000 であるべきところ 1,600,000**（取消50万・期間外70万・
+  削除30万が全て加算）。試算表・損益計算書・貸借対照表・KPI・キャッシュフローと
+  各CSVエクスポートの**全てが同じ集計を共有**していた。
 - ~~CORS許可オリジンがベタ書き~~ → `http://localhost:3000` 固定だった。本番ドメインに
   置いた画面からは**APIを一切呼べない**（起動はするので気付きにくい）。
   `CORS_ALLOW_ORIGINS` で設定可能にし、本番でローカル既定のままなら起動時に検出する。
@@ -252,6 +258,7 @@ Playwright で全画面を巡回し、コンソールエラーと4xx/5xxを集�
 | `backend/tests/test_no_inline_rate_arithmetic.py` | エンドポイントに税率・保険料率を直書きしていない |
 | `backend/tests/test_withholding_reconciles_with_year_end.py` | 月次×12＋賞与＝年税額（端数112円未満）。概算が年間で精算されること |
 | `backend/tests/test_auto_journal_balances_db.py` | 自動生成の仕訳は必ず貸借一致。生成器が増えても検証を通ること |
+| `backend/tests/test_trial_balance_scope_db.py` | 決算書に取消・削除・期間外の仕訳が入らない／取引の無い科目は消えない |
 | `backend/tests/test_frontend_api_contract.py` | フロントが存在しないAPIを呼んでいない（`/api/v1` 配下のみと突き合わせる）／概算の通知が画面に出ている |
 | `backend/tests/test_cors_configuration.py` | 許可オリジンが設定可能／本番でローカル既定なら検出／CORSが最外側でエラー応答にもヘッダが付く |
 | `frontend/app/permission-gate.test.tsx` | 権限ゼロならAPIを呼ばない（12画面） |

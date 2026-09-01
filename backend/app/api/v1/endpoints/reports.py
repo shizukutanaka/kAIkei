@@ -159,7 +159,11 @@ async def get_trial_balance(
             func.coalesce(
                 func.sum(
                     case(
-                        (JournalLine.debit_credit == "debit", JournalLine.amount),
+                        (
+                            JournalHeader.journal_header_id.is_not(None)
+                            & (JournalLine.debit_credit == "debit"),
+                            JournalLine.amount,
+                        ),
                         else_=Decimal("0"),
                     )
                 ), 0
@@ -167,7 +171,11 @@ async def get_trial_balance(
             func.coalesce(
                 func.sum(
                     case(
-                        (JournalLine.debit_credit == "credit", JournalLine.amount),
+                        (
+                            JournalHeader.journal_header_id.is_not(None)
+                            & (JournalLine.debit_credit == "credit"),
+                            JournalLine.amount,
+                        ),
                         else_=Decimal("0"),
                     )
                 ), 0
@@ -305,7 +313,11 @@ async def _get_account_balances(
             func.coalesce(
                 func.sum(
                     case(
-                        (JournalLine.debit_credit == "debit", JournalLine.amount),
+                        (
+                            JournalHeader.journal_header_id.is_not(None)
+                            & (JournalLine.debit_credit == "debit"),
+                            JournalLine.amount,
+                        ),
                         else_=Decimal("0"),
                     )
                 ), 0
@@ -313,7 +325,11 @@ async def _get_account_balances(
             func.coalesce(
                 func.sum(
                     case(
-                        (JournalLine.debit_credit == "credit", JournalLine.amount),
+                        (
+                            JournalHeader.journal_header_id.is_not(None)
+                            & (JournalLine.debit_credit == "credit"),
+                            JournalLine.amount,
+                        ),
                         else_=Decimal("0"),
                     )
                 ), 0
@@ -634,7 +650,11 @@ async def export_trial_balance_csv(
             func.coalesce(
                 func.sum(
                     case(
-                        (JournalLine.debit_credit == "debit", JournalLine.amount),
+                        (
+                            JournalHeader.journal_header_id.is_not(None)
+                            & (JournalLine.debit_credit == "debit"),
+                            JournalLine.amount,
+                        ),
                         else_=Decimal("0"),
                     )
                 ), 0
@@ -642,7 +662,11 @@ async def export_trial_balance_csv(
             func.coalesce(
                 func.sum(
                     case(
-                        (JournalLine.debit_credit == "credit", JournalLine.amount),
+                        (
+                            JournalHeader.journal_header_id.is_not(None)
+                            & (JournalLine.debit_credit == "credit"),
+                            JournalLine.amount,
+                        ),
                         else_=Decimal("0"),
                     )
                 ), 0
