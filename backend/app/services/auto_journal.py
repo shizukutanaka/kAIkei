@@ -47,6 +47,35 @@ async def _next_journal_number(db: AsyncSession, company_id: UUID) -> str:
     return f"JRN-{count + 1:08d}"
 
 
+def _assert_balanced(lines: list[JournalLine], context: str) -> None:
+    """貸借が一致していなければ ValueError を送出する。
+
+    複式簿記では借方合計と貸方合計が必ず一致する。一致しない仕訳が帳簿に入ると
+    試算表が合わなくなり、決算も申告もできない。
+
+    自動生成の仕訳は API の検証（`POST /journals`）を通らずに直接書き込まれる。
+    金額は呼び出し元が別々の引数で渡すため、**渡された値が食い違っていれば
+    そのまま不整合な仕訳になる**。現状の呼び出し元はいずれも整合した値を
+    渡しているが（請求書は明細から算出、給与は差引で算出）、それは呼び出し元の
+    実装に依存しているだけで、ここでは保証されていなかった。
+
+    書き込む直前の1箇所で確かめる。生成器が増えても自動的に効く。
+    """
+    debit = sum((line.amount for line in lines if line.debit_credit == "debit"), Decimal("0"))
+    credit = sum((line.amount for line in lines if line.debit_credit == "credit"), Decimal("0"))
+    if debit != credit:
+        raise ValueError(
+            f"貸借が一致しない仕訳は作成できない（{context}）: 借方={debit} 貸方={credit}"
+        )
+
+
+def _add_balanced(db: AsyncSession, lines: list[JournalLine], context: str) -> None:
+    """貸借を確認してから明細を登録する。"""
+    _assert_balanced(lines, context)
+    for line in lines:
+        db.add(line)
+
+
 async def generate_invoice_issue_journal(
     db: AsyncSession,
     *,
@@ -110,8 +139,7 @@ async def generate_invoice_issue_journal(
             description=f"消費税 {invoice_number}",
         ))
 
-    for ln in lines:
-        db.add(ln)
+    _add_balanced(db, lines, f"請求書発行 {invoice_number}")
 
     await db.flush()
     return header
@@ -145,7 +173,9 @@ async def generate_invoice_payment_journal(
     db.add(header)
     await db.flush()
 
-    db.add(JournalLine(
+    lines: list[JournalLine] = []
+
+    lines.append(JournalLine(
         journal_header_id=header.journal_header_id,
         line_number=1,
         debit_credit="debit",
@@ -153,7 +183,7 @@ async def generate_invoice_payment_journal(
         amount=total_amount,
         description=f"入金 {invoice_number}",
     ))
-    db.add(JournalLine(
+    lines.append(JournalLine(
         journal_header_id=header.journal_header_id,
         line_number=2,
         debit_credit="credit",
@@ -161,6 +191,8 @@ async def generate_invoice_payment_journal(
         amount=total_amount,
         description=f"入金消込 {invoice_number}",
     ))
+
+    _add_balanced(db, lines, f"請求書入金 {invoice_number}")
 
     await db.flush()
     return header
@@ -194,7 +226,9 @@ async def generate_expense_payment_journal(
     db.add(header)
     await db.flush()
 
-    db.add(JournalLine(
+    lines: list[JournalLine] = []
+
+    lines.append(JournalLine(
         journal_header_id=header.journal_header_id,
         line_number=1,
         debit_credit="debit",
@@ -202,7 +236,7 @@ async def generate_expense_payment_journal(
         amount=total_amount,
         description=f"経費支払 {report_title}",
     ))
-    db.add(JournalLine(
+    lines.append(JournalLine(
         journal_header_id=header.journal_header_id,
         line_number=2,
         debit_credit="credit",
@@ -210,6 +244,8 @@ async def generate_expense_payment_journal(
         amount=total_amount,
         description=f"経費支払 {report_title}",
     ))
+
+    _add_balanced(db, lines, f"経費精算 {report_title}")
 
     await db.flush()
     return header
@@ -245,9 +281,11 @@ async def generate_payroll_journal(
     db.add(header)
     await db.flush()
 
+    lines: list[JournalLine] = []
+
     line_no = 1
 
-    db.add(JournalLine(
+    lines.append(JournalLine(
         journal_header_id=header.journal_header_id,
         line_number=line_no,
         debit_credit="debit",
@@ -257,7 +295,7 @@ async def generate_payroll_journal(
     ))
     line_no += 1
 
-    db.add(JournalLine(
+    lines.append(JournalLine(
         journal_header_id=header.journal_header_id,
         line_number=line_no,
         debit_credit="credit",
@@ -269,7 +307,7 @@ async def generate_payroll_journal(
 
     if total_deductions > 0:
         withholding_account = await _find_account(db, company_id, "liability", "22")
-        db.add(JournalLine(
+        lines.append(JournalLine(
             journal_header_id=header.journal_header_id,
             line_number=line_no,
             debit_credit="credit",
@@ -277,6 +315,8 @@ async def generate_payroll_journal(
             amount=total_deductions,
             description=f"給与控除額 {payroll_year}年{payroll_month}月",
         ))
+
+    _add_balanced(db, lines, f"給与支払 {payroll_year}年{payroll_month}月")
 
     await db.flush()
     return header
@@ -313,9 +353,11 @@ async def generate_bonus_journal(
     db.add(header)
     await db.flush()
 
+    lines: list[JournalLine] = []
+
     line_no = 1
 
-    db.add(JournalLine(
+    lines.append(JournalLine(
         journal_header_id=header.journal_header_id,
         line_number=line_no,
         debit_credit="debit",
@@ -325,7 +367,7 @@ async def generate_bonus_journal(
     ))
     line_no += 1
 
-    db.add(JournalLine(
+    lines.append(JournalLine(
         journal_header_id=header.journal_header_id,
         line_number=line_no,
         debit_credit="credit",
@@ -337,7 +379,7 @@ async def generate_bonus_journal(
 
     if total_deductions > 0:
         withholding_account = await _find_account(db, company_id, "liability", "22")
-        db.add(JournalLine(
+        lines.append(JournalLine(
             journal_header_id=header.journal_header_id,
             line_number=line_no,
             debit_credit="credit",
@@ -345,6 +387,8 @@ async def generate_bonus_journal(
             amount=total_deductions,
             description=f"賞与控除額 {bonus_year}年{term_label}",
         ))
+
+    _add_balanced(db, lines, f"賞与支払 {bonus_year}年{bonus_term}")
 
     await db.flush()
     return header
@@ -380,7 +424,9 @@ async def generate_depreciation_journal(
     db.add(header)
     await db.flush()
 
-    db.add(JournalLine(
+    lines: list[JournalLine] = []
+
+    lines.append(JournalLine(
         journal_header_id=header.journal_header_id,
         line_number=1,
         debit_credit="debit",
@@ -388,7 +434,7 @@ async def generate_depreciation_journal(
         amount=depreciation_amount,
         description=f"減価償却費 {asset_name}",
     ))
-    db.add(JournalLine(
+    lines.append(JournalLine(
         journal_header_id=header.journal_header_id,
         line_number=2,
         debit_credit="credit",
@@ -396,6 +442,8 @@ async def generate_depreciation_journal(
         amount=depreciation_amount,
         description=f"減価償却累計 {asset_name}",
     ))
+
+    _add_balanced(db, lines, f"減価償却 {asset_name}")
 
     await db.flush()
     return header
