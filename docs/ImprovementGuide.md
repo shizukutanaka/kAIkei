@@ -106,22 +106,39 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:8090/api/v1 npx next start -p 3100
 - **非同期ワーカー**: Webhook配信＆スケジュールジョブのディスパッチを定期実行
   （`background_jobs.py`、FOR UPDATE SKIP LOCKED で二重処理防止）。
 - **フロント**: Next.js 14、WCAG配慮、vitestテスト基盤。
+- **全268ルートの疎通確認**: GET 128本中125本、非GET 140本中132本を、パラメータ・
+  リクエスト本文を型から機械生成して実際に叩く（残り11本は外部へ取得・送信しに行く
+  経路と `/health` で、**すべて理由付きで除外**）。対象から漏れた経路が出ると
+  テスト自体が落ちるため、「対象外」が静かに増えない。
+  — 根拠: `test_endpoint_smoke_wide_db.py` / `test_write_endpoint_smoke_db.py`。
+- **ID経路のテナント照合0漏れ**: UUIDを受け取る全経路（パス・本文とも）を静的走査し、
+  照合の無い経路が0件であることを固定。加えて他テナントの実在IDを使った越境テストで
+  実挙動も確認（静的走査は関数単位の判定で、IDごとの追跡はしない——限界も明記済み）。
+  — 根拠: `test_id_routes_are_scoped.py` / `test_path_id_tenant_isolation_db.py`。
+- **パスワードはbcrypt_sha256**: bcryptの72バイト制限（日本語25文字で超過→500）を解消。
+  NIST SP 800-63Bの「切り捨て禁止」に準拠し、既存ハッシュはログイン成功時に透過移行。
+  — 根拠: `tests/test_passwords.py`。
+- **承認の状態機械は1系統**: draft→submitted→approved→posted。どの経路で承認しても
+  SoD・RBAC・承認履歴（ApprovalLog）が同一に効く。
+  — 根拠: `test_journal_lifecycle_db.py`（提出を飛ばせない／履歴が残ることを固定）。
 
 ## 2. 短所（弱み）※本書更新時点
 
 ### 🔴 最優先（利用者に誤った数字が出る／人手が必要）
 
-- **月額表・算出率表・消費税の課税区分が未対応**（金額そのものは是正済み）。
-  月次の源泉所得税は年税額の12分の1で算出しており、5%の一律徴収は解消した。
-  ただし法定の「月額表」そのものではないため、応答の `estimate_notice` と画面の
-  警告で概算だと明示している。賞与の算出率表と消費税申告の課税区分集計は未対応
-  （改善7・改善8参照）。
+- **月額表・賞与算出率表そのものが未対応**（金額の是正・概算明示は完了）。
+  月次は年税額の12分の1、賞与は差分方式で、検証済みの法定部品だけから算出している。
+  ただし法定の「月額表」「算出率表」そのものではないため、応答の `estimate_notice` と
+  画面の警告で概算だと明示している。表の係数は国税庁の一次資料が必要（改善7参照。
+  消費税の課税区分集計は改善8で対応済み）。
 - **CIワークフロー本体が未修正**。`.github/workflows/*.yml` は GitHub App に
   `workflows` 権限が無く自動更新できない。現在は編集可能なファイル側の暫定措置で
   回避している（`docs/ci/backend-ci-db-tests.md` 参照）。**人手での適用が必要**で、
   適用したら暫定措置3点を削除すること。
-- **DB統合テストがCIで走らない**。`TEST_DATABASE_URL` を渡す `db-test` ジョブが無く、
-  テナント分離・監査ログ・マイグレーション整合性など148件がCI未実行。上と同じ理由。
+- ~~DB統合テストがCIで走らない~~ → **CIシムで全件実行中**（`conftest.py` の
+  `pytest_configure` が収集を全体に広げ、`_ci_database.py` がランナーのPostgreSQLを
+  起動・プロビジョニングする）。純粋1,622件＋DB統合466件超がCIで走る。
+  残るのはワークフロー本体の手動適用のみ（上の項目）。
 
 ### 🟡 中
 
@@ -146,6 +163,18 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:8090/api/v1 npx next start -p 3100
 - ~~全銀エクスポートがモック~~ → `zengin_transfer.py` に固定長120バイトの実装済み。
 - ~~フロントテスト薄い~~ → vitest 74件。権限ゲートの横断テストを含む。
 - ~~MFAリカバリなし~~ → バックアップコード実装済み。
+- ~~UUIDを知っているだけで他テナントの帳簿を操作・閲覧できた~~ → 15経路を修正
+  （承認・記帳の書き込み系、給与明細・賞与明細・請求書等のエクスポート系、承認履歴・
+  補助科目の読み取り系）。`assert_owns()` で親を照合してから業務処理に入る。
+- ~~給与・賞与の計算13本が呼べば必ず500~~ → 応答スキーマに `from_attributes` が無く
+  pydanticがデータクラスを弾いていた。`*Response` 66クラスへ一括付与で種類ごと解消。
+- ~~監査エクスポートが実データで500~~ → 列名誤り2連発（`journal_date`・`debit_amount`）。
+  空の会社では行処理に入らず素通りしていたため、実データ入りの疎通確認に変更。
+- ~~勤怠打刻が従業員IDを照合しない~~ → 存在しないIDで500、他テナントの従業員で
+  登録できた。照合を追加。
+- ~~承認の状態機械が2系統~~ → `/journals/{id}/approve|post` の別実装（幽霊ステータス
+  `waiting`・承認履歴なし・提出飛ばし可）を削除し、`ApprovalWorkflowService` へ一本化。
+- ~~パスワード72バイト制限~~ → bcrypt_sha256 へ移行（日本語25文字以上で500になっていた）。
 
 ## 2-1. 壊してはいけない防御（横断テスト）
 
@@ -156,13 +185,19 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:8090/api/v1 npx next start -p 3100
 | テスト | 固定している性質 |
 | --- | --- |
 | `backend/tests/test_tenant_scope_coverage.py` | 未スコープの参照が0件／ボディの company_id 検証漏れが0件 |
-| `backend/tests/test_endpoint_smoke_db.py` | 自テナントで404/500にならない／他テナントは必ず404 |
+| `backend/tests/test_endpoint_smoke_db.py` | company_id 系GET: 自テナントで404/500にならない／他テナントは必ず404 |
+| `backend/tests/test_endpoint_smoke_wide_db.py` | 残る全GET: パラメータを型から埋めて叩き5xxにならない／対象漏れが出ると落ちる |
+| `backend/tests/test_write_endpoint_smoke_db.py` | 全POST/PUT/PATCH/DELETE: 本文をスキーマから生成して叩き5xxにならない |
+| `backend/tests/test_id_routes_are_scoped.py` | UUIDを受け取るのにテナント照合の無い経路が0件（関数単位の判定。限界はdocstring参照） |
+| `backend/tests/test_path_id_tenant_isolation_db.py` | 他テナントの実在IDでは承認・記帳・エクスポート等が必ず404（実リクエスト） |
+| `backend/tests/test_response_model_eager_loading.py` | 応答に含めるリレーションを遅延ロードのままにしない（放置すると必ず500） |
+| `backend/tests/test_audit_export_db.py` | 監査ZIPが実データ入りで生成でき、借方・貸方が別列に出る |
 | `backend/tests/test_route_shadowing.py` | 文字列ルートがパラメータ付きルートに隠れていない |
 | `backend/tests/test_migration_parity_db.py` | マイグレーションとモデル定義が一致 |
-| `backend/tests/test_frontend_api_contract.py` | フロントが存在しないAPIを呼んでいない |
+
 | `backend/tests/test_lint.py` | ruff の指摘が0件（CIの lint は `\|\| true` で握り潰される） |
 | `backend/tests/test_no_inline_rate_arithmetic.py` | エンドポイントに税率・保険料率を直書きしていない |
-| `backend/tests/test_frontend_api_contract.py` | 存在しないAPIを呼んでいない／概算の通知が画面に出ている |
+| `backend/tests/test_frontend_api_contract.py` | フロントが存在しないAPIを呼んでいない／概算の通知が画面に出ている |
 | `frontend/app/permission-gate.test.tsx` | 権限ゼロならAPIを呼ばない（12画面） |
 | `frontend/app/permission-resolve.test.tsx` | 権限が後から確定したら取得し直す（9画面） |
 
@@ -187,13 +222,13 @@ start/complete API 経由の外部ワーカーモデルを踏襲（副作用は�
 - 残: `/tax`(tax_forecast) の専用画面は未（税予測は単一read-onlyエンドポイント。必要なら
   budgets/treasuryパターンで追加可能）。
 
-### 改善2 🟡 ドキュメント同期（スコープ小〜中）
-- 背景: mainが追加したテーブル7件（budgets/budget_lines/bank_accounts/bank_statement_details/
-  payment_requests/scheduled_jobs/job_executions）と新エンドポイントが設計書に未反映。
-- 対象: `docs/OpenAPISpec.md`（§0実装対応表に budgets/payments/treasury/jobs/ops/tax を追記）、
-  `docs/DataDictionary.md`・`docs/DatabaseDesign.md`（新テーブル定義）。正準はFastAPI
-  自動生成 `/openapi.json` である旨を明記。
-- 検証: `backend/app/api/v1/router.py`・`models.py` と記述を突き合わせて一致確認。
+### 改善2 ⚪ ドキュメント同期（判断: 大半は「正準の宣言」で解消済み）
+- API仕様: `docs/OpenAPISpec.md` は冒頭で FastAPI 自動生成 `/openapi.json` を正準と
+  宣言済み。手書きの写しを実装に追随させ続けるのは同じ情報を二重に持つことなので
+  **同期作業はしない**（マスク法: 追いかける対象を削除する）。
+- DBスキーマ: 正準は `models.py` で、モデル↔マイグレーションの一致は
+  `test_migration_parity_db.py` が固定している。`docs/DataDictionary.md`・
+  `docs/DatabaseDesign.md` の追記は読み物としての価値のみ。優先度 ⚪。
 
 ### ✅ 済 改善3: 全銀フォーマット（別PRで実装済み）
 `app/services/zengin_transfer.py` に全銀協 総合振込フォーマット（固定長120バイト）が
@@ -253,6 +288,15 @@ vitest 74件。payments / ar-aging / treasury / budgets / ops / payroll の
 税区分が未設定の明細は課税・非課税のいずれにも倒さず、件数と金額を警告に出す。
 全明細が分類済みなら警告は消える。
 
+### ✅ 済 改善9: 承認経路の一本化（実装済み）
+`/journals/{id}/approve|post` にあった別実装は、`waiting` という他のどこにも存在しない
+ステータスを受け付け、**承認履歴（ApprovalLog）を書かず**、提出を飛ばして
+draft→approved できた。`ApprovalWorkflowService` への委譲に置き換え、
+`JournalService.approve_journal/post_journal` は削除。どの経路でも
+draft→submitted→approved→posted・SoD・RBAC・履歴記録が同一に効く。
+根拠: `test_journal_lifecycle_db.py::test_approving_via_journals_router_leaves_an_audit_trail` /
+`test_approval_cannot_skip_submission`。
+
 ### ✅ 済 改善5-a: MFAバックアップコード（実装済み）
 `users.mfa_backup_codes`(JSONB, migration 0026)＋`mfa.py` の生成/ハッシュ/照合/消費。
 **平文は保存せずSHA-256のみ**、単回使用、TOTPと同一のログインゲートでのみ受理、
@@ -282,6 +326,45 @@ First Principles 分析で「仕訳帳・総勘定元帳・試算表が欠けて
 ### （非改善）定額法の備忘価額1円
 `depreciation.py` は汎用 straight-line。**`salvage_value=1` を渡せば最終簿価1円になり
 税務上の備忘価額を既にサポート**。専用パラメータ追加は冗長なので不要。
+
+## 3-1. 洗い出しの方法（次に読む人へ）
+
+本書の項目は、以下の2つを機械的に当てて洗い出している。同じ手順を繰り返せば
+同じ質の指摘が出る。**思いつきで探さないこと。**
+
+### ソクラテス問答法: 各主張に「それはどうやって分かるのか」を問う
+
+主張を額面どおり受け取らず、根拠の実在を確かめる。実際にこの問いで見つかったもの:
+
+| 主張 | 問い | 実際の答え |
+| --- | --- | --- |
+| 「エンドポイントは疎通確認済み」 | 何本のうち何本か | **128本中28本だけ**。残り100本は未確認だった |
+| 「監査エクスポートを直した」 | 直った状態を何が示すか | 確認に使った会社に仕訳が0件で、行処理に入っていなかった |
+| 「テナント分離はテスト済み」 | どのIDで確かめたか | 存在しないUUIDだけ。他人の**実在**IDでは越境できた |
+| 「1,600件のテストが緑」 | 何を通っていないか | HTTP経路を通らず、仕訳作成が全て500でも緑だった |
+| 「CIでDBテストが走らない」 | 今も走らないのか | シム導入済みで466件走る。本書の記述が古かった |
+
+**要点**: 「テストがある」は「確認できている」ではない。数を数え、範囲を言い、
+欠陥を仕込んで落ちることを確かめる。落ちなければそのテストは何も守っていない。
+
+### イーロン・マスク思考法: 要件を疑う→削除→簡素化→自動化
+
+順番が重要。**存在しなくてよいものを速くしても意味がない。**
+
+| 段階 | 本書での適用例 |
+| --- | --- |
+| 要件を疑う | 「月額表は必須か」→ 所得税法189条の電子計算機特例で300行の表は不要 |
+| 削除 | 承認の別実装（改善9）・追いかけるだけのAPI仕様書（改善2）を消す |
+| 簡素化 | 13箇所の個別修正ではなく `*Response` へ `from_attributes` を一括付与 |
+| 自動化 | 個別テストを書かず、ルーティングから対象を生成して全経路を叩く |
+
+**要点**: 例外リストを作って回るのは、直したことにならない。例外が増えていく形に
+したら負け。「対象から漏れたら落ちる」テストにしておくと、漏れが自動で表面化する。
+
+### 自己検証: 走査は必ず「欠陥を仕込んで」確かめる
+
+本書の防御（2-1）はすべて、**わざと壊して落ちることを確認してから**追加している。
+確認していない走査は「常に空を返す実装」に退化しても誰も気付かない。
 
 ## 4. この指示書の使い方
 

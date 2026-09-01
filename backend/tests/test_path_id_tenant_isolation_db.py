@@ -142,8 +142,8 @@ async def two_tenants(db_session):
     )
     await db_session.flush()
 
-    # 仕訳ルータの承認は draft/waiting しか受け付けない（承認ルータは submitted）。
-    # 状態違いの 400 でテナント照合が隠れないよう、専用に1件用意する。
+    # 下書きの仕訳。越境テストでは状態に関係なく（照合が状態チェックより先に
+    # 走るため）404 になるべきなので、各状態を1件ずつ持っておく。
     draft = JournalHeader(
         company_id=b["company_id"],
         journal_number=f"BD-{uuid.uuid4().hex[:8]}",
@@ -355,7 +355,7 @@ async def test_the_owner_can_still_approve_via_journals_router(api, two_tenants)
     _, b = two_tenants
 
     res = await api.put(
-        f"/api/v1/journals/{b['draft_journal_id']}/approve",
+        f"/api/v1/journals/{b['pending_journal_id']}/approve",
         headers={"Authorization": f"Bearer {b['approver_token']}"},
     )
 

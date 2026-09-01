@@ -225,9 +225,19 @@ async def approver(db_session, books):
     return {"Authorization": f"Bearer {create_access_token(str(user.user_id))}"}
 
 
+async def _submit(api, books, journal_header_id):
+    """作成者が承認待ちに提出する（draft → submitted）。"""
+    return await api.post(
+        "/api/v1/approvals/submit",
+        json={"journal_header_id": journal_header_id},
+        headers=_auth(books),
+    )
+
+
 async def test_the_creator_cannot_approve_their_own_journal(api, books):
     """職務分離（SoD）が効いていること。"""
     created = (await _create(api, books)).json()
+    assert (await _submit(api, books, created["journal_header_id"])).status_code == 200
 
     res = await api.put(
         f"/api/v1/journals/{created['journal_header_id']}/approve", headers=_auth(books)
@@ -240,6 +250,7 @@ async def test_a_journal_can_be_approved_and_posted(api, books, approver):
     """承認・記帳が応答を返せること（明細の遅延ロードで500にならない）。"""
     created = (await _create(api, books)).json()
     jid = created["journal_header_id"]
+    assert (await _submit(api, books, jid)).status_code == 200
 
     approved = await api.put(f"/api/v1/journals/{jid}/approve", headers=approver)
     assert approved.status_code == 200, approved.text
@@ -248,3 +259,38 @@ async def test_a_journal_can_be_approved_and_posted(api, books, approver):
     posted = await api.put(f"/api/v1/journals/{jid}/post", headers=approver)
     assert posted.status_code == 200, posted.text
     assert len(posted.json()["lines"]) == 2
+
+
+async def test_approval_cannot_skip_submission(api, books, approver):
+    """draft のまま承認できないこと。
+
+    以前 `/journals/{id}/approve` には `draft/waiting` を受け付ける別実装があり、
+    提出を飛ばして承認できた（`waiting` は他のどこにも無い幽霊ステータス）。
+    状態機械は draft → submitted → approved → posted の1系統だけにする。
+    """
+    created = (await _create(api, books)).json()
+
+    res = await api.put(
+        f"/api/v1/journals/{created['journal_header_id']}/approve", headers=approver
+    )
+
+    assert res.status_code == 400
+    assert "draft" in res.json()["detail"]
+
+
+async def test_approving_via_journals_router_leaves_an_audit_trail(api, books, approver):
+    """どちらの経路で承認しても承認履歴（ApprovalLog）が残ること。
+
+    以前の別実装は履歴を書かず、`/journals/{id}/approve` で承認すると
+    「誰がいつ承認したか」が残らなかった。会計システムとして許容できない。
+    """
+    created = (await _create(api, books)).json()
+    jid = created["journal_header_id"]
+    assert (await _submit(api, books, jid)).status_code == 200
+    assert (await api.put(f"/api/v1/journals/{jid}/approve", headers=approver)).status_code == 200
+    assert (await api.put(f"/api/v1/journals/{jid}/post", headers=approver)).status_code == 200
+
+    history = await api.get(f"/api/v1/approvals/history/{jid}", headers=_auth(books))
+
+    assert history.status_code == 200, history.text
+    assert [log["action"] for log in history.json()] == ["submit", "approve", "post"]
