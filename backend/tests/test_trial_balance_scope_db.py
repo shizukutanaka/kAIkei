@@ -218,3 +218,35 @@ async def test_the_trial_balance_csv_matches_the_json(api, books):
     assert cash_row, f"現金の行が無い:\n{res.text[:300]}"
     assert "1600000" not in cash_row[0], f"取消・期間外が混ざっている: {cash_row[0]}"
     assert "100000" in cash_row[0], f"正しい金額が出ていない: {cash_row[0]}"
+
+
+# ---------------------------------------------------------------------------
+# 総勘定元帳の前期繰越も同じクエリを持っていた（journals.py）。
+# 繰越が過大なら、その後の残高が全て狂う。
+# ---------------------------------------------------------------------------
+
+
+async def test_the_general_ledger_opening_balance_excludes_the_same_journals(api, books):
+    """前期繰越に取消・削除の仕訳が入らないこと。
+
+    繰越の基準は「開始日より前」。取消済み(6/16)と削除済み(6/17)を
+    範囲に含む開始日で引き、正常分(6/15)だけが繰り越されることを見る。
+    """
+    res = await api.get(
+        "/api/v1/journals/general-ledger",
+        params={
+            "company_id": str(books["company_id"]),
+            "start_date": "2026-07-01",
+            "end_date": "2026-07-31",
+        },
+        headers={"Authorization": f"Bearer {books['token']}"},
+    )
+
+    assert res.status_code == 200, res.text
+    entries = {a["account_code"]: a for a in res.json()["accounts"]}
+    assert "1000" in entries, f"現金の科目が無い: {list(entries)[:5]}"
+    opening = Decimal(str(entries["1000"]["opening_balance"]))
+
+    assert opening == Decimal("100000"), (
+        f"前期繰越が {opening}。取消・削除の仕訳が繰り越されている"
+    )
