@@ -215,7 +215,11 @@ async def get_general_ledger(
             func.coalesce(
                 func.sum(
                     case(
-                        (JournalLine.debit_credit == "debit", JournalLine.amount),
+                        (
+                            JournalHeader.journal_header_id.is_not(None)
+                            & (JournalLine.debit_credit == "debit"),
+                            JournalLine.amount,
+                        ),
                         else_=Decimal("0"),
                     )
                 ), 0
@@ -223,7 +227,11 @@ async def get_general_ledger(
             func.coalesce(
                 func.sum(
                     case(
-                        (JournalLine.debit_credit == "credit", JournalLine.amount),
+                        (
+                            JournalHeader.journal_header_id.is_not(None)
+                            & (JournalLine.debit_credit == "credit"),
+                            JournalLine.amount,
+                        ),
                         else_=Decimal("0"),
                     )
                 ), 0
