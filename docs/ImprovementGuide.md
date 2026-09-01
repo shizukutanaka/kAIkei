@@ -129,6 +129,9 @@ Playwright で全画面を巡回し、コンソールエラーと4xx/5xxを集�
   IP制限middleware＋MFA(TOTP, RFC6238, リプレイ防止)。2度のセキュリティレビューで
   MFA無効化バイパス・Webhook SSRF・クロステナントアクセス・IP制限詐称等を修正済み。
 - **DB整合性ガード**: Alembic単一ヘッド＋model↔migrationパリティ回帰テスト。
+  **巻き戻しも確認済み**: 34本すべて `downgrade base` まで通り、`alembic_version` 以外
+  何も残らない。直近の版は1段下げて上げ直せることも確認する（列の戻し忘れは
+  `base` まで一気に落とすと表面化しないため、1段の確認が要る）。
 - **非同期ワーカー**: Webhook配信＆スケジュールジョブのディスパッチを定期実行
   （`background_jobs.py`、FOR UPDATE SKIP LOCKED で二重処理防止）。
 - **フロント**: Next.js 14、WCAG配慮、vitestテスト基盤。
@@ -234,7 +237,7 @@ Playwright で全画面を巡回し、コンソールエラーと4xx/5xxを集�
 | `backend/tests/test_response_model_eager_loading.py` | 応答に含めるリレーションを遅延ロードのままにしない（放置すると必ず500） |
 | `backend/tests/test_audit_export_db.py` | 監査ZIPが実データ入りで生成でき、借方・貸方が別列に出る |
 | `backend/tests/test_route_shadowing.py` | 文字列ルートがパラメータ付きルートに隠れていない |
-| `backend/tests/test_migration_parity_db.py` | マイグレーションとモデル定義が一致 |
+| `backend/tests/test_migration_parity_db.py` | マイグレーションとモデル定義が一致／1段下げて上げ直せる／base まで巻き戻せて何も残らない |
 
 | `backend/tests/test_lint.py` | ruff の指摘が0件（CIの lint は `\|\| true` で握り潰される） |
 | `backend/tests/test_no_inline_rate_arithmetic.py` | エンドポイントに税率・保険料率を直書きしていない |
