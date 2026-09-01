@@ -49,12 +49,23 @@ class Settings(BaseSettings):
     # 信頼できるプロキシが上書きすることが保証された構成でのみ有効化すること。
     TRUST_PROXY_HEADERS: bool = False
 
+    # CORS: ブラウザから API を呼ぶ画面のオリジン（カンマ区切り）。
+    # 本番では実際のドメインを設定すること。既定のままだと本番の画面から
+    # 一切APIを呼べない（プリフライトが全て失敗する）。
+    # allow_credentials=True と併用するため "*" は使えない（ブラウザが拒否する）。
+    CORS_ALLOW_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
+
     # Application
     APP_NAME: str = "kAIkei"
     APP_VERSION: str = "0.1.0"
     LOG_LEVEL: str = "INFO"
 
     model_config = {"env_file": ".env", "extra": "ignore"}
+
+    @property
+    def cors_allow_origins(self) -> list[str]:
+        """CORS_ALLOW_ORIGINS をリストに分解する（空要素は捨てる）。"""
+        return [o.strip() for o in self.CORS_ALLOW_ORIGINS.split(",") if o.strip()]
 
 
 settings = Settings()

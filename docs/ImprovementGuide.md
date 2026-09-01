@@ -89,6 +89,32 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:8090/api/v1 npx next start -p 3100
 登録 → ログイン → 会社作成 → 勘定科目の初期化 → 仕訳/従業員登録 → 帳票、
 までを一度通すこと。この2件はそれで初めて分かった。
 
+## 0-2. 画面をブラウザで開いて確かめること（必読）
+
+フロントの単体テスト（vitest 84件）は**全てAPIをモックしている**。実サーバに
+つないだ状態で画面を開く経路は、これをやらない限り一度も通らない。実際に
+この手順でしか見つからない不具合が3件あった（CORS設定・ミドルウェア順序・
+ヘルスチェックの経路違い）。
+
+```bash
+# 1) API（画面のオリジンを許可する）
+cd backend && CORS_ALLOW_ORIGINS="http://localhost:3000,http://127.0.0.1:3100" \
+  DATABASE_URL="postgresql+asyncpg://kaikei:kaikei_dev@localhost:5432/kaikei_dev_run" \
+  uvicorn app.main:app --port 8000
+
+# 2) 画面
+cd frontend && NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:8000/api/v1" \
+  npm run build && npx next start -p 3100
+```
+
+Playwright で全画面を巡回し、コンソールエラーと4xx/5xxを集める。**注意点**:
+
+- **APIと画面のポートを必ず一致させる**。`CORS_ALLOW_ORIGINS` に画面のオリジンが
+  無いと全部CORSエラーになり、本当の不具合が埋もれる。
+- **レート制限（100req/60分あたり60秒）に自分で当たらないよう間隔を空ける**。
+  35画面を一気に開くと429が出て、これも本当の不具合を隠す。
+- `localhost` と `127.0.0.1` は**別オリジン**。書き方を揃える。
+
 ## 1. 長所（強み）
 
 - **レイヤ分離**: 各機能が「DB非依存の純粋関数コア＋非同期DBサービス＋FastAPI＋RBAC＋
@@ -121,6 +147,10 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:8090/api/v1 npx next start -p 3100
 - **承認の状態機械は1系統**: draft→submitted→approved→posted。どの経路で承認しても
   SoD・RBAC・承認履歴（ApprovalLog）が同一に効く。
   — 根拠: `test_journal_lifecycle_db.py`（提出を飛ばせない／履歴が残ることを固定）。
+- **画面をブラウザで実際に開いて確認済み**: 35画面を実サーバに対して読み込み、
+  コンソールエラーと失敗リクエストを収集する手順がある（§0-2）。
+  単体テストは全てAPIをモックするため、この経路でしか見つからない不具合がある。
+  — 根拠: これでCORS設定・ミドルウェア順序・ヘルスチェックの3件が見つかった。
 
 ## 2. 短所（弱み）※本書更新時点
 
@@ -177,6 +207,15 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:8090/api/v1 npx next start -p 3100
 - ~~承認の状態機械が2系統~~ → `/journals/{id}/approve|post` の別実装（幽霊ステータス
   `waiting`・承認履歴なし・提出飛ばし可）を削除し、`ApprovalWorkflowService` へ一本化。
 - ~~パスワード72バイト制限~~ → bcrypt_sha256 へ移行（日本語25文字以上で500になっていた）。
+- ~~CORS許可オリジンがベタ書き~~ → `http://localhost:3000` 固定だった。本番ドメインに
+  置いた画面からは**APIを一切呼べない**（起動はするので気付きにくい）。
+  `CORS_ALLOW_ORIGINS` で設定可能にし、本番でローカル既定のままなら起動時に検出する。
+- ~~CORSミドルウェアが内側にあった~~ → レート制限の429・IP制限の403・冪等性の409に
+  CORSヘッダが付かず、ブラウザは状態コードを読めないまま不透明なCORSエラーにしていた。
+  最外側へ移動。
+- ~~画面の接続状態表示が常に「エラー」~~ → 画面は `/api/v1/health` を呼ぶが
+  バックエンドはルート直下の `/health` しか公開していなかった。別名を追加。
+  併せて、接頭辞の外のルートまで突き合わせ対象にしていた契約テストの誤一致も修正。
 
 ## 2-1. 壊してはいけない防御（横断テスト）
 
@@ -199,7 +238,8 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:8090/api/v1 npx next start -p 3100
 
 | `backend/tests/test_lint.py` | ruff の指摘が0件（CIの lint は `\|\| true` で握り潰される） |
 | `backend/tests/test_no_inline_rate_arithmetic.py` | エンドポイントに税率・保険料率を直書きしていない |
-| `backend/tests/test_frontend_api_contract.py` | フロントが存在しないAPIを呼んでいない／概算の通知が画面に出ている |
+| `backend/tests/test_frontend_api_contract.py` | フロントが存在しないAPIを呼んでいない（`/api/v1` 配下のみと突き合わせる）／概算の通知が画面に出ている |
+| `backend/tests/test_cors_configuration.py` | 許可オリジンが設定可能／本番でローカル既定なら検出／CORSが最外側でエラー応答にもヘッダが付く |
 | `frontend/app/permission-gate.test.tsx` | 権限ゼロならAPIを呼ばない（12画面） |
 | `frontend/app/permission-resolve.test.tsx` | 権限が後から確定したら取得し直す（9画面） |
 
