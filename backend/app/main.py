@@ -36,25 +36,33 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
 app.add_middleware(IdempotencyMiddleware)
 app.add_middleware(AuditLogMiddleware)
 app.add_middleware(IpRestrictionMiddleware)
+
+# CORS は**最後に**追加する。Starlette の add_middleware は先頭に挿入するため、
+# 最後に足したものが最も外側になる。内側に置くと、上のミドルウェアが自分で返す
+# 応答（レート制限の429・IP制限の403・冪等性の409）に CORS ヘッダが付かず、
+# ブラウザは状態コードを読めないまま不透明なCORSエラーとして扱う。
+# 利用者には「なぜ動かないのか分からない」画面になり、フロントのエラー処理も効かない。
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allow_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")
 async def validate_secrets() -> None:
     """開発用デフォルト値の秘密情報を検出する。本番では起動を拒否する。"""
     issues = check_insecure_defaults(
-        settings.JWT_SECRET_KEY, settings.S3_ACCESS_KEY, settings.S3_SECRET_KEY
+        settings.JWT_SECRET_KEY,
+        settings.S3_ACCESS_KEY,
+        settings.S3_SECRET_KEY,
+        cors_origins=settings.cors_allow_origins,
     )
     if not issues:
         return
@@ -104,7 +112,11 @@ async def database_unavailable_handler(request: Request, exc: Exception) -> JSON
     )
 
 
+# ルート直下はコンテナ/ロードバランサ用。`/api/v1/health` は画面用で、
+# フロントのAPIクライアントが常に `/api/v1` を前置するため両方必要になる。
+# 片方だけだと、画面の接続状態表示が常に「エラー」になる（実際にそうなっていた）。
 @app.get("/health")
+@app.get("/api/v1/health")
 async def health_check() -> JSONResponse:
     """ヘルスチェックエンドポイント（DB接続確認付き）。
 

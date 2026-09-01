@@ -34,10 +34,17 @@ def _segments(path: str) -> list[str]:
 
 
 def _backend_routes() -> list[list[str]]:
+    """`/api/v1` 配下のルートだけを、接頭辞を外して返す。
+
+    フロントの `apiGet("/health")` は `/api/v1/health` を呼ぶ。接頭辞の外にある
+    ルート（ロードバランサ用の `/health` 等）まで突き合わせ対象にすると、
+    `/health` 同士が**別物なのに一致してしまう**。実際にこれで、画面の
+    接続状態表示が常に「エラー」になる不具合を見逃していた。
+    """
     return [
         _segments(_PARAM.sub("{}", route.path.removeprefix(API_PREFIX)))
         for route in app.routes
-        if isinstance(route, APIRoute)
+        if isinstance(route, APIRoute) and route.path.startswith(API_PREFIX)
     ]
 
 
@@ -103,6 +110,12 @@ def test_detection_logic_works():
     # 一致しないもの（改名・階層違い）を通さないこと
     assert not _matches(["budgest", "{}"], ["budgets", "{}"])
     assert not _matches(["budgets"], ["budgets", "{}"])
+
+    # 接頭辞の外にあるルートを対象に含めていないこと。
+    # `/health`（ロードバランサ用）と `/api/v1/health`（画面用）は別物で、
+    # 前者まで対象にすると `/health` 同士が誤って一致する。
+    under_prefix = [r for r in app.routes if isinstance(r, APIRoute) and r.path.startswith(API_PREFIX)]
+    assert len(_backend_routes()) == len(under_prefix), "接頭辞の外のルートが混ざっている"
 
 
 # 「概算です」の通知は、応答に載せるだけでは利用者に届かない。画面が出さなければ
