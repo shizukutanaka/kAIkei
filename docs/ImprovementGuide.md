@@ -251,6 +251,7 @@ Playwright で全画面を巡回し、コンソールエラーと4xx/5xxを集�
 | `backend/tests/test_lint.py` | ruff の指摘が0件（CIの lint は `\|\| true` で握り潰される） |
 | `backend/tests/test_no_inline_rate_arithmetic.py` | エンドポイントに税率・保険料率を直書きしていない |
 | `backend/tests/test_withholding_reconciles_with_year_end.py` | 月次×12＋賞与＝年税額（端数112円未満）。概算が年間で精算されること |
+| `backend/tests/test_auto_journal_balances_db.py` | 自動生成の仕訳は必ず貸借一致。生成器が増えても検証を通ること |
 | `backend/tests/test_frontend_api_contract.py` | フロントが存在しないAPIを呼んでいない（`/api/v1` 配下のみと突き合わせる）／概算の通知が画面に出ている |
 | `backend/tests/test_cors_configuration.py` | 許可オリジンが設定可能／本番でローカル既定なら検出／CORSが最外側でエラー応答にもヘッダが付く |
 | `frontend/app/permission-gate.test.tsx` | 権限ゼロならAPIを呼ばない（12画面） |
