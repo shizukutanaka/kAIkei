@@ -134,21 +134,32 @@ async def test_a_rate_limited_response_still_carries_cors_headers():
 
     付かないと、ブラウザは 429 も retry-after も読めず、利用者には
     「なぜ動かないのか分からない」画面になる。
+
+    上限に達するまで叩くのではなく、**実際のミドルウェア連鎖**を組み立てて
+    上限を下げる。件数で殴ると、他のテストと制限カウンタを共有するせいで
+    順序次第で到達したりしなかったりする（CIで実際に落ちた）。
     """
     import httpx
 
     from app.main import app
+    from app.middleware.rate_limit import RateLimitMiddleware
 
     origin = "http://localhost:3000"
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-        last = None
-        for _ in range(130):
-            last = await client.get("/api/v1/companies", headers={"Origin": origin})
-            if last.status_code == 429:
-                break
+    stack = app.build_middleware_stack()
 
-    assert last.status_code == 429, "レート制限に到達しなかった（上限が変わった可能性）"
-    assert last.headers.get("access-control-allow-origin") == origin, (
+    node = stack
+    while node is not None and not isinstance(node, RateLimitMiddleware):
+        node = getattr(node, "app", None)
+    assert node is not None, "レート制限ミドルウェアが連鎖に見つからない"
+    node.max_requests = 1
+    node._requests.clear()
+
+    transport = httpx.ASGITransport(app=stack)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        await client.get("/api/v1/companies", headers={"Origin": origin})
+        limited = await client.get("/api/v1/companies", headers={"Origin": origin})
+
+    assert limited.status_code == 429, f"レート制限に達しなかった: {limited.status_code}"
+    assert limited.headers.get("access-control-allow-origin") == origin, (
         "429 に CORS ヘッダが無い。ブラウザは状態コードを読めない。"
     )
