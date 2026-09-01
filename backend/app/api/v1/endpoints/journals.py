@@ -25,8 +25,8 @@ from app.schemas.schemas import (
     JournalListResponse,
     JournalResponse,
 )
+from app.services.approval_service import ApprovalWorkflowService
 from app.services.event_journal import EventJournalService
-from app.services.journal_service import JournalService
 from app.services.validation_engine import ValidationEngine, ValidationError
 
 router = APIRouter()
@@ -396,17 +396,26 @@ async def approve_journal(
     current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_APPROVE)),
     db: AsyncSession = Depends(get_db),
 ) -> JournalHeader:
-    """Approve a journal entry (SoD check enforced)."""
+    """Approve a journal entry (SoD check enforced).
+
+    承認の状態機械は `ApprovalWorkflowService` に一本化してある。以前ここには
+    `draft/waiting` を受け付ける別実装があり、承認履歴（ApprovalLog）を残さず、
+    提出を飛ばして draft→approved できた。`/approvals/approve` と同じ実体に
+    委譲することで、どちらの経路でも履歴・SoD・状態遷移が同一になる。
+    """
     await assert_owns(
         db, current_user, JournalHeader, JournalHeader.journal_header_id,
         journal_header_id, "Journal",
     )
     try:
-        return await JournalService.approve_journal(db, journal_header_id, current_user.user_id)
+        journal = await ApprovalWorkflowService.approve(db, journal_header_id, current_user.user_id)
     except ValidationError as e:
         raise HTTPException(status_code=403, detail={"code": e.code, "message": e.message}) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    # 応答に明細を含めるため明示的に読み込む（遅延ロードは MissingGreenlet になる）。
+    await db.refresh(journal, attribute_names=["lines"])
+    return journal
 
 
 @router.put("/{journal_header_id}/post", response_model=JournalResponse)
@@ -421,9 +430,14 @@ async def post_journal(
         journal_header_id, "Journal",
     )
     try:
-        return await JournalService.post_journal(db, journal_header_id)
+        journal = await ApprovalWorkflowService.post(db, journal_header_id, current_user.user_id)
+    except ValidationError as e:
+        raise HTTPException(status_code=403, detail={"code": e.code, "message": e.message}) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    # 応答に明細を含めるため明示的に読み込む（遅延ロードは MissingGreenlet になる）。
+    await db.refresh(journal, attribute_names=["lines"])
+    return journal
 
 
 # ---------------------------------------------------------------------------
