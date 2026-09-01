@@ -250,6 +250,7 @@ Playwright で全画面を巡回し、コンソールエラーと4xx/5xxを集�
 
 | `backend/tests/test_lint.py` | ruff の指摘が0件（CIの lint は `\|\| true` で握り潰される） |
 | `backend/tests/test_no_inline_rate_arithmetic.py` | エンドポイントに税率・保険料率を直書きしていない |
+| `backend/tests/test_withholding_reconciles_with_year_end.py` | 月次×12＋賞与＝年税額（端数112円未満）。概算が年間で精算されること |
 | `backend/tests/test_frontend_api_contract.py` | フロントが存在しないAPIを呼んでいない（`/api/v1` 配下のみと突き合わせる）／概算の通知が画面に出ている |
 | `backend/tests/test_cors_configuration.py` | 許可オリジンが設定可能／本番でローカル既定なら検出／CORSが最外側でエラー応答にもヘッダが付く |
 | `frontend/app/permission-gate.test.tsx` | 権限ゼロならAPIを呼ばない（12画面） |
@@ -303,6 +304,13 @@ vitest 74件。payments / ar-aging / treasury / budgets / ops / payroll の
 
 いずれも 給与所得控除→社会保険料控除・基礎控除・扶養控除→速算表→復興特別
 所得税 という検証済みの部品だけで構成され、年末調整と定義上整合する。
+
+**整合は実測で固定した**（`test_withholding_reconciles_with_year_end.py`）。
+月次×12（賞与がある年は＋賞与）と年末調整の年税額の差は、給与のみで最大92円、
+賞与ありで最大68円。いずれも端数処理（年税額の百円未満切捨＋月次の1円未満切捨×12）
+だけで説明でき、**年末調整の過不足はほぼ0**になる。概算であることが許されるのは
+年間で精算されるからなので、この性質が壊れたら概算ではなく誤徴収になる。
+一律5%だった旧実装を再現すると許容差を大きく超えることも確認済み。
 
 一律の率だった旧実装は、累進にならないため**両方向に**誤っていた:
 
