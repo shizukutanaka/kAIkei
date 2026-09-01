@@ -191,6 +191,15 @@ Playwright で全画面を巡回し、コンソールエラーと4xx/5xxを集�
 - **Peppol実送信なし**: UBL XML生成のみ。アクセスポイント連携は未実装。
 - **本番と検証のPythonバージョン差**: Dockerfile は 3.12、CIと開発環境は 3.11。
   ruff の target-version はサポート下限の py311 に合わせてある。
+  **3.12 でも全件通ることは実測済み**（1,635 + 471 = 2,106件）。ただしCIは3.11
+  だけなので、3.12でのみ壊れる変更は入った瞬間には気付けない。CIワークフローを
+  手で直せるようになったら、両方で走らせるのが本筋（テストするのは動かす版）。
+  再現手順:
+  ```bash
+  python3.12 -m venv /tmp/v312 && /tmp/v312/bin/pip install -r backend/requirements.txt
+  /tmp/v312/bin/pip install pytest pytest-asyncio httpx
+  cd backend && /tmp/v312/bin/python -m pytest -m "not db" -q
+  ```
 
 ### 解消済み（再実装しないこと）
 
