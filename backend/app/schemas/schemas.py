@@ -1123,24 +1123,6 @@ class AuditLedgerBalanceCheckResponse(BaseModel):
     imbalanced_entries: list[AuditLedgerImbalanceEntry]
 
 
-class AuditLedgerCacheDriftEntry(BaseModel):
-    account_id: UUID
-    year: int
-    month: int
-    expected_debit: Decimal
-    expected_credit: Decimal
-    cached_debit: Decimal
-    cached_credit: Decimal
-
-
-class AuditLedgerCacheDriftResponse(BaseModel):
-    model_config = {"from_attributes": True}
-
-    rows_checked: int
-    drift_count: int
-    drift_entries: list[AuditLedgerCacheDriftEntry]
-
-
 class LedgerCheckRequest(BaseModel):
     company_id: UUID
     target_date: date
@@ -1151,7 +1133,6 @@ class LedgerCheckResponse(BaseModel):
 
     status: str
     balance_check: AuditLedgerBalanceCheckResponse
-    cache_drift_check: AuditLedgerCacheDriftResponse
 
 
 class AuditInspectRequest(BaseModel):

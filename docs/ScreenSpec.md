@@ -109,7 +109,7 @@
 | サマリカード | 未承認数 | `approval_requests` where status=pending | リアルタイム |
 | サマリカード | AI推論数（当月） | `ai_inference_logs` count | リアルタイム |
 | サマリカード | 監査アラート数 | `audit_detection_logs` where review_status=unreviewed | リアルタイム |
-| 試算表サマリ | 資産・負債・資本合計 | `monthly_balances` 最新月 | リアルタイム |
+| 試算表サマリ | 資産・負債・資本合計 | `journal_headers` / `journal_lines` から集計 | リアルタイム |
 | アクティビティ | 直近10件 | `audit_trails` | リアルタイム |
 | 税額予測 | 着地利益・予想税額 | `/tax/forecast` API | 日次更新 |
 

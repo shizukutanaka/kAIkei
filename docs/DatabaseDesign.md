@@ -358,27 +358,17 @@ CREATE INDEX idx_journal_lines_header ON journal_lines(journal_header_id);
 CREATE INDEX idx_journal_lines_account ON journal_lines(account_code, sub_account_code);
 ```
 
-### 5.3 monthly_balances（月次集計キャッシュ）
+### 5.3 月次集計（テーブルは持たない）
 
-```sql
-CREATE TABLE monthly_balances (
-    monthly_balance_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id UUID NOT NULL REFERENCES companies(company_id),
-    fiscal_year INT NOT NULL,
-    fiscal_month INT NOT NULL,
-    account_code VARCHAR(10) NOT NULL,
-    sub_account_code VARCHAR(10),
-    department_id UUID,
-    opening_balance NUMERIC(15, 4) NOT NULL DEFAULT 0,
-    debit_total NUMERIC(15, 4) NOT NULL DEFAULT 0,
-    credit_total NUMERIC(15, 4) NOT NULL DEFAULT 0,
-    closing_balance NUMERIC(15, 4) NOT NULL DEFAULT 0,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_monthly_balance UNIQUE (company_id, fiscal_year, fiscal_month, account_code, sub_account_code, department_id)
-);
+以前は `monthly_balances` という月次集計キャッシュを持ち、転記（post）時に
+加算していた。しかし取消（void）や削除では減算されず、同じ画面の試算表タブ
+（仕訳から直接集計）と月次残高タブの数字が食い違った。キャッシュに減算を
+足していくと、仕訳と同期し続けなければならない第二の真実が増えるだけなので、
+テーブルごと削除した（マイグレーション `0032_drop_monthly_balances`）。
 
-CREATE INDEX idx_monthly_balances_lookup ON monthly_balances(company_id, fiscal_year, fiscal_month);
-```
+月次残高・予実比較・帳簿検算はいずれも `app/services/ledger_totals.py` の
+`account_totals_for_period()` で仕訳から直接集計する。除外条件（削除・取消・
+期間外）は試算表と同一。
 
 ---
 
@@ -869,15 +859,14 @@ CREATE POLICY tenant_isolation_journal_headers ON journal_headers
 5.  tax_rules, tax_adjustment_rules
 6.  user_roles, audit_trails
 7.  journal_headers, journal_lines
-8.  monthly_balances
-9.  ai_inference_logs
-10. archived_documents
-11. approval_policies, approval_requests
-12. bank_accounts, bank_statement_lines, payment_requests
-13. fixed_assets
-14. employees, payroll_records
-15. office_tasks
-16. audit_detection_logs
+8.  ai_inference_logs
+9.  archived_documents
+10. approval_policies, approval_requests
+11. bank_accounts, bank_statement_lines, payment_requests
+12. fixed_assets
+13. employees, payroll_records
+14. office_tasks
+15. audit_detection_logs
 17. idempotency_keys
 18. webhook_endpoints, webhook_deliveries
 19. licenses, usage_counters

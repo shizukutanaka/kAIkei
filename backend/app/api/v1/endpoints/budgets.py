@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
@@ -11,7 +12,7 @@ from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.core.tenant_scope import assert_company_access, scope_to_tenant
-from app.models.models import Account, Budget, BudgetLine, MonthlyBalance
+from app.models.models import Account, Budget, BudgetLine
 from app.schemas.schemas import (
     BudgetCreate,
     BudgetResponse,
@@ -19,6 +20,7 @@ from app.schemas.schemas import (
     BudgetVarianceResponse,
 )
 from app.services.budget_service import BudgetService
+from app.services.ledger_totals import account_totals_for_period
 
 router = APIRouter()
 
@@ -136,20 +138,22 @@ async def get_budget_variance(
     )
     accounts = {a.account_id: a for a in accounts_result.scalars().all()}
 
-    balances_result = await db.execute(
-        select(MonthlyBalance).where(
-            MonthlyBalance.company_id == budget.company_id,
-            MonthlyBalance.year == budget.fiscal_year,
-            MonthlyBalance.is_deleted == False,  # noqa: E712
-        )
+    # 実績は仕訳から直接集計する（試算表・月次残高と同じ条件）。以前は転記時に
+    # 加算するだけのキャッシュを読んでおり、取消した仕訳が実績に残っていた。
+    totals = await account_totals_for_period(
+        db,
+        budget.company_id,
+        date(budget.fiscal_year, 1, 1),
+        date(budget.fiscal_year, 12, 31),
     )
     actual_by_account: dict[UUID, Decimal] = {}
-    for bal in balances_result.scalars().all():
-        account = accounts.get(bal.account_id)
+    for account_id, (debit_total, credit_total) in totals.items():
+        account = accounts.get(account_id)
         if account is None:
             continue
-        actual = BudgetService.actual_from_balance(bal.debit_total, bal.credit_total, account.debit_credit)
-        actual_by_account[bal.account_id] = actual_by_account.get(bal.account_id, Decimal("0")) + actual
+        actual_by_account[account_id] = BudgetService.actual_from_balance(
+            debit_total, credit_total, account.debit_credit
+        )
 
     variance_lines: list[BudgetVarianceLine] = []
     summary_inputs: list[dict[str, Decimal | bool]] = []
