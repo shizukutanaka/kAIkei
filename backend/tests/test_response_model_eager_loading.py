@@ -62,7 +62,7 @@ def _response_fields(model) -> set[str]:
 def _loads_eagerly(source: str) -> bool:
     """eager load しているか。呼び出し先のサービスまで1段だけ辿る。
 
-    エンドポイントが `JournalService.approve_journal(...)` のように委譲して
+    エンドポイントが `ApprovalWorkflowService.approve(...)` のように委譲して
     いる場合、eager load は呼び出し先にある。ここを見ないと誤検出になり、
     例外リストに登録して回ることになる（そして例外は古くなる）。
     """

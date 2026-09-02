@@ -243,26 +243,11 @@
 | 作成日時 | created_at | TIMESTAMPTZ | ✅ | — |
 | 更新日時 | updated_at | TIMESTAMPTZ | ✅ | — |
 
-### 4.3 monthly_balances
+### 4.3 月次残高（テーブルは廃止）
 
-| 論理名 | 物理名 | 型 | 必須 | 説明 |
-|--------|--------|-----|------|------|
-| 月次残高ID | monthly_balance_id | UUID | ✅ PK | 一意識別子 |
-| 会社ID | company_id | UUID | ✅ FK | 所属会社 |
-| 会計年度 | fiscal_year | INT | ✅ | 年度（例: 2026） |
-| 会計月 | fiscal_month | INT | ✅ | 月（1〜12） |
-| 勘定科目コード | account_code | VARCHAR(10) | ✅ | 科目 |
-| 補助科目コード | sub_account_code | VARCHAR(10) | — | 補助科目 |
-| 部門ID | department_id | UUID | — | 部門 |
-| 期首残高 | opening_balance | NUMERIC(15,4) | ✅ | 月初残高 |
-| 借方合計 | debit_total | NUMERIC(15,4) | ✅ | 当月借方合計 |
-| 貸方合計 | credit_total | NUMERIC(15,4) | ✅ | 当月貸方合計 |
-| 期末残高 | closing_balance | NUMERIC(15,4) | ✅ | 月末残高 |
-| 更新日時 | updated_at | TIMESTAMPTZ | ✅ | — |
-
----
-
-## 5. AI推論
+`monthly_balances` は転記時に加算するだけのキャッシュで、取消・削除に追随
+しなかったため削除した。月次残高は仕訳（`journal_headers` / `journal_lines`）
+から都度集計する（`app/services/ledger_totals.py`）。
 
 ### 5.1 ai_inference_logs
 

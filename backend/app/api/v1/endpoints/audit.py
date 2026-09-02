@@ -18,7 +18,6 @@ from app.models.models import (
     Company,
     JournalHeader,
     JournalLine,
-    MonthlyBalance,
 )
 from app.schemas.schemas import (
     AuditDetectionResponse,
@@ -96,8 +95,8 @@ async def ledger_check(
     header_result = await db.execute(
         select(JournalHeader).where(
             JournalHeader.company_id == payload.company_id,
-            JournalHeader.approval_status == "approved",
             JournalHeader.is_deleted == False,  # noqa: E712
+            JournalHeader.is_voided == False,  # noqa: E712
             JournalHeader.transaction_date <= payload.target_date,
         )
     )
@@ -106,21 +105,10 @@ async def ledger_check(
         .join(JournalHeader, JournalHeader.journal_header_id == JournalLine.journal_header_id)
         .where(
             JournalHeader.company_id == payload.company_id,
-            JournalHeader.approval_status == "approved",
             JournalHeader.is_deleted == False,  # noqa: E712
+            JournalHeader.is_voided == False,  # noqa: E712
             JournalHeader.transaction_date <= payload.target_date,
             JournalLine.is_deleted == False,  # noqa: E712
-        )
-    )
-    balance_result = await db.execute(
-        select(MonthlyBalance).where(
-            MonthlyBalance.company_id == payload.company_id,
-            MonthlyBalance.is_deleted == False,  # noqa: E712
-            (MonthlyBalance.year < payload.target_date.year)
-            | (
-                (MonthlyBalance.year == payload.target_date.year)
-                & (MonthlyBalance.month <= payload.target_date.month)
-            ),
         )
     )
     result = LedgerConsistencyService.check(
@@ -128,7 +116,6 @@ async def ledger_check(
         target_date=payload.target_date,
         journal_headers=list(header_result.scalars().all()),
         journal_lines=list(line_result.scalars().all()),
-        monthly_balances=list(balance_result.scalars().all()),
     )
     return LedgerCheckResponse(
         status=result.status,
@@ -145,22 +132,6 @@ async def ledger_check(
                     "difference": entry.difference,
                 }
                 for entry in result.balance_check.imbalanced_entries
-            ],
-        },
-        cache_drift_check={
-            "rows_checked": result.cache_drift_check.rows_checked,
-            "drift_count": result.cache_drift_check.drift_count,
-            "drift_entries": [
-                {
-                    "account_id": entry.account_id,
-                    "year": entry.year,
-                    "month": entry.month,
-                    "expected_debit": entry.expected_debit,
-                    "expected_credit": entry.expected_credit,
-                    "cached_debit": entry.cached_debit,
-                    "cached_credit": entry.cached_credit,
-                }
-                for entry in result.cache_drift_check.drift_entries
             ],
         },
     )

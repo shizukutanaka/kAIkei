@@ -177,9 +177,6 @@ class ApprovalWorkflowService:
             db, journal_header_id, "post", "approved", "posted", actor_id
         )
 
-        from app.services.journal_service import JournalService
-        await JournalService._update_monthly_balance(db, journal)
-
         await db.flush()
         await db.refresh(journal)
         return journal

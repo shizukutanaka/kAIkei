@@ -23,6 +23,12 @@ ignore = [
     "SIM105",
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# pytest のフィクスチャを他のテストモジュールから使うには、名前をこのモジュールへ
+# import する必要がある。テスト関数の引数名が同じ名前になるため F811（再定義）に
+# 見えるが、これは pytest の仕様どおりの書き方。フィクスチャを複製するより良い。
+"tests/test_monthly_balances_db.py" = ["F811"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
 

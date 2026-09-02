@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
@@ -18,13 +18,13 @@ from app.models.models import (
     Invoice,
     JournalHeader,
     JournalLine,
-    MonthlyBalance,
     Partner,
     PeriodClose,
 )
 from app.schemas.schemas import ArAgingBucketAmounts, ArAgingPartnerLine, ArAgingResponse
 from app.services import receivable_aging
 from app.services.financial_kpi import FinancialKpiService
+from app.services.ledger_totals import account_totals_for_period
 from app.services.receivable_aging import ReceivableAgingService, ReceivableItem
 
 router = APIRouter()
@@ -256,30 +256,40 @@ async def get_monthly_balances(
     current_user: CurrentUser = Depends(require_permission(Permission.REPORT_READ)),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """月次残高を取得する。"""
-    result = await db.execute(
-        select(MonthlyBalance, Account).join(Account).where(
-            MonthlyBalance.company_id == company_id,
-            MonthlyBalance.year == year,
-            MonthlyBalance.month == month,
-            MonthlyBalance.is_deleted == False,  # noqa: E712
-        ).order_by(Account.account_code)
+    """月次残高を取得する。
+
+    仕訳から直接集計する（同じ画面の試算表タブと同じ条件）。以前は転記時に
+    加算するだけのキャッシュを読んでいたので、取消した仕訳の金額が残り、
+    試算表タブと数字が食い違っていた。
+    """
+    start = date(year, month, 1)
+    end = date(year + (month == 12), month % 12 + 1, 1) - timedelta(days=1)
+    totals = await account_totals_for_period(db, company_id, start, end)
+
+    accounts_result = await db.execute(
+        select(Account)
+        .where(
+            Account.company_id == company_id,
+            Account.account_id.in_(totals.keys()) if totals else False,
+            Account.is_deleted == False,  # noqa: E712
+        )
+        .order_by(Account.account_code)
     )
-    rows = result.all()
 
     items = []
     total_debit = Decimal("0")
     total_credit = Decimal("0")
 
-    for balance, account in rows:
-        total_debit += balance.debit_total
-        total_credit += balance.credit_total
+    for account in accounts_result.scalars().all():
+        debit, credit = totals[account.account_id]
+        total_debit += debit
+        total_credit += credit
         items.append({
             "account_code": account.account_code,
             "account_name": account.account_name,
-            "debit_total": str(balance.debit_total),
-            "credit_total": str(balance.credit_total),
-            "balance": str(balance.debit_total - balance.credit_total),
+            "debit_total": str(debit),
+            "credit_total": str(credit),
+            "balance": str(debit - credit),
         })
 
     return {
