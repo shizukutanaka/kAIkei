@@ -27,6 +27,7 @@ from app.schemas.schemas import (
 )
 from app.services.approval_service import ApprovalWorkflowService
 from app.services.event_journal import EventJournalService
+from app.services.journal_numbering import insert_with_number
 from app.services.validation_engine import ValidationEngine, ValidationError
 
 router = APIRouter()
@@ -72,32 +73,21 @@ async def create_journal(
     except ValidationError as e:
         raise HTTPException(status_code=400, detail={"code": e.code, "message": e.message, "field": e.field}) from e
 
-    # Use MAX instead of COUNT to avoid full table scan
-    max_result = await db.execute(
-        select(func.max(JournalHeader.journal_number))
-        .where(JournalHeader.company_id == payload.company_id)
+    # 採番と登録は journal_numbering に集約してある。番号が衝突したら採り直す
+    # （同時に作ると同じ番号を読んでしまうため。DBの一意制約が最後の砦）。
+    header = await insert_with_number(
+        db,
+        payload.company_id,
+        lambda number: JournalHeader(
+            company_id=payload.company_id,
+            journal_number=number,
+            transaction_date=payload.transaction_date,
+            voucher_type=payload.voucher_type,
+            summary=payload.summary,
+            approval_status="draft",
+            created_by=current_user.user_id,
+        ),
     )
-    max_num = max_result.scalar()
-    if max_num:
-        try:
-            seq = int(max_num.split("-")[1]) + 1
-        except (IndexError, ValueError):
-            seq = 1
-    else:
-        seq = 1
-    journal_number = f"JRN-{seq:08d}"
-
-    header = JournalHeader(
-        company_id=payload.company_id,
-        journal_number=journal_number,
-        transaction_date=payload.transaction_date,
-        voucher_type=payload.voucher_type,
-        summary=payload.summary,
-        approval_status="draft",
-        created_by=current_user.user_id,
-    )
-    db.add(header)
-    await db.flush()
 
     for i, line in enumerate(payload.lines, start=1):
         db.add(
@@ -590,14 +580,6 @@ async def import_journals_csv(
     acct_by_name = {a.account_name: a for a in accounts}
     acct_by_code = {a.account_code: a for a in accounts}
 
-    # Get next journal number
-    max_result = await db.execute(
-        select(func.max(JournalHeader.journal_number))
-        .where(JournalHeader.company_id == company_id)
-    )
-    max_num = max_result.scalar()
-    seq = int(max_num.split("-")[1]) + 1 if max_num else 1
-
     imported = 0
     errors: list[str] = []
 
@@ -627,21 +609,20 @@ async def import_journals_csv(
                 errors.append(f"行{i}: 貸方勘定科目「{credit_name}」が見つかりません")
                 continue
 
-            journal_number = f"JRN-{seq:08d}"
-            seq += 1
-
-            header = JournalHeader(
-                company_id=company_id,
-                journal_number=journal_number,
-                transaction_date=txn_date,
-                voucher_type="import",
-                summary=summary,
-                approval_status="draft",
-                source_type="csv_import",
-                created_by=current_user.user_id,
+            header = await insert_with_number(
+                db,
+                company_id,
+                lambda number, txn_date=txn_date, summary=summary: JournalHeader(
+                    company_id=company_id,
+                    journal_number=number,
+                    transaction_date=txn_date,
+                    voucher_type="import",
+                    summary=summary,
+                    approval_status="draft",
+                    source_type="csv_import",
+                    created_by=current_user.user_id,
+                ),
             )
-            db.add(header)
-            await db.flush()
 
             db.add(JournalLine(
                 journal_header_id=header.journal_header_id,
