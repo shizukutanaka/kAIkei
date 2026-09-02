@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import PlainTextResponse
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -151,7 +152,15 @@ async def create_invoice(
         note=payload.note,
     )
     db.add(inv)
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError as e:
+        # 上の重複チェックと登録の間に、同じ番号が別の要求で登録された場合。
+        # 制約違反を握り潰すと二重採番になるので、409 として返す。
+        await db.rollback()
+        raise HTTPException(
+            status_code=409, detail=f"請求書番号「{payload.invoice_number}」は既に存在します"
+        ) from e
 
     for idx, line in enumerate(payload.lines, start=1):
         line_total = _round2(line.quantity * line.unit_price)

@@ -14,6 +14,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -462,7 +463,9 @@ class Invoice(Base):
     invoice_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.company_id"), nullable=False)
     partner_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("partners.partner_id"), nullable=True)
-    invoice_number: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    # 全社で一意ではなく**会社ごとに一意**（各社が 001 から採番するため）。
+    # 制約は __table_args__ の複合ユニークで表現する。
+    invoice_number: Mapped[str] = mapped_column(String(50), nullable=False)
     invoice_date: Mapped[date] = mapped_column(Date, nullable=False)
     due_date: Mapped[date] = mapped_column(Date, nullable=False)
     subtotal: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("0"), nullable=False)
@@ -477,6 +480,10 @@ class Invoice(Base):
     company = relationship("Company")
     partner = relationship("Partner")
     lines = relationship("InvoiceLine", back_populates="invoice", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint("company_id", "invoice_number", name="uq_invoices_company_number"),
+    )
 
 
 class InvoiceLine(Base):
