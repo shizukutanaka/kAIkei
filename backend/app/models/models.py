@@ -163,6 +163,13 @@ class JournalHeader(Base):
     company = relationship("Company", back_populates="journal_headers")
     lines = relationship("JournalLine", back_populates="header", cascade="all, delete-orphan")
 
+    __table_args__ = (
+        # 仕訳番号は監査で仕訳を追う識別子。採番は「読んでから書く」ので、同時に
+        # 2件作ると同じ番号になり得た（実測で3件同時 → 3件とも JRN-00000001）。
+        # 重複を DB で禁じ、衝突したら採番し直す（app/services/journal_numbering.py）。
+        UniqueConstraint("company_id", "journal_number", name="uq_journal_headers_company_number"),
+    )
+
 
 class JournalLine(Base):
     __tablename__ = "journal_lines"

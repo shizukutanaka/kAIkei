@@ -4,10 +4,11 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.models import Account, JournalHeader, JournalLine
+from app.services.journal_numbering import insert_with_number
 
 
 async def _find_account(
@@ -39,12 +40,6 @@ async def _find_account(
     return account
 
 
-async def _next_journal_number(db: AsyncSession, company_id: UUID) -> str:
-    count_result = await db.execute(
-        select(func.count()).select_from(JournalHeader).where(JournalHeader.company_id == company_id)
-    )
-    count = count_result.scalar() or 0
-    return f"JRN-{count + 1:08d}"
 
 
 def _assert_balanced(lines: list[JournalLine], context: str) -> None:
@@ -91,20 +86,20 @@ async def generate_invoice_issue_journal(
     ar_account = await _find_account(db, company_id, "asset", "11")
     sales_account = await _find_account(db, company_id, "revenue", "41")
     tax_account = await _find_account(db, company_id, "liability", "21")
-    journal_number = await _next_journal_number(db, company_id)
-
-    header = JournalHeader(
-        company_id=company_id,
-        journal_number=journal_number,
-        transaction_date=invoice_date,
-        voucher_type="sales",
-        summary=f"請求書発行 {invoice_number}",
-        approval_status="draft",
-        source_type="invoice",
-        created_by=created_by,
+    header = await insert_with_number(
+        db,
+        company_id,
+        lambda number: JournalHeader(
+            company_id=company_id,
+            journal_number=number,
+            transaction_date=invoice_date,
+            voucher_type="sales",
+            summary=f"請求書発行 {invoice_number}",
+            approval_status="draft",
+            source_type="invoice",
+            created_by=created_by,
+        ),
     )
-    db.add(header)
-    await db.flush()
 
     lines: list[JournalLine] = []
     line_no = 1
@@ -158,20 +153,20 @@ async def generate_invoice_payment_journal(
     cash_account = await _find_account(db, company_id, "asset", "12")
     ar_account = await _find_account(db, company_id, "asset", "11")
 
-    journal_number = await _next_journal_number(db, company_id)
-
-    header = JournalHeader(
-        company_id=company_id,
-        journal_number=journal_number,
-        transaction_date=payment_date,
-        voucher_type="receipt",
-        summary=f"入金 {invoice_number}",
-        approval_status="draft",
-        source_type="invoice_payment",
-        created_by=created_by,
+    header = await insert_with_number(
+        db,
+        company_id,
+        lambda number: JournalHeader(
+            company_id=company_id,
+            journal_number=number,
+            transaction_date=payment_date,
+            voucher_type="receipt",
+            summary=f"入金 {invoice_number}",
+            approval_status="draft",
+            source_type="invoice_payment",
+            created_by=created_by,
+        ),
     )
-    db.add(header)
-    await db.flush()
 
     lines: list[JournalLine] = []
 
@@ -211,20 +206,20 @@ async def generate_expense_payment_journal(
     expense_account = await _find_account(db, company_id, "expense", "52")
     cash_account = await _find_account(db, company_id, "asset", "12")
 
-    journal_number = await _next_journal_number(db, company_id)
-
-    header = JournalHeader(
-        company_id=company_id,
-        journal_number=journal_number,
-        transaction_date=payment_date,
-        voucher_type="payment",
-        summary=f"経費精算 {report_title}",
-        approval_status="draft",
-        source_type="expense_payment",
-        created_by=created_by,
+    header = await insert_with_number(
+        db,
+        company_id,
+        lambda number: JournalHeader(
+            company_id=company_id,
+            journal_number=number,
+            transaction_date=payment_date,
+            voucher_type="payment",
+            summary=f"経費精算 {report_title}",
+            approval_status="draft",
+            source_type="expense_payment",
+            created_by=created_by,
+        ),
     )
-    db.add(header)
-    await db.flush()
 
     lines: list[JournalLine] = []
 
@@ -266,20 +261,20 @@ async def generate_payroll_journal(
     salary_account = await _find_account(db, company_id, "expense", "51")
     cash_account = await _find_account(db, company_id, "asset", "12")
 
-    journal_number = await _next_journal_number(db, company_id)
-
-    header = JournalHeader(
-        company_id=company_id,
-        journal_number=journal_number,
-        transaction_date=date(payroll_year, payroll_month, 25),
-        voucher_type="payment",
-        summary=f"給与支払 {payroll_year}年{payroll_month}月",
-        approval_status="draft",
-        source_type="payroll",
-        created_by=created_by,
+    header = await insert_with_number(
+        db,
+        company_id,
+        lambda number: JournalHeader(
+            company_id=company_id,
+            journal_number=number,
+            transaction_date=date(payroll_year, payroll_month, 25),
+            voucher_type="payment",
+            summary=f"給与支払 {payroll_year}年{payroll_month}月",
+            approval_status="draft",
+            source_type="payroll",
+            created_by=created_by,
+        ),
     )
-    db.add(header)
-    await db.flush()
 
     lines: list[JournalLine] = []
 
@@ -338,20 +333,20 @@ async def generate_bonus_journal(
     cash_account = await _find_account(db, company_id, "asset", "12")
 
     term_label = {"summer": "夏季", "winter": "冬季", "yearend": "年末", "other": "その他"}.get(bonus_term, bonus_term)
-    journal_number = await _next_journal_number(db, company_id)
-
-    header = JournalHeader(
-        company_id=company_id,
-        journal_number=journal_number,
-        transaction_date=date(bonus_year, 12, 1),
-        voucher_type="payment",
-        summary=f"賞与支払 {bonus_year}年{term_label}",
-        approval_status="draft",
-        source_type="bonus",
-        created_by=created_by,
+    header = await insert_with_number(
+        db,
+        company_id,
+        lambda number: JournalHeader(
+            company_id=company_id,
+            journal_number=number,
+            transaction_date=date(bonus_year, 12, 1),
+            voucher_type="payment",
+            summary=f"賞与支払 {bonus_year}年{term_label}",
+            approval_status="draft",
+            source_type="bonus",
+            created_by=created_by,
+        ),
     )
-    db.add(header)
-    await db.flush()
 
     lines: list[JournalLine] = []
 
@@ -409,20 +404,20 @@ async def generate_depreciation_journal(
     dep_account = await _find_account(db, company_id, "expense", "53")
     accum_account = await _find_account(db, company_id, "asset", "15")
 
-    journal_number = await _next_journal_number(db, company_id)
-
-    header = JournalHeader(
-        company_id=company_id,
-        journal_number=journal_number,
-        transaction_date=date(fiscal_year, month, 28),
-        voucher_type="depreciation",
-        summary=f"減価償却 {asset_name} ({asset_code}) {fiscal_year}/{month:02d}",
-        approval_status="draft",
-        source_type="depreciation",
-        created_by=created_by,
+    header = await insert_with_number(
+        db,
+        company_id,
+        lambda number: JournalHeader(
+            company_id=company_id,
+            journal_number=number,
+            transaction_date=date(fiscal_year, month, 28),
+            voucher_type="depreciation",
+            summary=f"減価償却 {asset_name} ({asset_code}) {fiscal_year}/{month:02d}",
+            approval_status="draft",
+            source_type="depreciation",
+            created_by=created_by,
+        ),
     )
-    db.add(header)
-    await db.flush()
 
     lines: list[JournalLine] = []
 
