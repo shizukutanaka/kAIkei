@@ -4,8 +4,12 @@
 ENVIRONMENT に応じて「本番なら起動を拒否／それ以外は警告ログ」を判断する。
 """
 
+from urllib.parse import urlparse
+
 DEV_JWT_SECRET = "dev-secret-key-change-in-production"
 DEV_S3_CREDENTIAL = "minioadmin"
+DEV_DATABASE_URL = "postgresql+asyncpg://kaikei:kaikei_dev@localhost:5432/kaikei"
+DEV_DATABASE_PASSWORD = "kaikei_dev"
 DEFAULT_MIN_JWT_SECRET_LENGTH = 32
 
 
@@ -15,6 +19,7 @@ def check_insecure_defaults(
     s3_secret_key: str,
     jwt_min_length: int = DEFAULT_MIN_JWT_SECRET_LENGTH,
     cors_origins: list[str] | None = None,
+    database_url: str | None = None,
 ) -> list[str]:
     """開発用デフォルト値・脆弱な設定を検出し、問題点のリストを返す。
 
@@ -32,8 +37,34 @@ def check_insecure_defaults(
         issues.append("S3_ACCESS_KEY/S3_SECRET_KEY are using the default MinIO development credentials")
 
     issues.extend(check_cors_origins(cors_origins))
+    issues.extend(check_database_url(database_url))
 
     return issues
+
+
+def check_database_url(database_url: str | None) -> list[str]:
+    """DATABASE_URL が開発用デフォルト認証情報のままか検査する。
+
+    未設定だと config の既定値（パスワード `kaikei_dev`）が使われるため、
+    JWT/S3 と同様に「出荷デフォルトのまま本番稼働する」事故が起こりうる。
+    URL 全体が既定値と一致する場合だけでなく、接続先を変えてもパスワードが
+    既定のままの場合も検出する。
+    """
+    if database_url is None:
+        return []
+
+    if database_url == DEV_DATABASE_URL or _url_password(database_url) == DEV_DATABASE_PASSWORD:
+        return ["DATABASE_URL is unset or still uses the development default credentials"]
+
+    return []
+
+
+def _url_password(url: str) -> str | None:
+    """URL からパスワードを取り出す。解析できない・含まれなければ None。"""
+    try:
+        return urlparse(url).password
+    except ValueError:
+        return None
 
 
 def check_cors_origins(origins: list[str] | None) -> list[str]:
