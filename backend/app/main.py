@@ -63,6 +63,7 @@ async def validate_secrets() -> None:
         settings.S3_ACCESS_KEY,
         settings.S3_SECRET_KEY,
         cors_origins=settings.cors_allow_origins,
+        database_url=settings.DATABASE_URL,
     )
     if not issues:
         return
