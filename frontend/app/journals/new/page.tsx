@@ -3,7 +3,12 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PageLayout from "@/components/page-layout";
+import JournalSuggestionPanel from "@/components/journal-suggestion-panel";
 import { apiGet, apiPost } from "@/lib/api";
+import {
+  candidateToFormLines,
+  type JournalSuggestionCandidate,
+} from "@/lib/journal-suggestion";
 import { useCompany } from "@/lib/company-context";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -116,6 +121,14 @@ export default function JournalEntryPage() {
     if (lines.length > 2) {
       setLines(lines.filter((_, i) => i !== index));
     }
+  };
+
+  // 学習候補の反映: フォームの明細行へ入れるだけ。保存・確定はしない。
+  const applyCandidate = (candidate: JournalSuggestionCandidate) => {
+    setLines(candidateToFormLines(candidate, debitTotal));
+    setResult(null);
+    setError("");
+    toast("候補を反映しました。金額と内容を確認してください", "success");
   };
 
   const handleSave = async (e?: React.FormEvent) => {
@@ -253,6 +266,13 @@ export default function JournalEntryPage() {
             />
           </div>
         </div>
+
+        <JournalSuggestionPanel
+          companyId={companyId}
+          description={summary}
+          amount={debitTotal}
+          onApply={applyCandidate}
+        />
 
         <div className="mb-4 overflow-x-auto">
         <table className="w-full border-collapse">
