@@ -1,4 +1,6 @@
 import logging
+from decimal import Decimal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
@@ -31,6 +33,13 @@ class EnhancedInferenceRequestSchema(BaseModel):
     company_id: str
     partner_name: str | None = None
     document_text: str | None = None
+
+
+class JournalSuggestionRequest(BaseModel):
+    description: str = Field(..., min_length=1, max_length=500)
+    amount: float = Field(default=0, ge=0)
+    company_id: str
+    partner_name: str | None = None
 
 
 class TaxPredictionRequest(BaseModel):
@@ -99,6 +108,31 @@ async def infer_journal_enhanced(
         raise HTTPException(status_code=500, detail=result.get("message", "Inference failed"))
 
     return result
+
+
+@router.post("/suggest-journal")
+async def suggest_journal(
+    payload: JournalSuggestionRequest,
+    current_user: CurrentUser = Depends(require_permission(Permission.AI_INFER)),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """自動仕訳学習による候補提示: 自社の確定済み仕訳から学んだ候補を返す。
+
+    外部 LLM を使わず、その会社の確定済み仕訳だけを学習データにするため、
+    プロバイダ未設定でも動く。学習データが少ない場合や過去に似た取引が
+    無い場合は、無理に推測せず `status` でその旨を返す（候補は空）。
+    候補には `reliable`（自動入力に使ってよい水準か）が必ず付く。
+    """
+    await assert_company_access(db, current_user, payload.company_id)
+    from app.services.journal_learning import suggest_from_history
+
+    return await suggest_from_history(
+        db,
+        UUID(payload.company_id),
+        description=payload.description,
+        amount=Decimal(str(payload.amount)) if payload.amount > 0 else None,
+        partner_name=payload.partner_name,
+    )
 
 
 @router.post("/infer-from-pdf")
