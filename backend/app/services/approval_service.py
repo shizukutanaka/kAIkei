@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import is_standalone_mode
 from app.core.rbac import Permission, has_permission
 from app.models.models import (
     ApprovalLog,
@@ -84,7 +85,12 @@ class ApprovalWorkflowService:
         if journal.approval_status != "submitted":
             raise ValueError(f"Cannot approve journal in status: {journal.approval_status}")
 
-        if journal.created_by == approver_id:
+        # 職務分掌: 通常モードでは作成者本人は承認できない。個人用単体
+        # モードでは利用者が1人しかおらず「作成者以外の承認者」が存在
+        # しないため、この確認だけを単体モードで外す（自己承認を許可）。
+        # 承認権限（JOURNAL_APPROVE）の確認と、ワークフロー定義がある
+        # 場合の承認者ロール確認は単体モードでも従来どおり効く。
+        if journal.created_by == approver_id and not is_standalone_mode():
             raise ValidationError(
                 code="SOD-001",
                 message="Segregation of Duties violation: creator cannot approve their own journal",
