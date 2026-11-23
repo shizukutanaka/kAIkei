@@ -25,6 +25,20 @@ def _is_sqlite_url(database_url: str) -> bool:
     return make_url(database_url).get_dialect().name == "sqlite"
 
 
+def is_standalone_mode() -> bool:
+    """個人用単体モードかどうか。
+
+    判定軸はエンジン生成（create_app_engine）やスキーマ初期化
+    （init_schema_if_sqlite）と同じ「DATABASE_URL が SQLite を指すか」で、
+    新しい判定軸は増やさない。設定の宣言デフォルトは PostgreSQL のまま
+    （宣言値自体をテストが不変条件として固定しているため、モードは
+    宣言値ではなく URL の向き先で判定する）。
+    単体モード固有の振る舞い（例: 仕訳の自己承認）はこの関数で分岐し、
+    通常モード（PostgreSQL・多人数前提）の処理には一切影響させない。
+    """
+    return _is_sqlite_url(settings.DATABASE_URL)
+
+
 def _ensure_sqlite_file_dir(database_url: str) -> None:
     """SQLite ファイルの置き場所が無ければ作る（初回起動で失敗させない）。"""
     database = make_url(database_url).database
