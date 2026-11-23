@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useDeferredValue, useMemo } from "react";
 import PageLayout from "@/components/page-layout";
-import { apiGet, apiPostMultipart } from "@/lib/api";
+import { apiGet, apiGetBlob, apiPostMultipart } from "@/lib/api";
 import { useCompany } from "@/lib/company-context";
 import { Receipt, Filter, Search, Download, Upload, BookOpen, Plus, RefreshCw, X, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -55,6 +55,7 @@ export default function JournalsListPage() {
   const [error, setError] = useState("");
   const [importLoading, setImportLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
+  const [yayoiLoading, setYayoiLoading] = useState(false);
 
   const fetchJournals = async () => {
     if (!companyId) {
@@ -129,6 +130,32 @@ export default function JournalsListPage() {
       toast(err instanceof Error ? err.message : "CSV出力に失敗しました", "error");
     } finally {
       setExportLoading(false);
+    }
+  };
+
+  const handleExportYayoi = async () => {
+    if (!companyId) return;
+    setYayoiLoading(true);
+    const today = new Date().toISOString().split("T")[0];
+    const startDate = `${new Date().getFullYear()}-01-01`;
+    try {
+      // 弥生形式は Shift_JIS のバイナリとして受け取る（文字列化すると文字化けする）。
+      const blob = await apiGetBlob("/journals/export/yayoi", {
+        company_id: companyId,
+        start_date: startDate,
+        end_date: today,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `journals_yayoi_${startDate}_${today}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("弥生会計形式で出力しました", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "弥生形式の出力に失敗しました", "error");
+    } finally {
+      setYayoiLoading(false);
     }
   };
 
@@ -233,6 +260,14 @@ export default function JournalsListPage() {
           >
             {exportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             {exportLoading ? "出力中..." : "仕訳CSV出力"}
+          </button>
+          <button
+            onClick={handleExportYayoi}
+            disabled={!companyId || yayoiLoading}
+            className="flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50"
+          >
+            {yayoiLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {yayoiLoading ? "出力中..." : "弥生形式で出力"}
           </button>
           <label className={`flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium ${importLoading || !companyId ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}>
             <Upload className="h-4 w-4" />
