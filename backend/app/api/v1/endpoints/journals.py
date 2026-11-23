@@ -5,7 +5,7 @@ from io import StringIO
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import PlainTextResponse
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +16,7 @@ from app.core.database import get_db
 from app.core.deps import CurrentUser, require_permission, verified_company_id
 from app.core.rbac import Permission
 from app.core.tenant_scope import assert_company_access, assert_owns, scope_to_tenant
-from app.models.models import Account, JournalHeader, JournalLine
+from app.models.models import Account, JournalHeader, JournalLine, SubAccount, TaxRule
 from app.schemas.schemas import (
     EventJournalDraftRequest,
     EventJournalDraftResponse,
@@ -27,6 +27,7 @@ from app.schemas.schemas import (
 )
 from app.services.approval_service import ApprovalWorkflowService
 from app.services.event_journal import EventJournalService
+from app.services.journal_export import ExportJournal, ExportLine, build_yayoi_csv
 from app.services.journal_numbering import insert_with_number
 from app.services.validation_engine import ValidationEngine, ValidationError
 
@@ -514,6 +515,70 @@ async def export_journals_csv(
     return csv_document(
         ["取引No", "取引日", "借方勘目", "借方補助勘目", "貸方勘目", "貸方補助勘目", "摘要", "金額", "税区分"],
         csv_rows,
+    )
+
+
+@router.get("/export/yayoi")
+async def export_journals_yayoi(
+    company_id: Annotated[UUID, Depends(verified_company_id)],
+    start_date: date = Query(..., description="開始日"),
+    end_date: date = Query(..., description="終了日"),
+    current_user: CurrentUser = Depends(require_permission(Permission.JOURNAL_READ)),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """仕訳を弥生会計の取り込み形式（25項目・Shift_JIS）で出力する。
+
+    形式は弥生公式「仕訳データの項目と記述形式」に従う。税区分は、仕訳明細に
+    税ルールが付いていればその名称、無ければ「対象外」を出す。弥生側で科目名や
+    税区分が登録と一致しない場合は、弥生のマッチング画面で対応付けできる。
+    """
+    result = await db.execute(
+        select(JournalHeader, JournalLine, Account, SubAccount, TaxRule)
+        .join(JournalLine, JournalHeader.journal_header_id == JournalLine.journal_header_id)
+        .join(Account, JournalLine.account_id == Account.account_id)
+        .outerjoin(SubAccount, JournalLine.sub_account_id == SubAccount.sub_account_id)
+        .outerjoin(TaxRule, JournalLine.tax_rule_id == TaxRule.tax_rule_id)
+        .where(
+            JournalHeader.company_id == company_id,
+            JournalHeader.is_deleted == False,  # noqa: E712
+            JournalHeader.is_voided == False,  # noqa: E712
+            JournalLine.is_deleted == False,  # noqa: E712
+            JournalHeader.transaction_date >= start_date,
+            JournalHeader.transaction_date <= end_date,
+        )
+        .order_by(JournalHeader.transaction_date, JournalHeader.journal_number, JournalLine.line_number)
+    )
+
+    journals: dict[UUID, ExportJournal] = {}
+    order: list[UUID] = []
+    for header, line, account, sub_account, tax_rule in result.all():
+        if header.journal_header_id not in journals:
+            journals[header.journal_header_id] = ExportJournal(
+                transaction_date=header.transaction_date,
+                summary=header.summary or "",
+                lines=[],
+            )
+            order.append(header.journal_header_id)
+        journals[header.journal_header_id].lines.append(
+            ExportLine(
+                debit_credit=line.debit_credit,
+                account_name=account.account_name,
+                sub_account_name=sub_account.sub_account_name if sub_account else "",
+                amount=line.amount,
+                tax_amount=line.tax_amount,
+                tax_category=tax_rule.tax_name if tax_rule else "対象外",
+                description=line.description or "",
+            )
+        )
+
+    csv_text = build_yayoi_csv([journals[key] for key in order])
+    # 弥生会計の取り込みは Shift_JIS が前提。収まらない文字は弥生側の
+    # マッチングで気付けるよう、金額・日付（ASCII範囲）は壊れない。
+    payload = csv_text.encode("cp932", errors="replace")
+    return Response(
+        content=payload,
+        media_type="text/csv; charset=shift_jis",
+        headers={"Content-Disposition": "attachment; filename=journals_yayoi.csv"},
     )
 
 
