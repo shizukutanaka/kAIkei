@@ -76,6 +76,22 @@ async def validate_secrets() -> None:
 
 
 @app.on_event("startup")
+async def init_standalone_schema() -> None:
+    """単体モード（SQLite）では起動時にスキーマを用意する。
+
+    サーバ構成では Alembic がスキーマを管理するため何もしない
+    （app.standalone.init_schema_if_sqlite が方言で判定する）。
+    バックグラウンドジョブより先に実行し、ジョブがテーブル不在で
+    失敗しないようにする。
+    """
+    from app.core.database import engine
+    from app.standalone import init_schema_if_sqlite
+
+    if await init_schema_if_sqlite(engine):
+        logger.info("Standalone mode: SQLite schema is ready")
+
+
+@app.on_event("startup")
 async def start_background_jobs() -> None:
     """Webhook配信ワーカー等の定期ジョブを起動する。"""
     if not settings.BACKGROUND_JOBS_ENABLED:
@@ -143,3 +159,12 @@ async def health_check() -> JSONResponse:
 
 
 app.include_router(api_router, prefix="/api/v1")
+
+# 個人用単体パッケージ: 画面一式が同梱されている場合だけ、API と同じ
+# オリジンで画面も配信する。API ルートの登録後に足すため /api/v1 配下は
+# 従来どおり API が優先される。サーバ構成（WEB_DIR 未設定）では何も足さない。
+_web_dir = settings.web_dir_path
+if _web_dir is not None:
+    from app.standalone import mount_web_ui
+
+    mount_web_ui(app, _web_dir)

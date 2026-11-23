@@ -1,3 +1,5 @@
+import pathlib
+
 from pydantic_settings import BaseSettings
 
 
@@ -55,6 +57,12 @@ class Settings(BaseSettings):
     # allow_credentials=True と併用するため "*" は使えない（ブラウザが拒否する）。
     CORS_ALLOW_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
 
+    # 個人用単体パッケージ: 書き出し済みの画面一式（静的ファイル群）の置き場所。
+    # packaging/ の起動スクリプトが同梱の web フォルダを指定する。未設定（サーバ
+    # 構成）では画面は配信しない。設定されていても実在しない場合は配信しない
+    # （パス間違いで API の応答が画面に化ける事故を防ぐため）。
+    WEB_DIR: str = ""
+
     # Application
     APP_NAME: str = "kAIkei"
     APP_VERSION: str = "0.1.0"
@@ -66,6 +74,14 @@ class Settings(BaseSettings):
     def cors_allow_origins(self) -> list[str]:
         """CORS_ALLOW_ORIGINS をリストに分解する（空要素は捨てる）。"""
         return [o.strip() for o in self.CORS_ALLOW_ORIGINS.split(",") if o.strip()]
+
+    @property
+    def web_dir_path(self) -> pathlib.Path | None:
+        """同梱画面の配信元ディレクトリ。配信しない場合は None。"""
+        if not self.WEB_DIR:
+            return None
+        path = pathlib.Path(self.WEB_DIR)
+        return path if path.is_dir() else None
 
 
 settings = Settings()
