@@ -746,11 +746,44 @@ class BankStatementLineResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class BankImportSkippedRow(BaseModel):
+    row_number: int
+    reason: str
+
+
 class BankImportResponse(BaseModel):
     model_config = {"from_attributes": True}
 
     imported: int
     lines: list[BankStatementLineResponse]
+    # 読み飛ばした行と理由。金額データを黙って捨てないため、必ず返す。
+    skipped: list[BankImportSkippedRow] = []
+
+
+class BankLineCounterpartCandidate(BaseModel):
+    account_id: UUID
+    account_code: str
+    account_name: str
+    confidence: float
+    support: int
+    exact_matches: int
+    reliable: bool
+    matches_bank_account: bool
+
+
+class BankLineSuggestionResponse(BaseModel):
+    status: str  # "ok" | "insufficient_data" | "no_matching_history"
+    trained_examples: int
+    direction: str
+    bank_account_id: UUID
+    bank_account_code: str
+    bank_account_name: str
+    candidates: list[BankLineCounterpartCandidate] = []
+
+
+class CreateJournalFromBankLineRequest(BaseModel):
+    bank_account_id: UUID
+    counterpart_account_id: UUID
 
 
 class AutoReconcileRequest(BaseModel):

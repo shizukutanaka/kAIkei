@@ -111,6 +111,33 @@ export async function apiGet<T>(path: string, params?: Record<string, string>): 
   }
 }
 
+export async function apiGetBlob(path: string, params?: Record<string, string>): Promise<Blob> {
+  const query = params ? `?${new URLSearchParams(params).toString()}` : "";
+  try {
+    let response = await fetch(`${API_BASE}${path}${query}`, {
+      headers: buildHeaders(),
+    });
+    if (response.status === 401) {
+      const refreshed = await handle401(path);
+      if (refreshed) {
+        response = await fetch(`${API_BASE}${path}${query}`, {
+          headers: buildHeaders(),
+        });
+      }
+    }
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      throw new Error(extractError(data));
+    }
+    return await response.blob();
+  } catch (err) {
+    if (err instanceof TypeError) {
+      throw new Error("サーバーに接続できません。APIサーバーが起動しているか確認してください。");
+    }
+    throw err;
+  }
+}
+
 export async function apiPost<T>(path: string, body: unknown, extraHeaders: Record<string, string> = {}): Promise<T> {
   try {
     let response = await fetch(`${API_BASE}${path}`, {

@@ -190,7 +190,9 @@ def find_best_match(
 
 
 def _parse_amount(raw: str) -> Decimal | None:
-    cleaned = (raw or "").replace(",", "").replace("¥", "").replace("￥", "").strip()
+    # 全角数字・全角記号を半角へ寄せてから解釈する（銀行CSVには全角混じりがある）。
+    cleaned = unicodedata.normalize("NFKC", raw or "")
+    cleaned = cleaned.replace(",", "").replace("¥", "").strip()
     if not cleaned:
         return None
     try:
@@ -200,48 +202,182 @@ def _parse_amount(raw: str) -> Decimal | None:
     return value if value != 0 else None
 
 
-def parse_bank_csv(csv_text: str) -> list[ParsedBankRow]:
-    """汎用銀行明細CSVをパースする。
+def decode_statement_bytes(content: bytes) -> str:
+    """銀行明細ファイルのバイト列をテキストへ復号する。
 
-    想定列（表記ゆれ許容）: 取引日/日付, 入金額/預入金額, 出金額/引出金額,
-    残高, 摘要/お取引内容, 振込人名/振込人名カナ/お名前
+    日本の銀行・カード会社のCSVは UTF-8 と Shift_JIS（cp932）が混在する。
+    どちらでも読めない場合は理由を添えて ValueError を送出する
+    （呼び出し側が 500 ではなく「読めない」という結果を返せるように）。
+    """
+    for encoding in ("utf-8-sig", "cp932"):
+        try:
+            return content.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise ValueError(
+        "ファイルの文字コードを判定できませんでした（UTF-8 / Shift_JIS のいずれでも読めません）"
+    )
+
+
+# 和暦の元号 → 西暦への換算オフセット（元号の年数に足すと西暦になる）。
+_ERA_OFFSETS = {"R": 2018, "令和": 2018, "H": 1988, "平成": 1988, "S": 1925, "昭和": 1925}
+_ERA_DATE_RE = re.compile(
+    r"^(R|H|S|令和|平成|昭和)\s*(\d{1,2})\s*[/年]\s*(\d{1,2})\s*[/月]\s*(\d{1,2})\s*日?$"
+)
+_DATE_FORMATS = ("%Y/%m/%d", "%Y-%m-%d", "%Y.%m.%d", "%Y%m%d", "%Y年%m月%d日")
+
+
+def _parse_date(raw: str) -> date | None:
+    """銀行CSVの日付表記を解釈する。西暦の主要形式と和暦に対応する。"""
+    text = unicodedata.normalize("NFKC", raw or "").strip()
+    if not text:
+        return None
+    era = _ERA_DATE_RE.match(text)
+    if era:
+        try:
+            return date(
+                _ERA_OFFSETS[era.group(1)] + int(era.group(2)),
+                int(era.group(3)),
+                int(era.group(4)),
+            )
+        except ValueError:
+            return None
+    for fmt in _DATE_FORMATS:
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+# 汎用取り込みの列対応（canonical名 → ヘッダ表記の候補）。
+# 銀行ごとに列名が違うため候補を広く持ち、利用者が column_map で上書きできる。
+_COLUMN_ALIASES: dict[str, tuple[str, ...]] = {
+    "date": ("取引日", "日付", "お取引日", "取引日付", "ご利用日", "利用日"),
+    "deposit": ("入金額", "預入金額", "お預入額", "お預り金額", "預り金額", "入金"),
+    "withdrawal": ("出金額", "引出金額", "お引出額", "お支払金額", "支払金額", "出金"),
+    "amount": ("金額", "お取引金額", "入出金額", "取引金額", "ご利用金額"),
+    "direction": ("入出金区分", "入出金", "区分", "種別"),
+    "balance": ("残高", "差引残高", "お取引後残高", "取引後残高"),
+    "description": ("摘要", "お取引内容", "内容", "メモ", "ご利用内容"),
+    "counterparty": ("振込人名カナ", "振込人名", "お名前", "取引先", "振込依頼人名", "お支払先"),
+}
+
+# 入出金区分の値 → direction。NFKC正規化＋小文字化してから引く。
+_DIRECTION_VALUES = {
+    "入金": "deposit", "入": "deposit", "預入": "deposit", "お預り": "deposit",
+    "deposit": "deposit", "credit": "deposit", "cr": "deposit", "+": "deposit",
+    "出金": "withdrawal", "出": "withdrawal", "引出": "withdrawal", "お支払": "withdrawal",
+    "withdrawal": "withdrawal", "debit": "withdrawal", "dr": "withdrawal", "-": "withdrawal",
+}
+
+
+@dataclass
+class SkippedRow:
+    """取り込めなかった行と、その理由。
+
+    金額データを扱う以上「黙って捨てる」ことはしない。理由を呼び出し側へ返し、
+    利用者がファイルの何行目を直せばよいか分かるようにする。
+    """
+
+    row_number: int  # ヘッダを1行目とした行番号
+    reason: str
+
+
+@dataclass
+class BankCsvParseResult:
+    rows: list[ParsedBankRow]
+    skipped: list[SkippedRow]
+
+
+def parse_bank_csv_detailed(
+    csv_text: str,
+    column_map: dict[str, str] | None = None,
+) -> BankCsvParseResult:
+    """銀行明細CSVをパースし、読めなかった行は理由つきで返す。
+
+    column_map は canonical名（date/deposit/withdrawal/amount/direction/balance/
+    description/counterparty）→ 実際のヘッダ名 の上書き。銀行・カード会社ごとの
+    列名のばらつきを、利用者が自分のファイルに合わせて調整できるようにする。
     """
     reader = csv.DictReader(io.StringIO(csv_text))
+    if not reader.fieldnames:
+        return BankCsvParseResult(rows=[], skipped=[])
+
+    headers = {(name or "").strip(): name for name in reader.fieldnames}
+
+    def resolve(canonical: str) -> str | None:
+        if column_map:
+            override = (column_map.get(canonical) or "").strip()
+            if override:
+                return headers.get(override)
+        for alias in _COLUMN_ALIASES[canonical]:
+            if alias in headers:
+                return headers[alias]
+        return None
+
+    columns = {name: resolve(name) for name in _COLUMN_ALIASES}
+
+    def col(row: dict, canonical: str) -> str:
+        field_name = columns[canonical]
+        if field_name is None:
+            return ""
+        value = row.get(field_name)
+        return value if value not in (None, "") else ""
+
     rows: list[ParsedBankRow] = []
+    skipped: list[SkippedRow] = []
 
-    def col(row: dict, *keys: str) -> str:
-        for key in keys:
-            value = row.get(key)
-            if value not in (None, ""):
-                return value
-        return ""
+    for row_number, row in enumerate(reader, start=2):
+        if all(value in (None, "") for value in row.values()):
+            continue  # 末尾の空行など、データでない行は数えない
 
-    for row in reader:
-        try:
-            date_raw = col(row, "取引日", "日付", "お取引日")
-            txn_date = datetime.strptime(date_raw, "%Y/%m/%d").date()
-        except ValueError:
-            logger.warning("Skipping bank CSV row with bad date: %s", row)
+        txn_date = _parse_date(col(row, "date"))
+        if txn_date is None:
+            skipped.append(SkippedRow(row_number, f"日付「{col(row, 'date')}」を解釈できませんでした"))
             continue
 
-        deposit = _parse_amount(col(row, "入金額", "預入金額", "お預入額"))
-        withdrawal = _parse_amount(col(row, "出金額", "引出金額", "お引出額"))
+        deposit = _parse_amount(col(row, "deposit")) if columns["deposit"] else None
+        withdrawal = _parse_amount(col(row, "withdrawal")) if columns["withdrawal"] else None
+        if deposit is not None and withdrawal is not None:
+            skipped.append(SkippedRow(row_number, "入金額と出金額の両方に金額があり、方向を決められませんでした"))
+            continue
         if deposit is not None:
             direction, amount = "deposit", abs(deposit)
         elif withdrawal is not None:
             direction, amount = "withdrawal", abs(withdrawal)
         else:
-            continue
+            # 金額が1列だけの形式（カード明細など）は、区分列か符号で方向を決める。
+            single = _parse_amount(col(row, "amount")) if columns["amount"] else None
+            if single is None:
+                skipped.append(SkippedRow(row_number, "金額が読み取れませんでした"))
+                continue
+            direction_raw = unicodedata.normalize("NFKC", col(row, "direction")).strip().lower()
+            direction = _DIRECTION_VALUES.get(direction_raw)
+            if direction is None and not columns["direction"]:
+                direction = "withdrawal" if single < 0 else None
+            if direction is None:
+                skipped.append(SkippedRow(row_number, "入出金の方向を決められませんでした"))
+                continue
+            amount = abs(single)
 
         rows.append(ParsedBankRow(
             transaction_date=txn_date,
             direction=direction,
             amount=amount,
-            balance=_parse_amount(col(row, "残高", "差引残高")),
-            description=col(row, "摘要", "お取引内容", "内容"),
-            counterparty_name=col(row, "振込人名カナ", "振込人名", "お名前", "取引先"),
+            balance=_parse_amount(col(row, "balance")) if columns["balance"] else None,
+            description=col(row, "description"),
+            counterparty_name=col(row, "counterparty"),
         ))
-    return rows
+    return BankCsvParseResult(rows=rows, skipped=skipped)
+
+
+def parse_bank_csv(csv_text: str) -> list[ParsedBankRow]:
+    """銀行明細CSVを取り込めた行だけ返す（後方互換用）。
+
+    読めなかった行の理由が必要な場合は parse_bank_csv_detailed を使うこと。
+    """
+    return parse_bank_csv_detailed(csv_text).rows
 
 
 # --- 非同期サービス（DB依存） ------------------------------------------------
@@ -251,9 +387,23 @@ async def import_statement_csv(
     tenant_id: UUID,
     company_id: UUID,
     csv_text: str,
+    column_map: dict[str, str] | None = None,
 ) -> list[BankStatementLine]:
     """銀行明細CSVを取り込んでBankStatementLineとして永続化する。"""
-    parsed = parse_bank_csv(csv_text)
+    lines, _skipped = await import_statement_detailed(db, tenant_id, company_id, csv_text, column_map)
+    return lines
+
+
+async def import_statement_detailed(
+    db: AsyncSession,
+    tenant_id: UUID,
+    company_id: UUID,
+    csv_text: str,
+    column_map: dict[str, str] | None = None,
+) -> tuple[list[BankStatementLine], list[SkippedRow]]:
+    """銀行明細CSVを取り込み、読めなかった行の理由も一緒に返す。"""
+    result = parse_bank_csv_detailed(csv_text, column_map)
+    parsed = result.rows
     lines: list[BankStatementLine] = []
     for row in parsed:
         line = BankStatementLine(
@@ -273,7 +423,7 @@ async def import_statement_csv(
         await db.commit()
         for line in lines:
             await db.refresh(line)
-    return lines
+    return lines, result.skipped
 
 
 async def list_statement_lines(
